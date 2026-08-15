@@ -1,0 +1,21 @@
+{
+  "name": "kopilka-life",
+  "version": "0.1.0",
+  "description": "Telegram Mini App + bot MVP for Копилка жизни",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "NODE_ENV=development DEV_AUTH_ENABLED=true node src/server.js",
+    "init-db": "node scripts/init-db.js",
+    "set-webhook": "node scripts/set-webhook.js",
+    "test": "NODE_ENV=test DEV_AUTH_ENABLED=true SCHEDULER_ENABLED=false node tests/smoke.test.js",
+    "webhook:set": "node scripts/set-webhook.js set",
+    "webhook:clear": "node scripts/set-webhook.js clear",
+    "webhook:info": "node scripts/set-webhook.js info"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}

@@ -1,0 +1,10 @@
+PRAGMA journal_mode = WAL;
+PRAGMA busy_timeout = 5000;
+CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id TEXT UNIQUE, first_name TEXT, username TEXT, timezone TEXT NOT NULL DEFAULT 'Asia/Novosibirsk', reminders_enabled INTEGER NOT NULL DEFAULT 0, evening_reminder_time TEXT NOT NULL DEFAULT '20:00', is_demo INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, title TEXT NOT NULL, note TEXT, life_points INTEGER NOT NULL, entry_date TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS weekly_contracts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, title TEXT NOT NULL, target_type TEXT NOT NULL DEFAULT 'self_report', target_value TEXT NOT NULL, week_start TEXT NOT NULL, week_end TEXT NOT NULL, stake_amount TEXT, stake_currency TEXT NOT NULL DEFAULT 'RUB', reward_description TEXT, fund_description TEXT, status TEXT NOT NULL DEFAULT 'active', result_note TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, closed_at TEXT);
+CREATE TABLE IF NOT EXISTS reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL DEFAULT 'evening', due_at TEXT NOT NULL, sent_at TEXT, status TEXT NOT NULL DEFAULT 'scheduled', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, type, due_at));
+CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries(user_id, entry_date);
+CREATE INDEX IF NOT EXISTS idx_contracts_user_status ON weekly_contracts(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(status, due_at, sent_at);
+CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(user_id);
