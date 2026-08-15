@@ -1,0 +1,143 @@
+// Frontend i18n (RU/EN) for Копилка жизни.
+// Rendered entry types and UI strings. Product content (hints/templates/practices/review)
+// is served localized from the backend; this file covers the static shell and quick actions.
+
+(function (global) {
+  const LOCALES = ['ru', 'en'];
+  const DEFAULT_LOCALE = 'ru';
+
+  // Entry types: id -> { points, title:{ru,en}, hint:{ru,en} }
+  const ENTRY_DEFS = {
+    sleep: { points: 3, title: { ru: 'Нормальный сон', en: 'Good sleep' }, hint: { ru: 'выспался или лёг вовремя', en: 'slept well or went to bed on time' } },
+    movement: { points: 2, title: { ru: 'Движение', en: 'Movement' }, hint: { ru: 'прогулка, разминка, спорт', en: 'walk, stretch, sport' } },
+    food_water: { points: 1, title: { ru: 'Еда или вода', en: 'Food or water' }, hint: { ru: 'поел или попил воды', en: 'ate or drank water' } },
+    joy: { points: 1, title: { ru: 'Радость', en: 'Joy' }, hint: { ru: 'что-то приятное, без KPI', en: 'something pleasant, no KPI' } },
+    gratitude: { points: 1, title: { ru: 'Благодарность', en: 'Gratitude' }, hint: { ru: 'факт, за который благодарен', en: 'something you are grateful for' } },
+    important_task: { points: 2, title: { ru: 'Важное дело', en: 'Important task' }, hint: { ru: 'довёл одно дело до конца', en: 'finished one task' } },
+    dream_step: { points: 2, title: { ru: 'Шаг к мечте', en: 'Step to a dream' }, hint: { ru: 'маленькое действие к цели', en: 'small step toward a goal' } },
+    kind_trace: { points: 1, title: { ru: 'Доброе дело', en: 'Kind deed' }, hint: { ru: 'помощь, спасибо, тёплое слово', en: 'help, thanks, a warm word' } },
+    honest_step: { points: 2, title: { ru: 'Честный шаг', en: 'Honest step' }, hint: { ru: 'признал, исправил, закрыл мелочь', en: 'admitted, fixed, closed a small thing' } },
+    rest: { points: 1, title: { ru: 'Отдых', en: 'Rest' }, hint: { ru: 'восстановился хоть немного', en: 'recovered a little' } },
+    hard_day: { points: 1, title: { ru: 'Сложный день', en: 'Hard day' }, hint: { ru: 'отметил день честно, без оценки', en: 'noted the day honestly, without judgment' } }
+  };
+
+  const STRINGS = {
+    life: { ru: 'ЖИЗНЬ', en: 'LIFE' },
+    addLife: { ru: 'добавить {points} ЖИЗНЬ', en: 'add {points} LIFE' },
+    plusLife: { ru: '+{points} ЖИЗНЬ', en: '+{points} LIFE' },
+    noEntriesToday: { ru: 'Сегодня ещё тихо. Можно начать с одного клика.', en: 'Still quiet today. You can start with one tap.' },
+    noWeek: { ru: 'Тихая неделя. Можно продолжить сегодня.', en: 'A quiet week. You can continue today.' },
+    noCategories: { ru: 'Категории появятся после первых записей.', en: 'Categories will appear after the first entries.' },
+    noActiveContract: { ru: 'Активного договора пока нет.', en: 'No active contract yet.' },
+    templatesLoading: { ru: 'Шаблоны загрузятся после подключения.', en: 'Templates will load after connecting.' },
+    currentContract: { ru: 'Текущий договор', en: 'Current contract' },
+    period: { ru: 'Период', en: 'Period' },
+    criteria: { ru: 'Критерий', en: 'Criteria' },
+    careFund: { ru: 'Фонд заботы', en: 'Care fund' },
+    giftSelf: { ru: 'Подарок себе', en: 'Gift to yourself' },
+    notSpecified: { ru: 'не указан', en: 'not specified' },
+    canChooseLater: { ru: 'можно выбрать позже', en: 'can choose later' },
+    connected: { ru: 'Подключено.', en: 'Connected.' },
+    saving: { ru: 'Сохраняю запись…', en: 'Saving entry…' },
+    entrySaved: { ru: 'Копилка пополнилась.', en: 'Your piggy bank is topped up.' },
+    creatingContract: { ru: 'Создаю договор заботы…', en: 'Creating a care contract…' },
+    contractCreated: { ru: 'Договор заботы создан.', en: 'Care contract created.' },
+    closingContract: { ru: 'Сохраняю итог договора…', en: 'Saving contract result…' },
+    contractClosed: { ru: 'Итог договора сохранён мягко и без оценки.', en: 'Contract result saved gently, without judgment.' },
+    savingSettings: { ru: 'Сохраняю настройки…', en: 'Saving settings…' },
+    settingsSaved: { ru: 'Настройки сохранены.', en: 'Settings saved.' },
+    practicesUpdated: { ru: 'Практики обновлены под выбранную цель.', en: 'Practices updated for the chosen goal.' },
+    templateApplied: { ru: 'Шаблон “{title}” подставлен. Можно отредактировать.', en: 'Template “{title}” filled in. You can edit it.' },
+    ready: { ru: 'Готово. Можно пополнить Копилку жизни.', en: 'Ready. You can top up the Life Piggy Bank.' },
+    connectFailed: { ru: 'Не удалось подключиться.', en: 'Could not connect.' },
+    openFromTelegram: { ru: 'Открой приложение из Telegram ещё раз.', en: 'Open the app from Telegram again.' },
+    telegramSession: { ru: 'Telegram-сессия подтверждена.', en: 'Telegram session confirmed.' },
+    devMode: { ru: 'Локальный demo-режим для разработки.', en: 'Local demo mode for development.' },
+    deletingDemo: { ru: 'Удаляю demo account…', en: 'Deleting demo account…' },
+    demoDeleted: { ru: 'Demo account и связанные данные удалены. Создаю чистый demo account…', en: 'Demo account and related data deleted. Creating a fresh demo account…' },
+    notDemo: { ru: 'Это не demo account, удаление недоступно.', en: 'This is not a demo account; deletion is not available.' },
+    actionFailed: { ru: 'Не получилось выполнить действие.', en: 'Could not complete the action.' },
+    closeCompleted: { ru: 'Выполнил и подарил себе', en: 'Completed and gifted myself' },
+    closeNotCompletedDonated: { ru: 'Не выполнил и отправил в фонд', en: 'Did not complete and donated' },
+    closeTooHard: { ru: 'Цель была слишком сложной', en: 'The goal was too hard' },
+    closeCancelled: { ru: 'Отменить без наказания', en: 'Cancel without penalty' },
+
+    // ---- static shell ----
+    skipToContent: { ru: 'Перейти к содержимому', en: 'Skip to content' },
+    appName: { ru: 'Копилка жизни', en: 'Life Piggy Bank' },
+    connecting: { ru: 'Подключаемся мягко и без спешки…', en: 'Connecting gently, no rush…' },
+    tabToday: { ru: 'Сегодня', en: 'Today' },
+    todayIntro: { ru: 'Что сегодня пополнило жизнь? Можно отметить одну маленькую конкретную вещь.', en: 'What supported your life today? You can note one small concrete thing.' },
+    todayAdded: { ru: 'Сегодня добавлено: ', en: 'Added today: ' },
+    todayAddedNote: { ru: '. Это видимый след жизни и заботы, не оценка тебя.', en: '. This is a visible trace of life and care, not a judgment of you.' },
+    dailyHintHeading: { ru: 'Подсказка дня', en: 'Daily hint' },
+    loadingHint: { ru: 'Загружаю мягкую подсказку…', en: 'Loading a gentle hint…' },
+    noteLabel: { ru: 'Заметка к записи, если хочется', en: 'Note for the entry, if you like' },
+    notePlaceholder: { ru: 'Не обязательно', en: 'Optional' },
+    noteHint: { ru: 'Заметку можно оставить пустой. Быстрое пополнение работает одним нажатием.', en: 'You can leave the note empty. A quick top-up works in one tap.' },
+    quickTopup: { ru: 'Быстро пополнить', en: 'Quick top-up' },
+    todayEntries: { ru: 'Последние записи сегодня', en: 'Latest entries today' },
+    tabWeek: { ru: 'Неделя', en: 'Week' },
+    weekLifeLabel: { ru: 'За неделю: ', en: 'This week: ' },
+    weekDaysLabel: { ru: 'Дней с записями: ', en: 'Days with entries: ' },
+    weekDaysNote: { ru: '. Тихие дни не считаются провалом.', en: '. Quiet days are not a failure.' },
+    weekDaysHeading: { ru: 'Дни недели', en: 'Days of the week' },
+    weekTopHeading: { ru: 'Чаще встречалось', en: 'Most common' },
+    weeklyReviewHeading: { ru: 'Недельный разбор', en: 'Weekly review' },
+    weeklyReviewLoading: { ru: 'Разбор появится после подключения.', en: 'The review will appear after connecting.' },
+    practicesHeading: { ru: 'Практики под цель', en: 'Practices for your goal' },
+    practicesGoal: { ru: 'Цель', en: 'Goal' },
+    tabContract: { ru: 'Договор', en: 'Contract' },
+    contractCreate: { ru: 'Создать договор заботы', en: 'Create a care contract' },
+    contractCreateNote: { ru: 'Это мягкое обещание себе на неделю, без наказания.', en: 'A gentle promise to yourself for a week, without punishment.' },
+    contractTemplatesHeading: { ru: 'Шаблоны недельных договоров', en: 'Weekly contract templates' },
+    contractTemplatesHint: { ru: 'Можно заполнить форму шаблоном и отредактировать под себя.', en: 'You can fill the form with a template and edit it to fit.' },
+    contractTitle: { ru: 'Название цели', en: 'Goal name' },
+    contractTarget: { ru: 'Критерий выполнения', en: 'Completion criteria' },
+    contractTargetPlaceholder: { ru: 'Например: лечь до 23:30 минимум 5 дней из 7', en: 'Example: in bed by 23:30 at least 5 of 7 days' },
+    contractStakeAmount: { ru: 'Сумма фонда заботы', en: 'Care fund amount' },
+    contractStakeHint: { ru: 'Не обязательно. Приложение не хранит и не переводит деньги. Это только мягкое напоминание, если сумма помогает договору.', en: 'Optional. The app does not store or transfer money. This is only a gentle reminder if an amount helps the contract.' },
+    contractStakeCurrency: { ru: 'Валюта', en: 'Currency' },
+    contractReward: { ru: 'Подарок себе при выполнении', en: 'Gift to yourself on completion' },
+    contractFund: { ru: 'Куда отправить, если не получилось', en: 'Where to send if it did not work' },
+    contractSubmit: { ru: 'Создать договор', en: 'Create contract' },
+    tabSettings: { ru: 'Настройки', en: 'Settings' },
+    settingsTimezone: { ru: 'Часовой пояс', en: 'Time zone' },
+    settingsTimezoneHint: { ru: 'Например: Asia/Novosibirsk, Europe/Moscow или UTC.', en: 'Example: Asia/Novosibirsk, Europe/Moscow, or UTC.' },
+    settingsReminders: { ru: 'Вечернее напоминание включено', en: 'Evening reminder enabled' },
+    settingsReminderTime: { ru: 'Время напоминания', en: 'Reminder time' },
+    settingsReminderNote: { ru: 'Пример: “Если есть силы, можно за 10 секунд пополнить Копилку жизни.”', en: 'Example: “If you have energy, you can top up the Life Piggy Bank in 10 seconds.”' },
+    settingsSave: { ru: 'Сохранить настройки', en: 'Save settings' },
+    languageHeading: { ru: 'Язык', en: 'Language' },
+    serviceHeading: { ru: 'Служебно', en: 'Service' },
+    userDebug: { ru: 'Пользователь ещё не подключён.', en: 'User is not connected yet.' },
+    cleanupDemo: { ru: 'Удалить demo account', en: 'Delete demo account' },
+    yes: { ru: 'да', en: 'yes' },
+    no: { ru: 'нет', en: 'no' }
+  };
+
+  function normalizeLocale(locale) {
+    const code = String(locale || '').toLowerCase().split('-')[0];
+    return LOCALES.includes(code) ? code : DEFAULT_LOCALE;
+  }
+
+  function t(locale, key, params = {}) {
+    const entry = STRINGS[key];
+    if (!entry) return key;
+    const value = entry[normalizeLocale(locale)] || entry[DEFAULT_LOCALE] || key;
+    return value.replace(/\{(\w+)\}/g, (match, name) => (name in params ? String(params[name]) : match));
+  }
+
+  function entryType(locale, type) {
+    const def = ENTRY_DEFS[type];
+    if (!def) return null;
+    const lang = normalizeLocale(locale);
+    return { type, title: def.title[lang] || def.title[DEFAULT_LOCALE], hint: def.hint[lang] || def.hint[DEFAULT_LOCALE], points: def.points };
+  }
+
+  function entryTypes(locale) {
+    return Object.keys(ENTRY_DEFS).map((type) => entryType(locale, type));
+  }
+
+  global.KopilkaI18n = { LOCALES, DEFAULT_LOCALE, normalizeLocale, t, entryType, entryTypes, STRINGS, ENTRY_DEFS };
+})(window);

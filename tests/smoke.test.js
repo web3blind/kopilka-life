@@ -56,6 +56,8 @@ function testStaticAccessibility() {
   assert(css.includes(':focus-visible'), 'focus-visible styles exist');
   assert(css.includes('prefers-reduced-motion'), 'reduced motion CSS exists');
   assert(css.includes('qa-hint'), 'quick action description styles exist');
+  assert(css.includes('language-switch'), 'language switcher styles exist');
+  assert(html.includes('data-i18n'), 'static text is i18n-ready');
 }
 
 async function main() {
@@ -102,6 +104,21 @@ async function main() {
   assert(response.data.practices.some((text) => text.includes('тёплое') || text.includes('добро')), 'kindness practices returned');
   response = await request('/api/product/practices?goal=honesty', { headers: auth });
   assert(response.data.practices.some((text) => text.includes('сигнал') && text.includes('шум')), 'honesty/compass practices returned');
+  // i18n: create an EN demo user and verify localized product content + entry title.
+  let enResp = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'EN Demo', locale: 'en' }) });
+  assert.equal(enResp.res.status, 200, 'dev auth en enabled');
+  const enToken = enResp.data.token;
+  const enAuth = { authorization: `Bearer ${enToken}` };
+  assert.equal(enResp.data.user.locale, 'en', 'en locale persisted');
+  enResp = await request('/api/entries', { method: 'POST', headers: enAuth, body: JSON.stringify({ type: 'kind_trace' }) });
+  assert.equal(enResp.res.status, 201, 'en entry created');
+  assert.equal(enResp.data.summary.todayEntries[0].title, 'Kind deed', 'en entry title localized');
+  enResp = await request('/api/product?goal=sleep', { headers: enAuth });
+  assert.equal(enResp.data.contractTemplates.find((t) => t.id === 'kind-trace-3-of-7').title, 'Kind deed 3 of 7', 'en contract template localized');
+  assert(enResp.data.dailyHint?.title, 'en daily hint returned');
+  assert(!/[А-Яа-яЁё]/.test(enResp.data.weeklyReview.summaryText), 'en weekly review has no Russian');
+  enResp = await request('/api/product/practices?goal=kindness', { headers: enAuth });
+  assert(enResp.data.practices.some((text) => /warm|kind|thank/i.test(text)), 'en kindness practices returned');
   response = await request('/api/contracts', { method: 'POST', headers: auth, body: JSON.stringify({ title: 'Сон', targetValue: '5 дней из 7', stakeAmount: '500', stakeCurrency: 'RUB', rewardDescription: 'чай', fundDescription: 'фонд' }) });
   assert.equal(response.res.status, 201, 'contract created');
   const contractId = response.data.contract.id;

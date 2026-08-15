@@ -39,12 +39,12 @@ function scheduleRemindersForEnabledUsers() {
 
 async function sendDueReminders(limit = 20) {
   const db = getDb();
-  const due = db.prepare("SELECT r.*, u.telegram_id FROM reminders r JOIN users u ON u.id = r.user_id WHERE r.status = 'scheduled' AND r.sent_at IS NULL AND r.due_at <= ? ORDER BY r.due_at ASC LIMIT ?").all(new Date().toISOString(), limit);
+  const due = db.prepare("SELECT r.*, u.telegram_id, u.locale FROM reminders r JOIN users u ON u.id = r.user_id WHERE r.status = 'scheduled' AND r.sent_at IS NULL AND r.due_at <= ? ORDER BY r.due_at ASC LIMIT ?").all(new Date().toISOString(), limit);
   let sent = 0;
   for (const reminder of due) {
     if (db.prepare("UPDATE reminders SET status = 'sending' WHERE id = ? AND sent_at IS NULL AND status = 'scheduled'").run(reminder.id).changes !== 1) continue;
     try {
-      if (!String(reminder.telegram_id || '').startsWith('demo:')) await sendReminder(reminder.telegram_id);
+      if (!String(reminder.telegram_id || '').startsWith('demo:')) await sendReminder(reminder.telegram_id, reminder.locale);
       db.prepare("UPDATE reminders SET sent_at = CURRENT_TIMESTAMP, status = 'sent' WHERE id = ?").run(reminder.id);
       scheduleNextReminderForUser(reminder.user_id);
       sent += 1;

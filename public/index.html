@@ -7,121 +7,129 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <a class="skip-link" href="#main">Перейти к содержимому</a>
+  <a class="skip-link" href="#main" data-i18n="skipToContent">Перейти к содержимому</a>
   <div class="app-shell">
     <header class="top-card" aria-label="Статус подключения">
-      <p class="eyebrow">Копилка жизни</p>
+      <p class="eyebrow" data-i18n="appName">Копилка жизни</p>
       <p id="connectionStatus">Подключаемся мягко и без спешки…</p>
     </header>
 
     <main id="main" class="main-content" tabindex="-1">
       <section id="tab-today" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-today">
-        <h1 id="heading-today" tabindex="-1">Сегодня</h1>
-        <p>Что сегодня пополнило жизнь? Можно отметить одну маленькую конкретную вещь.</p>
+        <h1 id="heading-today" tabindex="-1" data-i18n="tabToday">Сегодня</h1>
+        <p data-i18n="todayIntro">Что сегодня пополнило жизнь? Можно отметить одну маленькую конкретную вещь.</p>
         <section class="summary-card" aria-label="Баланс ЖИЗНИ">
           <p class="big-number"><span id="totalLife">0</span> ЖИЗНЬ</p>
-          <p>Сегодня добавлено: <strong id="todayLife">0</strong>. Это видимый след жизни и заботы, не оценка тебя.</p>
+          <p data-i18n="todayAdded"><span>Сегодня добавлено: </span><strong id="todayLife">0</strong>. Это видимый след жизни и заботы, не оценка тебя.</p>
         </section>
         <section class="summary-card" aria-labelledby="dailyHintHeading">
-          <h2 id="dailyHintHeading">Подсказка дня</h2>
-          <p id="dailyHintTitle" class="hint-title">Загружаю мягкую подсказку…</p>
+          <h2 id="dailyHintHeading" data-i18n="dailyHintHeading">Подсказка дня</h2>
+          <p id="dailyHintTitle" class="hint-title" data-i18n="loadingHint">Загружаю мягкую подсказку…</p>
           <p id="dailyHintText"></p>
           <p id="dailyHintAction" class="soft-note"></p>
         </section>
         <form id="entryForm" class="entry-form">
-          <label for="entryNote">Заметка к записи, если хочется</label>
+          <label for="entryNote" data-i18n="noteLabel">Заметка к записи, если хочется</label>
           <textarea id="entryNote" name="note" rows="2" placeholder="Не обязательно" aria-describedby="entryNoteHint"></textarea>
-          <p id="entryNoteHint" class="field-hint">Заметку можно оставить пустой. Быстрое пополнение работает одним нажатием.</p>
+          <p id="entryNoteHint" class="field-hint" data-i18n="noteHint">Заметку можно оставить пустой. Быстрое пополнение работает одним нажатием.</p>
           <fieldset>
-            <legend>Быстро пополнить</legend>
+            <legend data-i18n="quickTopup">Быстро пополнить</legend>
             <div id="quickActions" class="quick-action-grid"></div>
           </fieldset>
         </form>
         <section aria-labelledby="todayEntriesHeading">
-          <h2 id="todayEntriesHeading">Последние записи сегодня</h2>
+          <h2 id="todayEntriesHeading" data-i18n="todayEntries">Последние записи сегодня</h2>
           <ul id="todayEntries" class="plain-list"></ul>
         </section>
       </section>
 
       <section id="tab-week" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-week" hidden>
-        <h1 id="heading-week" tabindex="-1">Неделя</h1>
+        <h1 id="heading-week" tabindex="-1" data-i18n="tabWeek">Неделя</h1>
         <section class="summary-card" aria-label="Итоги недели">
-          <p>За неделю: <strong id="weekLife">0</strong> ЖИЗНЬ.</p>
-          <p>Дней с записями: <strong id="activeDays">0</strong>. Тихие дни не считаются провалом.</p>
+          <p><span data-i18n="weekLifeLabel">За неделю: </span><strong id="weekLife">0</strong> ЖИЗНЬ.</p>
+          <p><span data-i18n="weekDaysLabel">Дней с записями: </span><strong id="activeDays">0</strong><span data-i18n="weekDaysNote">. Тихие дни не считаются провалом.</span></p>
         </section>
-        <h2>Дни недели</h2>
+        <h2 data-i18n="weekDaysHeading">Дни недели</h2>
         <ul id="weekDays" class="plain-list"></ul>
-        <h2>Чаще встречалось</h2>
+        <h2 data-i18n="weekTopHeading">Чаще встречалось</h2>
         <ul id="topCategories" class="plain-list"></ul>
         <section class="summary-card" aria-labelledby="weeklyReviewHeading">
-          <h2 id="weeklyReviewHeading">Недельный разбор</h2>
-          <p id="weeklyReviewText">Разбор появится после подключения.</p>
+          <h2 id="weeklyReviewHeading" data-i18n="weeklyReviewHeading">Недельный разбор</h2>
+          <p id="weeklyReviewText" data-i18n="weeklyReviewLoading">Разбор появится после подключения.</p>
           <ul id="weeklyReviewQuestions" class="plain-list compact-list"></ul>
         </section>
         <section class="summary-card" aria-labelledby="practicesHeading">
-          <h2 id="practicesHeading">Практики под цель</h2>
-          <label for="practiceGoal">Цель</label>
+          <h2 id="practicesHeading" data-i18n="practicesHeading">Практики под цель</h2>
+          <label for="practiceGoal" data-i18n="practicesGoal">Цель</label>
           <select id="practiceGoal" name="practiceGoal"></select>
           <ul id="goalPractices" class="plain-list compact-list"></ul>
         </section>
       </section>
 
       <section id="tab-contract" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-contract" hidden>
-        <h1 id="heading-contract" tabindex="-1">Договор</h1>
+        <h1 id="heading-contract" tabindex="-1" data-i18n="tabContract">Договор</h1>
         <div id="contractCurrent"></div>
         <form id="contractForm" class="card-form">
-          <h2>Создать договор заботы</h2>
-          <p>Это мягкое обещание себе на неделю, без наказания.</p>
+          <h2 data-i18n="contractCreate">Создать договор заботы</h2>
+          <p data-i18n="contractCreateNote">Это мягкое обещание себе на неделю, без наказания.</p>
           <section aria-labelledby="contractTemplatesHeading">
-            <h3 id="contractTemplatesHeading">Шаблоны недельных договоров</h3>
-            <p class="field-hint">Можно заполнить форму шаблоном и отредактировать под себя.</p>
+            <h3 id="contractTemplatesHeading" data-i18n="contractTemplatesHeading">Шаблоны недельных договоров</h3>
+            <p class="field-hint" data-i18n="contractTemplatesHint">Можно заполнить форму шаблоном и отредактировать под себя.</p>
             <div id="contractTemplates" class="template-grid"></div>
           </section>
-          <label for="contractTitle">Название цели</label>
+          <label for="contractTitle" data-i18n="contractTitle">Название цели</label>
           <input id="contractTitle" name="title" required autocomplete="off">
-          <label for="contractTarget">Критерий выполнения</label>
+          <label for="contractTarget" data-i18n="contractTarget">Критерий выполнения</label>
           <textarea id="contractTarget" name="targetValue" rows="2" required placeholder="Например: лечь до 23:30 минимум 5 дней из 7"></textarea>
-          <label for="stakeAmount">Сумма фонда заботы</label>
+          <label for="stakeAmount" data-i18n="contractStakeAmount">Сумма фонда заботы</label>
           <input id="stakeAmount" name="stakeAmount" inputmode="decimal" aria-describedby="stakeHint">
-          <p id="stakeHint" class="field-hint">Не обязательно. Приложение не хранит и не переводит деньги. Это только мягкое напоминание, если сумма помогает договору.</p>
-          <label for="stakeCurrency">Валюта</label>
+          <p id="stakeHint" class="field-hint" data-i18n="contractStakeHint">Не обязательно. Приложение не хранит и не переводит деньги. Это только мягкое напоминание, если сумма помогает договору.</p>
+          <label for="stakeCurrency" data-i18n="contractStakeCurrency">Валюта</label>
           <input id="stakeCurrency" name="stakeCurrency" value="RUB" autocomplete="off">
-          <label for="rewardDescription">Подарок себе при выполнении</label>
+          <label for="rewardDescription" data-i18n="contractReward">Подарок себе при выполнении</label>
           <input id="rewardDescription" name="rewardDescription" autocomplete="off">
-          <label for="fundDescription">Куда отправить, если не получилось</label>
+          <label for="fundDescription" data-i18n="contractFund">Куда отправить, если не получилось</label>
           <input id="fundDescription" name="fundDescription" autocomplete="off">
-          <button type="submit">Создать договор</button>
+          <button type="submit" data-i18n="contractSubmit">Создать договор</button>
         </form>
       </section>
 
       <section id="tab-settings" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-settings" hidden>
-        <h1 id="heading-settings" tabindex="-1">Настройки</h1>
+        <h1 id="heading-settings" tabindex="-1" data-i18n="tabSettings">Настройки</h1>
         <form id="settingsForm" class="card-form">
-          <label for="timezone">Часовой пояс</label>
+          <label for="timezone" data-i18n="settingsTimezone">Часовой пояс</label>
           <input id="timezone" name="timezone" value="Asia/Novosibirsk" autocomplete="off" aria-describedby="timezoneHint">
-          <p id="timezoneHint" class="field-hint">Например: Asia/Novosibirsk, Europe/Moscow или UTC.</p>
-          <label class="checkbox-label" for="remindersEnabled"><input id="remindersEnabled" name="remindersEnabled" type="checkbox"> Вечернее напоминание включено</label>
-          <label for="eveningReminderTime">Время напоминания</label>
+          <p id="timezoneHint" class="field-hint" data-i18n="settingsTimezoneHint">Например: Asia/Novosibirsk, Europe/Moscow или UTC.</p>
+          <label class="checkbox-label" for="remindersEnabled"><input id="remindersEnabled" name="remindersEnabled" type="checkbox"><span data-i18n="settingsReminders">Вечернее напоминание включено</span></label>
+          <label for="eveningReminderTime" data-i18n="settingsReminderTime">Время напоминания</label>
           <input id="eveningReminderTime" name="eveningReminderTime" type="time" value="20:00">
-          <p class="soft-note">Пример: “Если есть силы, можно за 10 секунд пополнить Копилку жизни.”</p>
-          <button type="submit">Сохранить настройки</button>
+          <p class="soft-note" data-i18n="settingsReminderNote">Пример: “Если есть силы, можно за 10 секунд пополнить Копилку жизни.”</p>
+          <button type="submit" data-i18n="settingsSave">Сохранить настройки</button>
         </form>
+        <section class="summary-card" aria-labelledby="languageHeading">
+          <h2 id="languageHeading" data-i18n="languageHeading">Язык</h2>
+          <div class="language-switch" role="group" aria-label="Язык">
+            <button id="lang-ru" type="button" data-lang="ru">Русский</button>
+            <button id="lang-en" type="button" data-lang="en">English</button>
+          </div>
+        </section>
         <section class="summary-card" aria-labelledby="serviceHeading">
-          <h2 id="serviceHeading">Служебно</h2>
-          <p id="userDebug">Пользователь ещё не подключён.</p>
-          <button id="cleanupDemo" type="button" class="secondary">Удалить demo account</button>
+          <h2 id="serviceHeading" data-i18n="serviceHeading">Служебно</h2>
+          <p id="userDebug" data-i18n="userDebug">Пользователь ещё не подключён.</p>
+          <button id="cleanupDemo" type="button" class="secondary" data-i18n="cleanupDemo">Удалить demo account</button>
         </section>
       </section>
     </main>
 
     <p id="statusRegion" class="status-region" role="status" aria-live="polite"></p>
     <nav class="tab-bar" aria-label="Разделы Копилки жизни" role="tablist">
-      <button id="tab-button-today" type="button" role="tab" data-tab="today" aria-controls="tab-today" aria-selected="true" aria-current="page">Сегодня</button>
-      <button id="tab-button-week" type="button" role="tab" data-tab="week" aria-controls="tab-week" aria-selected="false">Неделя</button>
-      <button id="tab-button-contract" type="button" role="tab" data-tab="contract" aria-controls="tab-contract" aria-selected="false">Договор</button>
-      <button id="tab-button-settings" type="button" role="tab" data-tab="settings" aria-controls="tab-settings" aria-selected="false">Настройки</button>
+      <button id="tab-button-today" type="button" role="tab" data-tab="today" aria-controls="tab-today" aria-selected="true" aria-current="page" data-i18n="tabToday">Сегодня</button>
+      <button id="tab-button-week" type="button" role="tab" data-tab="week" aria-controls="tab-week" aria-selected="false" data-i18n="tabWeek">Неделя</button>
+      <button id="tab-button-contract" type="button" role="tab" data-tab="contract" aria-controls="tab-contract" aria-selected="false" data-i18n="tabContract">Договор</button>
+      <button id="tab-button-settings" type="button" role="tab" data-tab="settings" aria-controls="tab-settings" aria-selected="false" data-i18n="tabSettings">Настройки</button>
     </nav>
   </div>
+  <script src="/i18n.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

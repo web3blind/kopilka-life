@@ -9,7 +9,11 @@ function initDatabase(dbPath = config.dbPath) {
   db.pragma('journal_mode = WAL');
   db.pragma('busy_timeout = 5000');
   db.pragma('foreign_keys = ON');
-  db.exec(fs.readFileSync(path.join(process.cwd(), 'migrations', '001_init.sql'), 'utf8'));
+  const migrationsDir = path.join(process.cwd(), 'migrations');
+  const migrationFiles = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
+  for (const file of migrationFiles) {
+    db.exec(fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
+  }
   return db;
 }
 function getDb() { return db || initDatabase(); }

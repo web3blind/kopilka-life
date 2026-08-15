@@ -1,8 +1,9 @@
-# Копилка жизни
+# Копилка жизни / Life Piggy Bank
 
 Telegram Mini App + bot MVP: одна HTML-страница с нижними вкладками, Node.js backend, SQLite и webhook bot API.
+Русский и английский интерфейс (RU/EN), переключается в настройках и определяется по языку Telegram.
 
-## Локальный запуск
+## Локальный запуск / Local run
 
 ```bash
 npm install
@@ -15,7 +16,15 @@ npm run dev
 
 В development при `DEV_AUTH_ENABLED=true` страница использует fake demo auth, если открыта вне Telegram.
 
-## Проверки
+## Многоязычность / i18n
+
+- Язык пользователя определяется по `language_code` из Telegram (initData) и хранится в профиле.
+- Переключатель **Русский / English** в экране «Настройки» (сохраняется через `POST /api/settings/locale`).
+- Backend-словарь: `src/i18n.js` (категории, подсказки, шаблоны, практики, разбор, ошибки, сообщения бота).
+- Frontend-словарь: `public/i18n.js` (статические тексты оболочки и кнопки быстрых действий).
+- Бот отправляет `/start` и напоминания на языке пользователя.
+
+## Проверки / Checks
 
 ```bash
 npm test
@@ -28,6 +37,7 @@ Smoke tests покрывают:
 - SQLite persistence;
 - entries/balance/contracts;
 - продуктовый слой MVP: подсказки дня, шаблоны договоров, недельный разбор, практики под цель, Compass/happy alignment без абстрактной кнопки “Достаточно на сегодня”;
+- **i18n RU/EN**: локализованные категории, шаблоны, практики и разбор для EN-пользователя;
 - timezone-aware reminders и duplicate protection;
 - webhook `/start` dry-run;
 - demo cleanup cascade;
@@ -52,8 +62,8 @@ python3 tests/chro-qa.py
 ```env
 NODE_ENV=production
 BOT_TOKEN=...
-WEBAPP_URL=https://your-domain.example
-APP_BASE_URL=https://your-domain.example
+WEBAPP_URL=https://life.blinddev.xyz
+APP_BASE_URL=https://life.blinddev.xyz
 DEV_AUTH_ENABLED=false
 ```
 
