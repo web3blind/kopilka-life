@@ -8,7 +8,18 @@
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="skipToContent">Перейти к содержимому</a>
-  <div class="app-shell">
+  <section id="loginScreen" class="screen-panel" aria-labelledby="loginHeading" hidden>
+    <h1 id="loginHeading" data-i18n="loginHeading">Вход</h1>
+    <p data-i18n="loginIntro">Чтобы открыть Копилку жизни, войдите через Telegram или VK ID. Данные связываются с одним аккаунтом.</p>
+    <section class="summary-card" aria-labelledby="loginMethodsHeading">
+      <h2 id="loginMethodsHeading" data-i18n="loginMethodsHeading">Выберите способ входа</h2>
+      <div id="telegramLoginButton" class="login-button"></div>
+      <p class="field-hint" data-i18n="loginTelegramHint">Кнопка входа через Telegram появится здесь.</p>
+      <div id="vkLoginButton" class="login-button" data-i18n="loginVkButton">Войти через VK ID (скоро)</div>
+    </section>
+    <p id="loginStatus" class="status-region" role="status" aria-live="polite"></p>
+  </section>
+  <div class="app-shell" id="appShell" hidden>
     <header class="top-card" aria-label="Статус подключения">
       <p class="eyebrow" data-i18n="appName">Копилка жизни</p>
       <p id="connectionStatus">Подключаемся мягко и без спешки…</p>

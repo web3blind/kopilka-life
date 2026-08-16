@@ -1,6 +1,7 @@
 const express = require('express');
 const config = require('../config');
 const { validateTelegramInitData } = require('../auth/validateTelegramInitData');
+const { validateTelegramLogin } = require('../auth/validateTelegramLogin');
 const { createToken, verifyToken } = require('../auth/session');
 const { publicUser, upsertTelegramUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser } = require('../services/usersService');
 const { createEntry, getSummary, getWeekSummary, listEntries } = require('../services/entriesService');
@@ -42,6 +43,18 @@ router.post('/auth/telegram', authLimiter, (req, res) => {
     res.status(401).json({ error: 'Не удалось подтвердить Telegram-сессию. Открой приложение из Telegram ещё раз.' });
   }
 });
+// Site login via Telegram Login Widget. Same account as Mini App (keyed by telegram_id).
+router.post('/auth/telegram-login', authLimiter, (req, res) => {
+  try {
+    const validated = validateTelegramLogin(req.body, config.botToken, { maxAgeSeconds: config.telegramAuthMaxAgeSeconds });
+    const user = upsertTelegramUser(validated.user);
+    res.json({ token: createToken(user.id), user: publicUser(user) });
+  } catch (error) {
+    res.status(401).json({ error: 'Не удалось подтвердить вход через Telegram.' });
+  }
+});
+// Public, non-sensitive config the site needs to render the login widget.
+router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl }));
 router.post('/auth/dev', devLimiter, (req, res) => {
   if (!config.devAuthEnabled) return disabled(res);
   const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale);

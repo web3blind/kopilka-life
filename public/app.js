@@ -63,14 +63,70 @@ async function loadData() {
   localStorage.setItem('kopilkaLocale', me.user.locale || 'ru');
   renderAll();
 }
+
+// ---------- Site login (outside Telegram Mini App) ----------
+async function showLoginScreen() {
+  const shell = $('appShell');
+  const screen = $('loginScreen');
+  applyStaticI18n();
+  if (shell) shell.hidden = true;
+  if (screen) screen.hidden = false;
+  await initTelegramLogin();
+}
+
+async function initTelegramLogin() {
+  let cfg;
+  try { cfg = await api('/api/config'); } catch (e) { cfg = {}; }
+  const username = (cfg.botUsername || '').replace(/^@/, '').trim();
+  const box = $('telegramLoginButton');
+  const hint = $('loginTelegramHint');
+  if (!username) { if (hint) hint.textContent = L('loginFailed'); return; }
+  if (box) box.innerHTML = '';
+  // Load the official Telegram Login Widget script and render the button.
+  const script = document.createElement('script');
+  script.async = true;
+  script.src = 'https://telegram.org/js/telegram-widget.js?22';
+  script.setAttribute('data-telegram-login', username);
+  script.setAttribute('data-size', 'large');
+  script.setAttribute('data-radius', '14');
+  script.setAttribute('data-onauth', 'window.__kopilkaOnTelegramAuth(user)');
+  script.setAttribute('data-request-access', 'write');
+  script.onload = () => { if (hint) hint.hidden = true; };
+  script.onerror = () => { if (hint) hint.textContent = L('loginFailed'); };
+  if (box) box.appendChild(script);
+}
+
+async function handleTelegramLogin(user) {
+  const status = $('loginStatus');
+  try {
+    if (status) { status.textContent = L('loginInProgress'); status.classList.remove('error'); }
+    const data = await api('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify(user) });
+    state.token = data.token; state.user = data.user;
+    localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
+    if ($('loginScreen')) $('loginScreen').hidden = true;
+    if ($('appShell')) $('appShell').hidden = false;
+    $('connectionStatus').textContent = L('telegramSession');
+    await loadData();
+    setStatus(L('ready'));
+  } catch (e) {
+    if (status) { status.textContent = e.message || L('loginFailed'); status.classList.add('error'); }
+  }
+}
+window.__kopilkaOnTelegramAuth = handleTelegramLogin;
+
 async function authenticate() {
   if (state.token) { try { await loadData(); $('connectionStatus').textContent = L('connected'); return; } catch (e) { localStorage.removeItem('kopilkaToken'); state.token = ''; } }
-  const initData = window.Telegram?.WebApp?.initData;
-  const body = initData ? { initData } : { firstName: 'Demo', locale: localStorage.getItem('kopilkaLocale') || 'ru' };
-  const data = await api(initData ? '/api/auth/telegram' : '/api/auth/dev', { method: 'POST', body: JSON.stringify(body) });
-  state.token = data.token; state.user = data.user; localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
-  $('connectionStatus').textContent = initData ? L('telegramSession') : L('devMode');
-  await loadData();
+  const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
+  if (inTelegram) {
+    const initData = window.Telegram.WebApp.initData;
+    const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData }) });
+    state.token = data.token; state.user = data.user; localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
+    $('connectionStatus').textContent = L('telegramSession');
+    await loadData();
+    return;
+  }
+  // Outside Telegram Mini App -> show the site login screen (Telegram / VK).
+  await showLoginScreen();
 }
 async function refreshProduct() { state.product = await api(`/api/product?goal=${encodeURIComponent($('practiceGoal')?.value || 'calm')}`); }
 async function createEntry(type) { return withBusy(L('saving'), async () => { const data = await api('/api/entries', { method: 'POST', body: JSON.stringify({ type, note: $('entryNote').value.trim() }) }); state.summary = data.summary; state.week = data.week; await refreshProduct(); $('entryNote').value = ''; renderAll(); setStatus(L('entrySaved')); }); }
@@ -89,6 +145,13 @@ function bindEvents() {
   $('settingsForm').addEventListener('submit', async (event) => { try { await saveSettings(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
   $('cleanupDemo').addEventListener('click', async () => { if (state.busy) return; try { await cleanupDemo(); } catch (e) { setStatus(e.message, 'error'); } });
   document.querySelectorAll('[data-lang]').forEach((btn) => btn.addEventListener('click', async () => { if (state.busy) return; try { await setLanguage(btn.dataset.lang); setStatus(L('settingsSaved')); } catch (e) { setStatus(e.message, 'error'); } }));
+  const vkBtn = $('vkLoginButton');
+  if (vkBtn) vkBtn.addEventListener('click', () => { vkBtn.disabled = true; vkBtn.textContent = L('loginVkSoon'); });
 }
-async function start() { renderQuickActions(); bindEvents(); applyStaticI18n(); try { window.Telegram?.WebApp?.ready?.(); await authenticate(); setStatus(L('ready')); } catch (e) { $('connectionStatus').textContent = L('connectFailed'); setStatus(e.message || L('openFromTelegram'), 'error'); } }
+async function start() {
+  const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
+  if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
+  renderQuickActions(); bindEvents(); applyStaticI18n();
+  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); setStatus(L('ready')); } catch (e) { $('connectionStatus').textContent = L('connectFailed'); setStatus(e.message || L('openFromTelegram'), 'error'); }
+}
 start();

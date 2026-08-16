@@ -8,6 +8,7 @@ module.exports = {
   appBaseUrl: process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`,
   webappUrl: process.env.WEBAPP_URL || process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`,
   botToken: process.env.BOT_TOKEN || '',
+  botUsername: process.env.BOT_USERNAME || '',
   dbPath: process.env.DB_PATH || path.join(process.cwd(), 'data', 'kopilka-life.sqlite'),
   sessionSecret: process.env.SESSION_SECRET || 'local-dev-secret-change-me',
   devAuthEnabled: !isProduction && process.env.DEV_AUTH_ENABLED === 'true',

@@ -14,6 +14,7 @@ process.env.RATE_LIMIT_DEV_MAX = '200';
 const { createApp } = require('../src/server');
 const { closeDb, getDb } = require('../src/db');
 const { validateTelegramInitData } = require('../src/auth/validateTelegramInitData');
+const { validateTelegramLogin } = require('../src/auth/validateTelegramLogin');
 const { sendDueReminders, nextDueAt } = require('../src/services/remindersService');
 const { createRateLimiter } = require('../src/middleware/rateLimit');
 
@@ -26,6 +27,15 @@ function makeInitData(user, botToken, authDate = Math.floor(Date.now() / 1000)) 
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   params.set('hash', crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex'));
   return params.toString();
+}
+
+// Builds a valid Telegram Login Widget callback payload. Secret = SHA256(botToken).
+function makeLoginWidget(user, botToken, authDate = Math.floor(Date.now() / 1000)) {
+  const fields = { id: String(user.id), first_name: user.first_name, username: user.username || '', auth_date: String(authDate) };
+  const dataCheckString = Object.entries(fields).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join('\n');
+  const secretKey = crypto.createHash('sha256').update(botToken).digest();
+  const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+  return { ...fields, hash };
 }
 
 function testRateLimiterUnit() {
@@ -77,11 +87,34 @@ async function main() {
   const valid = makeInitData({ id: 123, first_name: 'Telegram', username: 'tg_user' }, 'test-bot-token');
   assert.equal(validateTelegramInitData(valid, 'test-bot-token').user.id, 123, 'valid Telegram initData passes');
   assert.throws(() => validateTelegramInitData(valid.replace(/.$/, 'x'), 'test-bot-token'), /invalid|hash/i, 'tampered initData fails');
+  // Telegram Login Widget (site login): same secret scheme (SHA256 botToken), distinct from WebApp.
+  const widget = makeLoginWidget({ id: 999, first_name: 'Site', username: 'site_user' }, 'test-bot-token');
+  assert.equal(validateTelegramLogin(widget, 'test-bot-token').user.id, 999, 'valid Login Widget payload passes');
+  assert.throws(() => validateTelegramLogin({ ...widget, hash: widget.hash.slice(0, -1) + (widget.hash.slice(-1) === 'a' ? 'b' : 'a') }, 'test-bot-token'), /invalid|hash/i, 'tampered Login Widget fails');
+  assert.throws(() => validateTelegramLogin({ ...makeLoginWidget({ id: 777, first_name: 'Old', username: 'o' }, 'test-bot-token', 100), hash: '' }, 'test-bot-token'), /too old|hash/i, 'stale Login Widget rejected');
+  const cfgResp = await request('/api/config');
+  assert.equal(cfgResp.res.status, 200, 'public config endpoint available');
+  assert(typeof cfgResp.data.botUsername === 'string', 'public config exposes botUsername');
   let response = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'QA Demo' }) });
   assert.equal(response.res.status, 200, 'dev auth enabled');
   const token = response.data.token;
   const userId = response.data.user.id;
   const auth = { authorization: `Bearer ${token}` };
+  // Site login end-to-end: same telegram_id as Mini App -> same account (unified).
+  // 1) Mini App login creates/returns the Telegram user (id 123).
+  let miniResp = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: valid }) });
+  assert.equal(miniResp.res.status, 200, 'mini app telegram auth accepted');
+  const miniUserId = miniResp.data.user.id;
+  // 2) Site Login Widget with the SAME telegram id resolves to the SAME account.
+  let loginResp = await request('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify(makeLoginWidget({ id: 123, first_name: 'Telegram', username: 'tg_user' }, 'test-bot-token')) });
+  assert.equal(loginResp.res.status, 200, 'site telegram-login accepted');
+  assert.equal(loginResp.data.user.id, miniUserId, 'site login reuses the same account as Mini App (unified by telegram_id)');
+  const siteToken = loginResp.data.token;
+  const siteAuth = { authorization: `Bearer ${siteToken}` };
+  let meResp = await request('/api/me', { headers: siteAuth });
+  assert.equal(meResp.data.user.id, miniUserId, 'site session token is valid');
+  loginResp = await request('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...makeLoginWidget({ id: 123, first_name: 'Telegram', username: 'tg_user' }, 'test-bot-token'), hash: 'deadbeef' }) });
+  assert.equal(loginResp.res.status, 401, 'forged site login rejected');
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'sleep', note: 'smoke' }) });
   assert.equal(response.res.status, 201, 'entry created');
   assert.equal(response.data.summary.todayLife, 3, 'today balance updated');
