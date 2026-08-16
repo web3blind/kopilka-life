@@ -9,10 +9,15 @@ function initDatabase(dbPath = config.dbPath) {
   db.pragma('journal_mode = WAL');
   db.pragma('busy_timeout = 5000');
   db.pragma('foreign_keys = ON');
+  // Track applied migrations so ALTER/CREATE steps run once (idempotent restarts).
+  db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   const migrationsDir = path.join(process.cwd(), 'migrations');
   const migrationFiles = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
+  const applied = db.prepare('SELECT name FROM _migrations').all().map((row) => row.name);
   for (const file of migrationFiles) {
+    if (applied.includes(file)) continue;
     db.exec(fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
+    db.prepare('INSERT OR IGNORE INTO _migrations (name) VALUES (?)').run(file);
   }
   return db;
 }
