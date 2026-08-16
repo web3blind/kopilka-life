@@ -1,4 +1,4 @@
-# Копилка жизни / Life Piggy Bank
+# Копилка жизни / Life Harbor
 
 Telegram Mini App + bot MVP: одна HTML-страница с нижними вкладками, Node.js backend, SQLite и webhook bot API.
 Русский и английский интерфейс (RU/EN), переключается в настройках и определяется по языку Telegram.

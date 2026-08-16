@@ -55,7 +55,7 @@ const STRINGS = {
   // ---- quick statuses ----
   'status.connected': { ru: 'Подключено.', en: 'Connected.' },
   'status.saving': { ru: 'Сохраняю запись…', en: 'Saving entry…' },
-  'status.entrySaved': { ru: 'Копилка пополнилась.', en: 'Your piggy bank is topped up.' },
+  'status.entrySaved': { ru: 'Копилка пополнилась.', en: 'Your Life Harbor is topped up.' },
   'status.creatingContract': { ru: 'Создаю договор заботы…', en: 'Creating a care contract…' },
   'status.contractCreated': { ru: 'Договор заботы создан.', en: 'Care contract created.' },
   'status.closingContract': { ru: 'Сохраняю итог договора…', en: 'Saving contract result…' },
@@ -64,7 +64,7 @@ const STRINGS = {
   'status.settingsSaved': { ru: 'Настройки сохранены.', en: 'Settings saved.' },
   'status.practicesUpdated': { ru: 'Практики обновлены под выбранную цель.', en: 'Practices updated for the chosen goal.' },
   'status.templateApplied': { ru: 'Шаблон “{title}” подставлен. Можно отредактировать.', en: 'Template “{title}” filled in. You can edit it.' },
-  'status.ready': { ru: 'Готово. Можно пополнить Копилку жизни.', en: 'Ready. You can top up the Life Piggy Bank.' },
+  'status.ready': { ru: 'Готово. Можно пополнить Копилку жизни.', en: 'Ready. You can top up your Life Harbor.' },
   'status.connectFailed': { ru: 'Не удалось подключиться.', en: 'Could not connect.' },
   'status.openFromTelegram': { ru: 'Открой приложение из Telegram ещё раз.', en: 'Open the app from Telegram again.' },
   'status.telegramSession': { ru: 'Telegram-сессия подтверждена.', en: 'Telegram session confirmed.' },
@@ -110,9 +110,9 @@ const STRINGS = {
   'review.closeStatus.cancelled': { ru: 'отменён', en: 'cancelled' },
 
   // ---- bot messages ----
-  'bot.open': { ru: 'Открыть Копилку жизни', en: 'Open the Life Piggy Bank' },
-  'bot.start': { ru: 'Это Копилка жизни. Здесь можно за 10 секунд отметить маленькие вещи, которые поддержали день.', en: 'This is the Life Piggy Bank. Here you can note small things that supported your day in 10 seconds.' },
-  'bot.reminder': { ru: 'Если есть силы, можно за 10 секунд пополнить Копилку жизни.', en: 'If you have the energy, you can top up the Life Piggy Bank in 10 seconds.' }
+  'bot.open': { ru: 'Открыть Копилку жизни', en: 'Open your Life Harbor' },
+  'bot.start': { ru: 'Это Копилка жизни. Здесь можно за 10 секунд отметить маленькие вещи, которые поддержали день.', en: 'This is your Life Harbor. Here you can note small things that supported your day in 10 seconds.' },
+  'bot.reminder': { ru: 'Если есть силы, можно за 10 секунд пополнить Копилку жизни.', en: 'If you have the energy, you can top up your Life Harbor in 10 seconds.' },
 };
 
 // ---- product content (hints, contract templates, practices, goals) ----
@@ -135,7 +135,7 @@ const DAILY_HINTS = [
   { id: 'ordinary-support', title: { ru: 'Обычное чудо', en: 'An ordinary wonder' }, text: { ru: 'Иногда жизнь поддерживает что-то простое: вода, воздух, тепло, рабочий телефон, голос рядом или безопасная комната.', en: 'Sometimes something simple supports life: water, air, warmth, a working phone, a voice nearby, or a safe room.' }, action: { ru: 'Если заметил такую опору — подойдёт “Благодарность” или короткая заметка.', en: 'If you noticed such support, “Gratitude” or a short note works.' } },
   { id: 'kind-trace', title: { ru: 'Доброе дело', en: 'Kind deed' }, text: { ru: 'Маленькое добро тоже пополняет жизнь: помощь, спасибо, тёплое сообщение, конкретный комплимент.', en: 'Small kindness also fills life: help, thanks, a warm message, a concrete compliment.' }, action: { ru: 'Если сделал такое — отметь “Доброе дело”.', en: 'If you did that, mark “Kind deed”.' } },
   { id: 'honest-millimeter', title: { ru: 'Честный шаг', en: 'Honest step' }, text: { ru: 'Когда давит ошибка или тревога, не надо чинить всё. Один честный маленький шаг уже возвращает опору.', en: 'When a mistake or anxiety weighs on you, you do not need to fix everything. One honest small step already brings back ground.' }, action: { ru: 'Если сделал такой шаг — отметь “Честный шаг”.', en: 'If you took such a step, mark “Honest step”.' } },
-  { id: 'life-before-chase', title: { ru: 'Жизнь важнее гонки', en: 'Life matters more than the chase' }, text: { ru: 'Не всё надо добывать прямо сейчас. Иногда главный прогресс — выбрать один живой шаг и не доказывать ценность весь день.', en: 'Not everything has to be earned right now. Sometimes the main progress is to pick one living step and not prove your worth all day.' }, action: { ru: 'Сделай одно конкретное действие и пополни Копилку. Этого уже достаточно, если сил мало.', en: 'Do one concrete action and top up the piggy bank. That is already enough if you have little energy.' } }
+  { id: 'life-before-chase', title: { ru: 'Жизнь важнее гонки', en: 'Life matters more than the chase' }, text: { ru: 'Не всё надо добывать прямо сейчас. Иногда главный прогресс — выбрать один живой шаг и не доказывать ценность весь день.', en: 'Not everything has to be earned right now. Sometimes the main progress is to pick one living step and not prove your worth all day.' }, action: { ru: 'Сделай одно конкретное действие и пополни Копилку. Этого уже достаточно, если сил мало.', en: 'Do one concrete action and top up your Life Harbor. That is already enough if you have little energy.' } }
 ];
 
 const CONTRACT_TEMPLATES = [
