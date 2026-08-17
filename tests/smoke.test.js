@@ -162,6 +162,13 @@ async function main() {
   const vkLinkResp = await request('/api/settings/link-vk', { method: 'POST', headers: siteAuth, body: JSON.stringify({ launchParams: makeVkLaunchParams(9002, 'test-vk-secure-key') }) });
   assert.equal(vkLinkResp.res.status, 200, 'Telegram account can link verified VK id');
   assert.equal(vkLinkResp.data.user.vkLinked, true, 'linked Telegram account reports vkLinked');
+  const mergeTarget = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 124, first_name: 'Merge Target', username: 'merge_target' }, 'test-bot-token') }) });
+  const mergeTargetAuth = { authorization: `Bearer ${mergeTarget.data.token}` };
+  const disposableVk = await request('/api/auth/vk', { method: 'POST', body: JSON.stringify({ launchParams: makeVkLaunchParams(9003, 'test-vk-secure-key'), timezone: 'Europe/Moscow' }) });
+  assert.equal(disposableVk.res.status, 200, 'disposable VK-only user can be created by VK login');
+  const mergeLinkResp = await request('/api/settings/link-vk', { method: 'POST', headers: mergeTargetAuth, body: JSON.stringify({ launchParams: makeVkLaunchParams(9003, 'test-vk-secure-key') }) });
+  assert.equal(mergeLinkResp.res.status, 200, 'Telegram account can claim an empty VK-only account');
+  assert.equal(mergeLinkResp.data.user.vkLinked, true, 'merged Telegram account reports vkLinked');
   loginResp = await request('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...makeLoginWidget({ id: 123, first_name: 'Telegram', username: 'tg_user' }, 'test-bot-token'), hash: 'deadbeef' }) });
   assert.equal(loginResp.res.status, 401, 'forged site login rejected');
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'sleep', note: 'smoke' }) });

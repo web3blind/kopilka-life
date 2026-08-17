@@ -77,14 +77,28 @@ function upsertVkUser(vkId, refCode, timezone, locale = 'ru') {
   ensureRefCode(info.lastInsertRowid);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }
+function userHasOwnedData(userId) {
+  const db = getDb();
+  const entries = db.prepare('SELECT COUNT(*) AS count FROM entries WHERE user_id = ?').get(userId).count;
+  const contracts = db.prepare('SELECT COUNT(*) AS count FROM weekly_contracts WHERE user_id = ?').get(userId).count;
+  const reminders = db.prepare('SELECT COUNT(*) AS count FROM reminders WHERE user_id = ?').get(userId).count;
+  return entries + contracts + reminders > 0;
+}
 function linkVkUser(userId, vkId) {
   const db = getDb();
   const vkIdText = String(vkId);
   const current = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   if (!current) throw new Error('user not found');
   const linked = db.prepare('SELECT * FROM users WHERE vk_id = ?').get(vkIdText);
-  if (linked && linked.id !== userId) throw new Error('Этот VK уже привязан к другому аккаунту. Войдите через VK отдельно или напишите поддержке.');
-  db.prepare('UPDATE users SET vk_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(vkIdText, userId);
+  const linkTransaction = db.transaction(() => {
+    if (linked && linked.id !== userId) {
+      const isDisposableVkOnly = String(linked.telegram_id || '').startsWith('vk:') && !userHasOwnedData(linked.id);
+      if (!isDisposableVkOnly) throw new Error('Этот VK уже привязан к другому аккаунту. Войдите через VK отдельно или напишите поддержке.');
+      db.prepare('DELETE FROM users WHERE id = ?').run(linked.id);
+    }
+    db.prepare('UPDATE users SET vk_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(vkIdText, userId);
+  });
+  linkTransaction();
   return db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
 }
 function getUserById(id) { return getDb().prepare('SELECT * FROM users WHERE id = ?').get(id); }
