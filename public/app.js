@@ -294,7 +294,8 @@ function bindEvents() {
 }
 async function start() {
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
-  if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
+  const inVk = isVkMiniApp();
+  if (inTelegram || inVk) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
   renderQuickActions(); applyStaticI18n();
   try { window.Telegram?.WebApp?.ready?.(); await authenticate(); setStatus(L('ready')); } catch (e) { const detail = (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('openFromTelegram'), 'error'); }
 }
@@ -343,12 +344,14 @@ async function renderPublicProfile(code) {
 }
 (async () => {
   bindEvents(); // bind buttons in every context (site, public profile, Mini App)
+  const inVk = isVkMiniApp();
+  const publicCode = (() => { try { const m = /^\/p\/([A-Za-z0-9]+)/.exec(window.location.pathname); return m ? m[1] : null; } catch (_) { return null; } })();
+  if (inVk) { await start(); return; }
   const hasWebApp = await waitForTelegram();
   // Even if initData is momentarily empty, if the Telegram WebApp SDK exists we
   // are inside a Mini App — authenticate (Telegram requires initData at call time).
   const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp);
   if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
-  const publicCode = (() => { try { const m = /^\/p\/([A-Za-z0-9]+)/.exec(window.location.pathname); return m ? m[1] : null; } catch (_) { return null; } })();
   if (!inTelegram && publicCode && await renderPublicProfile(publicCode)) { applyStaticI18n(); return; }
   if (!inTelegram) { await showLoginScreen(); return; }
   await start();
