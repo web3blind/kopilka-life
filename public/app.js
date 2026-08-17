@@ -173,3 +173,9 @@ function waitForTelegram() {
   if (!inTelegram) { await showLoginScreen(); return; }
   await start();
 })();
+// Surface any runtime JS error into the status region so it is visible/audible
+// (helps a11y users and makes client-side failures diagnosable).
+window.addEventListener('error', (event) => {
+  const msg = event.error ? `${event.error.name || ''}: ${event.error.message || ''}` : (event.message || 'JS error');
+  try { if ($('connectionStatus')) $('connectionStatus').textContent = msg; if (window.__kopilkaSetDiag) window.__kopilkaSetDiag(msg); } catch (_) {}
+});
