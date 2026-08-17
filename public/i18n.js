@@ -11,7 +11,7 @@
     sleep: { points: 3, title: { ru: 'Нормальный сон', en: 'Good sleep' }, hint: { ru: 'выспался или лёг вовремя', en: 'slept well or went to bed on time' } },
     movement: { points: 2, title: { ru: 'Движение', en: 'Movement' }, hint: { ru: 'прогулка, разминка, спорт', en: 'walk, stretch, sport' } },
     food_water: { points: 1, title: { ru: 'Еда или вода', en: 'Food or water' }, hint: { ru: 'поел или попил воды', en: 'ate or drank water' } },
-    joy: { points: 1, title: { ru: 'Радость', en: 'Joy' }, hint: { ru: 'что-то приятное, без KPI', en: 'something pleasant, no KPI' } },
+    joy: { points: 1, title: { ru: 'Радость', en: 'Joy' }, hint: { ru: 'что-то приятное, без KPI; посмеялся, смешное видео', en: 'something pleasant, no KPI; laughed, a funny video' } },
     gratitude: { points: 1, title: { ru: 'Благодарность', en: 'Gratitude' }, hint: { ru: 'факт, за который благодарен', en: 'something you are grateful for' } },
     important_task: { points: 2, title: { ru: 'Важное дело', en: 'Important task' }, hint: { ru: 'довёл одно дело до конца', en: 'finished one task' } },
     dream_step: { points: 2, title: { ru: 'Шаг к мечте', en: 'Step to a dream' }, hint: { ru: 'маленькое действие к цели', en: 'small step toward a goal' } },
