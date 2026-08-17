@@ -200,7 +200,7 @@ function bindEvents() {
     if (!url) { dbg('Share: нет ссылки (профиль не загружен)'); return; }
     const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
     const tg = window.Telegram?.WebApp;
-    dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} open=${!!(tg && tg.openTelegramLink)}`);
+    dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} ver=${tg ? (tg.version || '?') : '—'} open=${!!(tg && tg.openTelegramLink)}`);
     // 1) OS share sheet first — opens a real picker in Telegram Android WebView.
     if (navigator.share) {
       dbg('Share: открываю системное окно…');
