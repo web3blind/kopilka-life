@@ -33,7 +33,7 @@ function isVkMiniApp() { return Boolean(vkLaunchParams()); }
 async function initVkBridge() {
   try { if (window.vkBridge?.send) await window.vkBridge.send('VKWebAppInit'); } catch (_) { /* VK Bridge init is best-effort */ }
 }
-async function startVkOAuth(action = 'auth') {
+async function getVkOAuthUrl(action = 'auth') {
   const cfg = await api('/api/config');
   if (!cfg.vkOAuthEnabled) throw new Error(L('vkOauthNotConfigured'));
   const data = await api('/api/auth/vk-oauth/start', {
@@ -41,7 +41,17 @@ async function startVkOAuth(action = 'auth') {
     body: JSON.stringify({ action, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() })
   });
   if (!data.authUrl) throw new Error(L('vkOauthStartFailed'));
-  window.location.assign(data.authUrl);
+  return data.authUrl;
+}
+function goToVkOAuth(authUrl, statusEl = null) {
+  window.location.href = authUrl;
+  window.setTimeout(() => {
+    if (statusEl) statusEl.innerHTML = `${escapeHtml(L('vkOauthRedirectFallback'))} <a href="${escapeHtml(authUrl)}">${escapeHtml(L('vkOauthOpenLink'))}</a>`;
+  }, 1200);
+}
+async function startVkOAuth(action = 'auth', statusEl = null) {
+  const authUrl = await getVkOAuthUrl(action);
+  goToVkOAuth(authUrl, statusEl);
 }
 function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text; region.classList.toggle('error', type === 'error'); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
@@ -281,17 +291,19 @@ function bindEvents() {
     const vkStatus = $('vkLinkStatus');
     linkVkBtn.disabled = true;
     if (vkStatus) vkStatus.textContent = L('vkLinking');
+    setStatus(L('vkLinking'));
     try {
-      await withBusy(L('vkLinking'), () => handleVkAuth({ linkOnly: true }));
+      if (isVkMiniApp()) {
+        await withBusy(L('vkLinking'), () => handleVkAuth({ linkOnly: true }));
+      } else {
+        const authUrl = await getVkOAuthUrl('link');
+        goToVkOAuth(authUrl, vkStatus);
+      }
     } catch (e) {
       const message = e.message || L('actionFailed');
       if (vkStatus) vkStatus.textContent = message;
       setStatus(message, 'error');
-    } finally {
-      if (!state.user?.vkLinked) {
-        linkVkBtn.hidden = false;
-        linkVkBtn.disabled = false;
-      }
+      linkVkBtn.disabled = false;
     }
   });
   const copyBtn = $('copyRefLink');
