@@ -26,9 +26,13 @@ function validateTelegramLogin(loginData, botToken, options = {}) {
   const maxAgeSeconds = options.maxAgeSeconds || 86400;
   if (!authDate || Math.floor(Date.now() / 1000) - authDate > maxAgeSeconds) throw new Error('loginData is too old');
 
-  // Build data_check_string from all fields except hash, sorted, k=v joined by \n.
+  // Build data_check_string from Telegram Login Widget fields only, sorted,
+  // k=v joined by \n. The frontend may append local fields like refCode or
+  // timezone for our app; Telegram did not sign them, so they must not affect
+  // signature verification.
+  const telegramKeys = new Set(['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date']);
   const dataCheckString = Array.from(params.entries())
-    .filter(([key]) => key !== 'hash')
+    .filter(([key]) => telegramKeys.has(key))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${value}`)
     .join('\n');

@@ -112,6 +112,7 @@ async function main() {
   // Telegram Login Widget (site login): same secret scheme (SHA256 botToken), distinct from WebApp.
   const widget = makeLoginWidget({ id: 999, first_name: 'Site', username: 'site_user' }, 'test-bot-token');
   assert.equal(validateTelegramLogin(widget, 'test-bot-token').user.id, 999, 'valid Login Widget payload passes');
+  assert.equal(validateTelegramLogin({ ...widget, refCode: 'ABC123', timezone: 'Europe/Moscow' }, 'test-bot-token').user.id, 999, 'app-local fields do not break Login Widget signature');
   assert.throws(() => validateTelegramLogin({ ...widget, hash: widget.hash.slice(0, -1) + (widget.hash.slice(-1) === 'a' ? 'b' : 'a') }, 'test-bot-token'), /invalid|hash/i, 'tampered Login Widget fails');
   assert.throws(() => validateTelegramLogin({ ...makeLoginWidget({ id: 777, first_name: 'Old', username: 'o' }, 'test-bot-token', 100), hash: '' }, 'test-bot-token'), /too old|hash/i, 'stale Login Widget rejected');
   const vkLaunch = makeVkLaunchParams(424242, 'test-vk-secure-key');
