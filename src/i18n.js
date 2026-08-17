@@ -113,6 +113,7 @@ const STRINGS = {
   'bot.open': { ru: 'Открыть Копилку жизни', en: 'Open your Life Harbor' },
   'bot.start': { ru: 'Это Копилка жизни. Здесь можно за 10 секунд отметить маленькие вещи, которые поддержали день.', en: 'This is your Life Harbor. Here you can note small things that supported your day in 10 seconds.' },
   'bot.reminder': { ru: 'Если есть силы, можно за 10 секунд пополнить Копилку жизни.', en: 'If you have the energy, you can top up your Life Harbor in 10 seconds.' },
+  'inline.shareTitle': { ru: 'Копилка жизни', en: 'Life Harbor' },
 };
 
 // ---- product content (hints, contract templates, practices, goals) ----

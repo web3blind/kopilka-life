@@ -201,7 +201,13 @@ function bindEvents() {
     const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
     const tg = window.Telegram?.WebApp;
     dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} ver=${tg ? (tg.version || '?') : '—'} open=${!!(tg && tg.openTelegramLink)}`);
-    // 1) OS share sheet first — opens a real picker in Telegram Android WebView.
+    // 1) Telegram inline mode: opens the native chat picker, then sends the
+    //    composed text+link to the chosen chat via answerInlineQuery. Reliable.
+    if (inTelegram && tg && tg.switchInlineQuery) {
+      dbg('Share: открываю выбор чата (inline)…');
+      try { tg.switchInlineQuery(`${text} ${url}`, ['users', 'groups', 'channels']); return; } catch (e) { dbg('Share: switchInlineQuery ошибка: ' + (e && e.message ? e.message : String(e))); }
+    }
+    // 2) OS share sheet (best effort, may be unavailable in WebView).
     if (navigator.share) {
       dbg('Share: открываю системное окно…');
       let done = false;
@@ -209,7 +215,7 @@ function bindEvents() {
       navigator.share({ title: 'Копилка жизни', text, url }).then(() => { clearTimeout(timer); done = true; }).catch((e) => { clearTimeout(timer); done = true; dbg('Share: системное окно: ' + (e && e.message ? e.message : String(e))); if (navigator.clipboard) finish(); });
       return;
     }
-    // 2) Telegram forward composer (may silently no-op on some clients).
+    // 3) Telegram forward composer (best effort; may no-op on some clients).
     if (inTelegram && tg && tg.openTelegramLink) {
       try {
         const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
@@ -218,7 +224,7 @@ function bindEvents() {
         return;
       } catch (e) { dbg('Share: openTelegramLink ошибка: ' + (e && e.message ? e.message : String(e))); }
     }
-    // 3) Last resort: copy.
+    // 4) Last resort: copy.
     dbg('Share: нативный share недоступен, копирую.');
     finish();
   }

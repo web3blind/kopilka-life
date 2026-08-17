@@ -208,6 +208,9 @@ async function main() {
   assert(!/https?:\/\//i.test(xssEntry.data.entry.note), 'url neutralized in stored note');
   response = await request('/telegram/webhook', { method: 'POST', body: JSON.stringify({ message: { text: '/start', chat: { id: 555 } } }) });
   assert.equal(response.res.status, 200, 'webhook /start smoke ok');
+  // Inline mode (switchInlineQuery share): bot answers with an article.
+  const inlineResp = await request('/telegram/webhook', { method: 'POST', body: JSON.stringify({ inline_query: { id: 'iq1', query: 'Текст https://life.blinddev.xyz?ref=X', from: { language_code: 'ru' } } }) });
+  assert.equal(inlineResp.res.status, 200, 'inline_query answered ok');
   response = await request(`/api/dev/demo-user/${userId}`, { method: 'DELETE' });
   assert.equal(response.data.deleted, true, 'demo cleanup deleted user');
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM entries WHERE user_id = ?').get(userId).count, 0, 'demo entries cleaned via cascade');
