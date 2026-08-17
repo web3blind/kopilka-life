@@ -69,6 +69,8 @@
     loginIntro: { ru: 'Чтобы открыть Копилку жизни, войдите через Telegram или VK ID. Вход с бота и сайта даёт один аккаунт.', en: 'To open Life Harbor, sign in with Telegram or VK ID. Signing in from the bot or the site uses the same account.' },
     loginMethodsHeading: { ru: 'Выберите способ входа', en: 'Choose how to sign in' },
     loginTelegramHint: { ru: 'Кнопка входа через Telegram появится здесь.', en: 'The Telegram sign-in button will appear here.' },
+    openTelegramButton: { ru: 'Открыть в Telegram', en: 'Open in Telegram' },
+    telegramDomainHint: { ru: 'Вход прямо на сайте через Telegram включим после настройки домена бота. Пока кнопка открывает Mini App в Telegram без ошибки домена.', en: 'Direct Telegram sign-in on the site will be enabled after configuring the bot domain. For now, this button opens the Mini App in Telegram without the domain error.' },
     loginVkButton: { ru: 'Открыть через VK', en: 'Open with VK' },
     loginVkSoon: { ru: 'Открою VK Mini App для безопасного входа.', en: 'Opening the VK Mini App for secure sign-in.' },
     vkSession: { ru: 'VK-сессия подтверждена.', en: 'VK session confirmed.' },

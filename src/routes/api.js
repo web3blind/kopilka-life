@@ -76,8 +76,8 @@ router.post('/settings/link-vk', authRequired, authLimiter, (req, res) => {
     res.status(400).json({ error: error.message || 'Не удалось привязать VK.' });
   }
 });
-// Public, non-sensitive config the site needs to render the login widget.
-router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl, vkAppId: config.vkAppId }));
+// Public, non-sensitive config the site needs to render sign-in options.
+router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl, telegramLoginWidgetEnabled: config.telegramLoginWidgetEnabled, vkAppId: config.vkAppId }));
 router.post('/auth/dev', devLimiter, (req, res) => {
   if (!config.devAuthEnabled) return disabled(res);
   const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale, req.body.refCode, req.body.timezone);

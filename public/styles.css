@@ -2,3 +2,4 @@
 .login-button{display:flex;justify-content:center;margin-top:.75rem;min-height:44px;align-items:center}
 #vkLoginButton{background:var(--surface);color:var(--accent);border:1px solid var(--border);border-radius:14px;padding:.75rem 1rem;text-align:center;cursor:pointer}
 #vkLoginButton[disabled]{opacity:.6;cursor:not-allowed}
+.button-like{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--accent);border-radius:14px;background:var(--accent);color:white;text-decoration:none;padding:.75rem 1rem;font-weight:700}.button-like:focus{outline:3px solid var(--focus);outline-offset:2px}

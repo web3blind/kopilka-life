@@ -136,7 +136,21 @@ async function initTelegramLogin() {
   const hint = $('loginTelegramHint');
   if (!username) { if (hint) hint.textContent = L('loginFailed'); return; }
   if (box) box.innerHTML = '';
-  // Load the official Telegram Login Widget script and render the button.
+  if (!cfg.telegramLoginWidgetEnabled) {
+    const ref = captureRefCode();
+    const url = `https://t.me/${encodeURIComponent(username)}${ref ? `?startapp=${encodeURIComponent(ref)}` : '?startapp=site'}`;
+    const link = document.createElement('a');
+    link.className = 'button-like';
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = L('openTelegramButton');
+    if (box) box.appendChild(link);
+    if (hint) hint.textContent = L('telegramDomainHint');
+    return;
+  }
+  // Load the official Telegram Login Widget script and render the button. It only
+  // works after BotFather /setdomain matches this site's host.
   const script = document.createElement('script');
   script.async = true;
   script.src = 'https://telegram.org/js/telegram-widget.js?22';
