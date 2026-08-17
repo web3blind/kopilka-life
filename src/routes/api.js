@@ -40,6 +40,7 @@ router.post('/auth/telegram', authLimiter, (req, res) => {
     const user = upsertTelegramUser(validated.user);
     res.json({ token: createToken(user.id), user: publicUser(user) });
   } catch (error) {
+    console.error('[auth/telegram] reject:', error && error.message ? error.message : String(error));
     res.status(401).json({ error: 'Не удалось подтвердить Telegram-сессию. Открой приложение из Telegram ещё раз.' });
   }
 });

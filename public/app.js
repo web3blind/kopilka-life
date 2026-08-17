@@ -152,7 +152,7 @@ async function start() {
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
   if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
   renderQuickActions(); bindEvents(); applyStaticI18n();
-  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); setStatus(L('ready')); } catch (e) { $('connectionStatus').textContent = L('connectFailed'); setStatus(e.message || L('openFromTelegram'), 'error'); }
+  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); setStatus(L('ready')); } catch (e) { const detail = (e && e.message) ? e.message : String(e); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('openFromTelegram'), 'error'); }
 }
 // The Telegram WebApp SDK may not be ready when app.js first runs; retry the
 // in-Telegram check until initData appears (or a short timeout), so a Mini App
