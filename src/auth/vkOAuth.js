@@ -47,7 +47,6 @@ function buildAuthorizeUrl({ action = 'auth', userId = null, refCode = '', timez
     state,
     code_challenge: codeChallenge(verifier),
     code_challenge_method: 'S256',
-    scope: '',
   });
   return `https://id.vk.ru/authorize?${params.toString()}`;
 }
