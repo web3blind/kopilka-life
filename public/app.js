@@ -200,7 +200,8 @@ function bindEvents() {
     if (!url) { dbg('Share: нет ссылки (профиль не загружен)'); return; }
     const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
     const tg = window.Telegram?.WebApp;
-    dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} ver=${tg ? (tg.version || '?') : '—'} open=${!!(tg && tg.openTelegramLink)}`);
+    const botInline = Boolean(tg && (tg.initDataUnsafe?.bot_inline ?? tg.botInline ?? tg.version));
+    dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} ver=${tg ? (tg.version || '?') : '—'} inline=${tg ? !!tg.switchInlineQuery : false} botInline=${tg ? !!(tg.initDataUnsafe && tg.initDataUnsafe.bot_inline) : '?'}`);
     // 1) Telegram inline mode: opens the native chat picker, then sends the
     //    composed text+link to the chosen chat via answerInlineQuery. Reliable.
     if (inTelegram && tg && tg.switchInlineQuery) {
