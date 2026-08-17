@@ -206,9 +206,9 @@ function bindEvents() {
     try { await navigator.clipboard.writeText(url); setStatus(L('copied')); } catch (_) { window.prompt(L('refLinkLabel'), url); }
   }
   const shareRefBtn = $('shareRefLink');
-  if (shareRefBtn) shareRefBtn.addEventListener('click', () => { const inBot = Boolean(window.Telegram?.WebApp?.initData); const url = state.profile ? (inBot ? (state.profile.botLink || '') : (state.profile.refLink || '')) : ''; shareUrl(url, L('shareRefLink')); });
+  if (shareRefBtn) shareRefBtn.addEventListener('click', () => { const inBot = Boolean(window.Telegram?.WebApp?.initData); const url = state.profile ? (inBot ? (state.profile.botLink || '') : (state.profile.refLink || '')) : ''; shareUrl(url, L('shareRefText')); });
   const shareBtn = $('shareProfile');
-  if (shareBtn) shareBtn.addEventListener('click', () => { const url = state.profile ? (state.profile.profileLink || '') : ''; shareUrl(url, L('shareProfile')); });
+  if (shareBtn) shareBtn.addEventListener('click', () => { const url = state.profile ? (state.profile.profileLink || '') : ''; shareUrl(url, L('shareProfileText')); });
 }
 async function start() {
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);

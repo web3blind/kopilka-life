@@ -121,6 +121,8 @@
     copyRefLink: { ru: 'Копировать ссылку', en: 'Copy link' },
     shareRefLink: { ru: 'Поделиться реферальной ссылкой', en: 'Share referral link' },
     shareProfile: { ru: 'Поделиться профилем', en: 'Share profile' },
+    shareRefText: { ru: 'Приглашаю в приложение, где можно мягко отмечать маленькие шаги жизни — и видеть, как копится её тепло. Без давления и стыда.', en: 'I invite you to an app where you can gently note the small steps of life and watch its warmth grow. No pressure, no shame.' },
+    shareProfileText: { ru: 'Посмотри мой профиль в Копилке жизни — я отмечаю здесь то, что происходит в моей жизни.', en: 'Look at my profile in Life Harbor — I am noting here what happens in my life.' },
     copied: { ru: 'Ссылка скопирована.', en: 'Link copied.' },
     publicProfileIntro: { ru: 'Публичный профиль:', en: 'Public profile:' },
     publicBadgeLabel: { ru: 'Сердце заботы:', en: 'Care heart:' },
