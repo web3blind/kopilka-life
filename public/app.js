@@ -141,7 +141,7 @@ function applyStaticI18n() {
     el.textContent = L(key);
   });
   const status = $('connectionStatus');
-  if (status) status.textContent = state.publicStatus || L('connecting');
+  if (status) status.textContent = state.publicStatus || (state.user ? L('connected') : L('connecting'));
 }
 
 // Re-render quick actions using current locale from the local dictionary.
@@ -319,7 +319,27 @@ async function handleVkAuth({ linkOnly = false } = {}) {
 }
 
 async function authenticate() {
-  if (state.token) { try { await loadData(); $('connectionStatus').textContent = L('connected'); return; } catch (e) { localStorage.removeItem('kopilkaToken'); state.token = ''; } }
+  if (state.token) {
+    try {
+      await loadData();
+      if ($('appShell')) $('appShell').hidden = false;
+      if ($('loginScreen')) $('loginScreen').hidden = true;
+      $('connectionStatus').textContent = L('connected');
+      return;
+    } catch (e) {
+      if (e.status === 401) {
+        localStorage.removeItem('kopilkaToken');
+        state.token = '';
+      } else {
+        const message = e.message || L('actionFailed');
+        if ($('appShell')) $('appShell').hidden = false;
+        if ($('loginScreen')) $('loginScreen').hidden = true;
+        if ($('connectionStatus')) $('connectionStatus').textContent = message;
+        setStatus(message, 'error');
+        return;
+      }
+    }
+  }
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
   const inVk = isVkMiniApp();
   const refCode = captureRefCode();
@@ -577,6 +597,12 @@ async function renderPublicProfile(code, options = {}) {
   // is also present on the plain website because we load telegram-web-app.js.
   const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp?.initData);
   if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
+  if (!inTelegram && state.token) {
+    if ($('appShell')) $('appShell').hidden = false;
+    if ($('loginScreen')) $('loginScreen').hidden = true;
+    await start();
+    return;
+  }
   if (!inTelegram) { await showLoginScreen(); return; }
   await start();
 })();
