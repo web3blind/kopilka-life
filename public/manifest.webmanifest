@@ -1,0 +1,22 @@
+{
+  "name": "Копилка жизни",
+  "short_name": "Копилка жизни",
+  "description": "Мягко отмечай маленькие шаги и смотри, как копится тепло жизни.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FDF7ED",
+  "theme_color": "#B97443",
+  "icons": [
+    {
+      "src": "/assets/icon-150.png",
+      "sizes": "150x150",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/icon-576.png",
+      "sizes": "576x576",
+      "type": "image/png"
+    }
+  ]
+}
