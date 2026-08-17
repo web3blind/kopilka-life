@@ -1,6 +1,7 @@
 const { getDb } = require('../db');
 const { localDateString, weekStartDateString } = require('../time');
 const { normalizeLocale, t } = require('../i18n');
+const { sanitizeText } = require('../utils/sanitize');
 
 // Life points per entry type. Titles/hints are localized via i18n by type key.
 const ENTRY_TYPES = ['sleep', 'movement', 'food_water', 'joy', 'gratitude', 'important_task', 'dream_step', 'kind_trace', 'honest_step', 'rest', 'hard_day'];
@@ -18,7 +19,8 @@ function todayForUser(userId, now = new Date()) { return localDateString(now, ge
 function createEntry(userId, type, note = '', locale) {
   if (!ENTRY_POINTS[type]) throw new Error('Неизвестный тип записи');
   const lang = normalizeLocale(locale || getUserLocale(userId));
-  const info = getDb().prepare('INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, ?, ?, ?, ?, ?)').run(userId, type, entryTitle(type, lang), note.slice(0, 500), ENTRY_POINTS[type], todayForUser(userId));
+  const cleanNote = sanitizeText(note, { maxLength: 500 });
+  const info = getDb().prepare('INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, ?, ?, ?, ?, ?)').run(userId, type, entryTitle(type, lang), cleanNote, ENTRY_POINTS[type], todayForUser(userId));
   return getDb().prepare('SELECT * FROM entries WHERE id = ?').get(info.lastInsertRowid);
 }
 function listEntries(userId, range = 'week') {

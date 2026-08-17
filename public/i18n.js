@@ -119,6 +119,7 @@
     refLinkLabel: { ru: 'Твоя реферальная ссылка', en: 'Your referral link' },
     refLinkHint: { ru: 'По этой ссылке переход и вход считаются твоим приглашением.', en: 'Following this link and signing in counts as your invite.' },
     copyRefLink: { ru: 'Копировать ссылку', en: 'Copy link' },
+    shareRefLink: { ru: 'Поделиться реферальной ссылкой', en: 'Share referral link' },
     shareProfile: { ru: 'Поделиться профилем', en: 'Share profile' },
     copied: { ru: 'Ссылка скопирована.', en: 'Link copied.' },
     publicProfileIntro: { ru: 'Публичный профиль:', en: 'Public profile:' },

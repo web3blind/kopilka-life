@@ -201,6 +201,11 @@ async function main() {
   const badPublic = await request('/api/public/NO_SUCH_CODE_ZZZZ');
   assert.equal(badPublic.res.status, 404, 'unknown public profile code -> 404');
   db.prepare('DELETE FROM users WHERE id IN (?, ?)').run(refAId, refBId);
+  // Sanitization: XSS/script and URL/spam in notes are neutralized server-side.
+  const xssEntry = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'joy', note: '<script>alert(1)</script> https://spam.example/buy' }) });
+  assert.equal(xssEntry.res.status, 201, 'xss entry accepted');
+  assert(!xssEntry.data.entry.note.includes('<script>'), 'script tag stripped from stored note');
+  assert(!/https?:\/\//i.test(xssEntry.data.entry.note), 'url neutralized in stored note');
   response = await request('/telegram/webhook', { method: 'POST', body: JSON.stringify({ message: { text: '/start', chat: { id: 555 } } }) });
   assert.equal(response.res.status, 200, 'webhook /start smoke ok');
   response = await request(`/api/dev/demo-user/${userId}`, { method: 'DELETE' });

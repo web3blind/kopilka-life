@@ -191,14 +191,24 @@ function bindEvents() {
     try { await navigator.clipboard.writeText(link); } catch (_) { /* fallback */ }
     setStatus(L('copied'));
   });
-  const shareBtn = $('shareProfile');
-  if (shareBtn) shareBtn.addEventListener('click', () => {
-    const link = $('refLink')?.value;
-    if (!link) return;
+  // Native share: in Telegram open the forward-to-chat composer via t.me/share;
+  // on the web use the OS share sheet (Web Share API) with copy fallback.
+  async function shareUrl(url, text) {
+    if (!url) return;
     const tg = window.Telegram?.WebApp;
-    if (tg && tg.shareMessage) { try { tg.shareMessage(link); } catch (_) { window.prompt(L('refLinkLabel'), link); } }
-    else { window.prompt(L('refLinkLabel'), link); }
-  });
+    if (tg) {
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
+      try { tg.openTelegramLink(shareUrl); return; } catch (_) { /* fall through */ }
+    }
+    if (navigator.share) {
+      try { await navigator.share({ title: text || 'Копилка жизни', text, url }); return; } catch (_) { /* user cancelled */ }
+    }
+    try { await navigator.clipboard.writeText(url); setStatus(L('copied')); } catch (_) { window.prompt(L('refLinkLabel'), url); }
+  }
+  const shareRefBtn = $('shareRefLink');
+  if (shareRefBtn) shareRefBtn.addEventListener('click', () => { const inBot = Boolean(window.Telegram?.WebApp?.initData); const url = state.profile ? (inBot ? (state.profile.botLink || '') : (state.profile.refLink || '')) : ''; shareUrl(url, L('shareRefLink')); });
+  const shareBtn = $('shareProfile');
+  if (shareBtn) shareBtn.addEventListener('click', () => { const url = state.profile ? (state.profile.profileLink || '') : ''; shareUrl(url, L('shareProfile')); });
 }
 async function start() {
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
