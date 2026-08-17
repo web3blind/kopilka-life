@@ -159,6 +159,8 @@ async function main() {
   response = await request('/api/contracts', { method: 'POST', headers: auth, body: JSON.stringify({ title: 'Сон', targetValue: '5 дней из 7', stakeAmount: '500', stakeCurrency: 'RUB', rewardDescription: 'чай', fundDescription: 'фонд' }) });
   assert.equal(response.res.status, 201, 'contract created');
   const contractId = response.data.contract.id;
+  assert.equal(typeof response.data.contract.isLastDay, 'boolean', 'contract exposes isLastDay flag');
+  assert.equal(typeof response.data.contract.isOver, 'boolean', 'contract exposes isOver flag');
   response = await request(`/api/contracts/${contractId}/close`, { method: 'POST', headers: auth, body: JSON.stringify({ status: 'completed' }) });
   assert.equal(response.res.status, 200, 'contract closed');
   assert.equal(response.data.summary.totalLife, 15, 'contract points added');
