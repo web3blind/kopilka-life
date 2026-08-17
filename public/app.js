@@ -2,7 +2,7 @@ const I18N = window.KopilkaI18n;
 const locale = () => I18N.normalizeLocale(state.user?.locale || localStorage.getItem('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, activeTab: 'today', busy: false, publicReadOnly: false };
+const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '' };
 const $ = (id) => document.getElementById(id);
 // Detect the user's timezone from their device clock (IANA zone), fallback UTC.
 function detectTimezone() {
@@ -133,7 +133,8 @@ function applyStaticI18n() {
     const key = el.getAttribute('data-i18n');
     el.textContent = L(key);
   });
-  $('connectionStatus').textContent = L('connecting');
+  const status = $('connectionStatus');
+  if (status) status.textContent = state.publicStatus || L('connecting');
 }
 
 // Re-render quick actions using current locale from the local dictionary.
@@ -195,6 +196,7 @@ function renderProfile() {
 function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
 async function loadData() {
+  state.publicStatus = '';
   const goal = $('practiceGoal')?.value || 'calm';
   const [summary, week, current, me, product, profile] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile')]);
   state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile;
@@ -451,8 +453,9 @@ async function renderPublicProfile(code, options = {}) {
     const readOnly = options.readOnly !== false;
     setPublicReadOnlyMode(readOnly);
     const n = profile.activeReferred || 0;
+    state.publicStatus = `${L('publicProfileIntro')} ${profile.firstName}`;
     const status = $('connectionStatus');
-    if (status) status.textContent = `${L('publicProfileIntro')} ${profile.firstName}`;
+    if (status) status.textContent = state.publicStatus;
     $('appShell').hidden = false;
     $('loginScreen').hidden = true;
     document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== 'tab-profile'; });
@@ -474,7 +477,7 @@ async function renderPublicProfile(code, options = {}) {
       if (isVkMiniApp() || window.Telegram?.WebApp?.initData) { await start(); return; }
       await showLoginScreen();
     });
-    if (status) status.textContent = `${L('publicProfileIntro')} ${profile.firstName}`;
+    if (status) status.textContent = state.publicStatus;
     return true;
   } catch (_) {
     $('connectionStatus').textContent = L('publicProfileNotFound');
