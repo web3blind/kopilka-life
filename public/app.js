@@ -191,15 +191,25 @@ function bindEvents() {
     try { await navigator.clipboard.writeText(link); } catch (_) { /* fallback */ }
     setStatus(L('copied'));
   });
-  // Native share. In Telegram use the forward-to-chat composer (openTelegramLink);
-  // on the web use the OS share sheet. Always guarantee a visible result.
-  // Diagnostic: logs the chosen path into the status region so failures are visible.
+  // Native share. Prefer the OS share sheet (navigator.share) — it works reliably
+  // in Telegram's Android WebView; fall back to the Telegram forward composer
+  // (openTelegramLink) which can silently no-op on some clients. Guaranteed result.
   function shareUrl(url, text) {
     const dbg = (msg) => { try { setStatus(msg); console.log('[share]', msg); } catch (_) {} };
+    const finish = () => { try { navigator.clipboard.writeText(url); dbg('Ссылка скопирована (share недоступен).'); } catch (_) { window.prompt(L('refLinkLabel'), url); } };
     if (!url) { dbg('Share: нет ссылки (профиль не загружен)'); return; }
     const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
     const tg = window.Telegram?.WebApp;
     dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} open=${!!(tg && tg.openTelegramLink)}`);
+    // 1) OS share sheet first — opens a real picker in Telegram Android WebView.
+    if (navigator.share) {
+      dbg('Share: открываю системное окно…');
+      let done = false;
+      const timer = setTimeout(() => { if (!done) { dbg('Share: окно не открылось, копирую.'); finish(); } }, 1500);
+      navigator.share({ title: 'Копилка жизни', text, url }).then(() => { clearTimeout(timer); done = true; }).catch((e) => { clearTimeout(timer); done = true; dbg('Share: системное окно: ' + (e && e.message ? e.message : String(e))); if (navigator.clipboard) finish(); });
+      return;
+    }
+    // 2) Telegram forward composer (may silently no-op on some clients).
     if (inTelegram && tg && tg.openTelegramLink) {
       try {
         const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
@@ -208,14 +218,7 @@ function bindEvents() {
         return;
       } catch (e) { dbg('Share: openTelegramLink ошибка: ' + (e && e.message ? e.message : String(e))); }
     }
-    const finish = () => { try { navigator.clipboard.writeText(url); dbg('Ссылка скопирована (share недоступен).'); } catch (_) { window.prompt(L('refLinkLabel'), url); } };
-    if (navigator.share) {
-      dbg('Share: открываю системное окно…');
-      let done = false;
-      const timer = setTimeout(() => { if (!done) { dbg('Share: окно не открылось, копирую.'); finish(); } }, 1200);
-      navigator.share({ title: 'Копилка жизни', text, url }).then(() => { clearTimeout(timer); done = true; }).catch((e) => { clearTimeout(timer); done = true; dbg('Share: системное окно: ' + (e && e.message ? e.message : String(e))); if (navigator.clipboard) finish(); });
-      return;
-    }
+    // 3) Last resort: copy.
     dbg('Share: нативный share недоступен, копирую.');
     finish();
   }
