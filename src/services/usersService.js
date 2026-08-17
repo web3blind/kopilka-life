@@ -36,10 +36,11 @@ function publicUser(user) {
   if (!user) return null;
   return { id: user.id, firstName: user.first_name, username: user.username, timezone: user.timezone, locale: normalizeLocale(user.locale), remindersEnabled: Boolean(user.reminders_enabled), eveningReminderTime: user.evening_reminder_time, isDemo: Boolean(user.is_demo) };
 }
-function upsertTelegramUser(tgUser, refCode) {
+function upsertTelegramUser(tgUser, refCode, timezone) {
   const db = getDb();
   const telegramId = String(tgUser.id);
   const locale = normalizeLocale(tgUser.language_code);
+  const zone = normalizeTimezone(timezone || 'UTC');
   const existing = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
   if (existing) {
     ensureRefCode(existing.id);
@@ -47,15 +48,16 @@ function upsertTelegramUser(tgUser, refCode) {
     return db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
   }
   const referrer = resolveRefCode(refCode);
-  const info = db.prepare("INSERT INTO users (telegram_id, first_name, username, timezone, locale, reminders_enabled, is_demo, referrer_id) VALUES (?, ?, ?, 'Asia/Novosibirsk', ?, 0, 0, ?)").run(telegramId, tgUser.first_name || '', tgUser.username || '', locale, referrer ? referrer.id : null);
+  const info = db.prepare("INSERT INTO users (telegram_id, first_name, username, timezone, locale, reminders_enabled, is_demo, referrer_id) VALUES (?, ?, ?, ?, ?, 0, 0, ?)").run(telegramId, tgUser.first_name || '', tgUser.username || '', zone, locale, referrer ? referrer.id : null);
   ensureRefCode(info.lastInsertRowid);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }
-function createDemoUser(name = 'Demo', locale = 'ru', refCode) {
+function createDemoUser(name = 'Demo', locale = 'ru', refCode, timezone) {
   const db = getDb();
   const telegramId = `demo:${Date.now()}:${Math.random().toString(16).slice(2)}`;
   const referrer = resolveRefCode(refCode);
-  const info = db.prepare("INSERT INTO users (telegram_id, first_name, username, timezone, locale, reminders_enabled, is_demo, referrer_id) VALUES (?, ?, 'demo_user', 'Asia/Novosibirsk', ?, 0, 1, ?)").run(telegramId, String(name).slice(0, 60), normalizeLocale(locale), referrer ? referrer.id : null);
+  const zone = normalizeTimezone(timezone || 'UTC');
+  const info = db.prepare("INSERT INTO users (telegram_id, first_name, username, timezone, locale, reminders_enabled, is_demo, referrer_id) VALUES (?, ?, 'demo_user', ?, ?, 0, 1, ?)").run(telegramId, String(name).slice(0, 60), zone, normalizeLocale(locale), referrer ? referrer.id : null);
   ensureRefCode(info.lastInsertRowid);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }

@@ -38,7 +38,7 @@ function disabled(res) { return res.status(404).json({ error: 'disabled' }); }
 router.post('/auth/telegram', authLimiter, (req, res) => {
   try {
     const validated = validateTelegramInitData(req.body.initData, config.botToken, { maxAgeSeconds: config.telegramAuthMaxAgeSeconds });
-    const user = upsertTelegramUser(validated.user, req.body.refCode);
+    const user = upsertTelegramUser(validated.user, req.body.refCode, req.body.timezone);
     res.json({ token: createToken(user.id), user: publicUser(user) });
   } catch (error) {
     console.error('[auth/telegram] reject:', error && error.message ? error.message : String(error));
@@ -49,7 +49,7 @@ router.post('/auth/telegram', authLimiter, (req, res) => {
 router.post('/auth/telegram-login', authLimiter, (req, res) => {
   try {
     const validated = validateTelegramLogin(req.body, config.botToken, { maxAgeSeconds: config.telegramAuthMaxAgeSeconds });
-    const user = upsertTelegramUser(validated.user, req.body.refCode);
+    const user = upsertTelegramUser(validated.user, req.body.refCode, req.body.timezone);
     res.json({ token: createToken(user.id), user: publicUser(user) });
   } catch (error) {
     res.status(401).json({ error: 'Не удалось подтвердить вход через Telegram.' });
@@ -59,7 +59,7 @@ router.post('/auth/telegram-login', authLimiter, (req, res) => {
 router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl }));
 router.post('/auth/dev', devLimiter, (req, res) => {
   if (!config.devAuthEnabled) return disabled(res);
-  const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale, req.body.refCode);
+  const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale, req.body.refCode, req.body.timezone);
   return res.json({ token: createToken(user.id), user: publicUser(user) });
 });
 router.delete('/dev/demo-user/:id', devLimiter, (req, res) => {

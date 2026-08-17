@@ -4,6 +4,10 @@ const L = (key, params) => I18N.t(locale(), key, params);
 
 const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, activeTab: 'today', busy: false };
 const $ = (id) => document.getElementById(id);
+// Detect the user's timezone from their device clock (IANA zone), fallback UTC.
+function detectTimezone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (_) { return 'UTC'; }
+}
 // Capture a referral code from ?ref=, /p/CODE, or Telegram start_param, and
 // remember it until signup.
 function captureRefCode() {
@@ -136,7 +140,7 @@ async function handleTelegramLogin(user) {
   const status = $('loginStatus');
   try {
     if (status) { status.textContent = L('loginInProgress'); status.classList.remove('error'); }
-    const data = await api('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...user, refCode: captureRefCode() }) });
+    const data = await api('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...user, refCode: captureRefCode(), timezone: detectTimezone() }) });
     state.token = data.token; state.user = data.user;
     localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
     if ($('loginScreen')) $('loginScreen').hidden = true;
@@ -156,7 +160,7 @@ async function authenticate() {
   const refCode = captureRefCode();
   if (inTelegram) {
     const initData = window.Telegram.WebApp.initData;
-    const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData, refCode }) });
+    const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData, refCode, timezone: detectTimezone() }) });
     state.token = data.token; state.user = data.user; localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
     $('connectionStatus').textContent = L('telegramSession');
     await loadData();

@@ -176,6 +176,11 @@ async function main() {
   // Referrer A (real Telegram user) creates an account and gets a ref code.
   const refA = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 7001, first_name: 'Referrer A', username: 'ref_a' }, 'test-bot-token') }) });
   const refAToken = refA.data.token; const refAId = refA.data.user.id;
+  // Timezone auto-detection: a provided zone is saved, and the default becomes UTC (not a hardcoded Novosibirsk).
+  const tzUser = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 7009, first_name: 'TZ', username: 'tz_user' }, 'test-bot-token'), timezone: 'Europe/London' }) });
+  assert.equal(tzUser.data.user.timezone, 'Europe/London', 'detected timezone saved on signup');
+  const tzDefault = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 7010, first_name: 'TZ2', username: 'tz_user2' }, 'test-bot-token') }) });
+  assert.equal(tzDefault.data.user.timezone, 'UTC', 'default timezone is UTC when not provided');
   const refAProfile = await request('/api/profile', { headers: { authorization: `Bearer ${refAToken}` } });
   const refCodeA = refAProfile.data.profile.refCode;
   assert(refCodeA && refCodeA.length >= 4, 'referrer gets a ref code');
