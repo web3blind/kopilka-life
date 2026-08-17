@@ -96,7 +96,12 @@ function applyStaticI18n() {
 // Re-render quick actions using current locale from the local dictionary.
 function renderQuickActions() {
   const types = I18N.entryTypes(locale());
-  $('quickActions').innerHTML = types.map((it) => `<button type="button" data-entry-type="${it.type}" aria-label="${escapeHtml(it.title)}, ${escapeHtml(it.hint)}, ${escapeHtml(L('addLife', { points: it.points }))}"><span class="qa-title">${escapeHtml(it.title)}</span><span class="qa-hint">${escapeHtml(it.hint)}</span><span class="qa-points">+${it.points} ЖИЗНЬ</span></button>`).join('');
+  const usedToday = new Set(state.summary?.todayEntryTypes || []);
+  $('quickActions').innerHTML = types.map((it) => {
+    const used = usedToday.has(it.type);
+    const aria = used ? `${it.title}, ${L('alreadyAddedToday')}` : `${it.title}, ${it.hint}, ${L('addLife', { points: it.points })}`;
+    return `<button type="button" data-entry-type="${it.type}" ${used ? 'disabled aria-disabled="true"' : ''} aria-label="${escapeHtml(aria)}"><span class="qa-title">${escapeHtml(it.title)}</span><span class="qa-hint">${escapeHtml(used ? L('alreadyAddedToday') : it.hint)}</span><span class="qa-points">${used ? escapeHtml(L('availableTomorrow')) : `+${it.points} ЖИЗНЬ`}</span></button>`;
+  }).join('');
 }
 function renderSummary() {
   const s = state.summary || { totalLife: 0, todayLife: 0, todayEntries: [] };

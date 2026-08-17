@@ -18,10 +18,19 @@ function getUserLocale(userId) { return normalizeLocale(getDb().prepare('SELECT 
 function todayForUser(userId, now = new Date()) { return localDateString(now, getUserTimezone(userId)); }
 function createEntry(userId, type, note = '', locale) {
   if (!ENTRY_POINTS[type]) throw new Error('Неизвестный тип записи');
+  const db = getDb();
   const lang = normalizeLocale(locale || getUserLocale(userId));
   const cleanNote = sanitizeText(note, { maxLength: 500 });
-  const info = getDb().prepare('INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, ?, ?, ?, ?, ?)').run(userId, type, entryTitle(type, lang), cleanNote, ENTRY_POINTS[type], todayForUser(userId));
-  return getDb().prepare('SELECT * FROM entries WHERE id = ?').get(info.lastInsertRowid);
+  const today = todayForUser(userId);
+  const existing = db.prepare('SELECT id FROM entries WHERE user_id = ? AND entry_date = ? AND type = ?').get(userId, today, type);
+  if (existing) throw new Error('Этот вариант уже добавлен сегодня. Завтра он снова будет доступен.');
+  try {
+    const info = db.prepare('INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, ?, ?, ?, ?, ?)').run(userId, type, entryTitle(type, lang), cleanNote, ENTRY_POINTS[type], today);
+    return db.prepare('SELECT * FROM entries WHERE id = ?').get(info.lastInsertRowid);
+  } catch (error) {
+    if (error && error.code === 'SQLITE_CONSTRAINT_UNIQUE') throw new Error('Этот вариант уже добавлен сегодня. Завтра он снова будет доступен.');
+    throw error;
+  }
 }
 function listEntries(userId, range = 'week') {
   const db = getDb();
@@ -39,11 +48,13 @@ function getSummary(userId) {
   const db = getDb();
   const lang = getUserLocale(userId);
   const today = todayForUser(userId);
-  const todayEntries = listEntries(userId, 'today').slice(0, 3).map((e) => ({ ...e, title: displayTitle(e, lang) }));
+  const todayEntriesAll = listEntries(userId, 'today').map((e) => ({ ...e, title: displayTitle(e, lang) }));
+  const todayEntries = todayEntriesAll.slice(0, 3);
   return {
     totalLife: db.prepare('SELECT COALESCE(SUM(life_points), 0) AS total FROM entries WHERE user_id = ?').get(userId).total,
     todayLife: db.prepare('SELECT COALESCE(SUM(life_points), 0) AS total FROM entries WHERE user_id = ? AND entry_date = ?').get(userId, today).total,
-    todayEntries
+    todayEntries,
+    todayEntryTypes: todayEntriesAll.map((entry) => entry.type).filter((type) => ENTRY_POINTS[type])
   };
 }
 function getWeekSummary(userId) {

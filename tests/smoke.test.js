@@ -174,6 +174,11 @@ async function main() {
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'sleep', note: 'smoke' }) });
   assert.equal(response.res.status, 201, 'entry created');
   assert.equal(response.data.summary.todayLife, 3, 'today balance updated');
+  assert(response.data.summary.todayEntryTypes.includes('sleep'), 'summary exposes used quick-action types');
+  response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'sleep', note: 'duplicate' }) });
+  assert.equal(response.res.status, 400, 'same quick-action type cannot be added twice per local day');
+  response = await request('/api/summary/today', { headers: auth });
+  assert.equal(response.data.todayLife, 3, 'duplicate quick-action does not increase today balance');
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'honest_step', note: 'честный миллиметр' }) });
   assert.equal(response.res.status, 201, 'honest step entry created');
   assert.equal(response.data.summary.todayLife, 5, 'honest step adds visible progress');

@@ -24,6 +24,8 @@
   const STRINGS = {
     life: { ru: 'ЖИЗНЬ', en: 'LIFE' },
     addLife: { ru: 'добавить {points} ЖИЗНЬ', en: 'add {points} LIFE' },
+    alreadyAddedToday: { ru: 'Уже добавлено сегодня', en: 'Already added today' },
+    availableTomorrow: { ru: 'доступно завтра', en: 'available tomorrow' },
     plusLife: { ru: '+{points} ЖИЗНЬ', en: '+{points} LIFE' },
     noEntriesToday: { ru: 'Сегодня ещё тихо. Можно начать с одного клика.', en: 'Still quiet today. You can start with one tap.' },
     noWeek: { ru: 'Тихая неделя. Можно продолжить сегодня.', en: 'A quiet week. You can continue today.' },
