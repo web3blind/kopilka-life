@@ -191,22 +191,28 @@ function bindEvents() {
     try { await navigator.clipboard.writeText(link); } catch (_) { /* fallback */ }
     setStatus(L('copied'));
   });
-  // Native share: prefer the OS share sheet (works in Telegram WebView and web),
-  // fall back to the Telegram forward-to-chat composer, then to clipboard copy.
-  async function shareUrl(url, text) {
+  // Native share. In Telegram use the forward-to-chat composer (openTelegramLink);
+  // on the web use the OS share sheet. Always guarantee a visible result.
+  function shareUrl(url, text) {
     if (!url) { setStatus(L('actionFailed'), 'error'); return; }
-    if (navigator.share) {
-      try { await navigator.share({ title: 'Копилка жизни', text, url }); return; } catch (_) { /* user cancelled or unsupported */ }
-    }
+    const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
     const tg = window.Telegram?.WebApp;
-    if (tg && tg.openTelegramLink) {
+    if (inTelegram && tg && tg.openTelegramLink) {
       try {
         const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
         tg.openTelegramLink(shareUrl);
         return;
       } catch (_) { /* fall through */ }
     }
-    try { await navigator.clipboard.writeText(url); setStatus(L('copied')); } catch (_) { window.prompt(L('refLinkLabel'), url); }
+    const finish = () => { try { navigator.clipboard.writeText(url); setStatus(L('copied')); } catch (_) { window.prompt(L('refLinkLabel'), url); } };
+    if (navigator.share) {
+      // Abort if the OS sheet is not actually supported (some WebViews hang).
+      let done = false;
+      const timer = setTimeout(() => { if (!done) finish(); }, 1200);
+      navigator.share({ title: 'Копилка жизни', text, url }).then(() => { clearTimeout(timer); done = true; }).catch(() => { clearTimeout(timer); done = true; if (navigator.clipboard) finish(); });
+      return;
+    }
+    finish();
   }
   const shareRefBtn = $('shareRefLink');
   if (shareRefBtn) shareRefBtn.addEventListener('click', () => { const inBot = Boolean(window.Telegram?.WebApp?.initData); const url = state.profile ? (inBot ? (state.profile.botLink || '') : (state.profile.refLink || '')) : ''; shareUrl(url, L('shareRefText')); });
@@ -216,7 +222,7 @@ function bindEvents() {
 async function start() {
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
   if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
-  renderQuickActions(); bindEvents(); applyStaticI18n();
+  renderQuickActions(); applyStaticI18n();
   try { window.Telegram?.WebApp?.ready?.(); await authenticate(); setStatus(L('ready')); } catch (e) { const detail = (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('openFromTelegram'), 'error'); }
 }
 // The Telegram WebApp SDK may not be ready when app.js first runs; retry the
@@ -263,6 +269,7 @@ async function renderPublicProfile(code) {
   }
 }
 (async () => {
+  bindEvents(); // bind buttons in every context (site, public profile, Mini App)
   const hasWebApp = await waitForTelegram();
   // Even if initData is momentarily empty, if the Telegram WebApp SDK exists we
   // are inside a Mini App — authenticate (Telegram requires initData at call time).
