@@ -437,7 +437,8 @@ async function renderPublicProfile(code) {
     const { profile } = await api(`/api/public/${encodeURIComponent(code)}`);
     if (!profile) throw new Error('not found');
     const n = profile.activeReferred || 0;
-    $('connectionStatus').textContent = `${L('publicProfileIntro')} ${profile.firstName}`;
+    const status = $('connectionStatus');
+    if (status) status.textContent = `${L('publicProfileIntro')} ${profile.firstName}`;
     $('appShell').hidden = false;
     $('loginScreen').hidden = true;
     document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== 'tab-profile'; });
@@ -459,6 +460,7 @@ async function renderPublicProfile(code) {
       if (isVkMiniApp() || window.Telegram?.WebApp?.initData) { await start(); return; }
       await showLoginScreen();
     });
+    if (status) status.textContent = `${L('publicProfileIntro')} ${profile.firstName}`;
     return true;
   } catch (_) {
     $('connectionStatus').textContent = L('publicProfileNotFound');
