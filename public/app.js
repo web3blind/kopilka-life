@@ -191,17 +191,20 @@ function bindEvents() {
     try { await navigator.clipboard.writeText(link); } catch (_) { /* fallback */ }
     setStatus(L('copied'));
   });
-  // Native share: in Telegram open the forward-to-chat composer via t.me/share;
-  // on the web use the OS share sheet (Web Share API) with copy fallback.
+  // Native share: prefer the OS share sheet (works in Telegram WebView and web),
+  // fall back to the Telegram forward-to-chat composer, then to clipboard copy.
   async function shareUrl(url, text) {
-    if (!url) return;
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
-      try { tg.openTelegramLink(shareUrl); return; } catch (_) { /* fall through */ }
-    }
+    if (!url) { setStatus(L('actionFailed'), 'error'); return; }
     if (navigator.share) {
-      try { await navigator.share({ title: text || 'Копилка жизни', text, url }); return; } catch (_) { /* user cancelled */ }
+      try { await navigator.share({ title: 'Копилка жизни', text, url }); return; } catch (_) { /* user cancelled or unsupported */ }
+    }
+    const tg = window.Telegram?.WebApp;
+    if (tg && tg.openTelegramLink) {
+      try {
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
+        tg.openTelegramLink(shareUrl);
+        return;
+      } catch (_) { /* fall through */ }
     }
     try { await navigator.clipboard.writeText(url); setStatus(L('copied')); } catch (_) { window.prompt(L('refLinkLabel'), url); }
   }
