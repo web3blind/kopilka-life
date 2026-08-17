@@ -3,6 +3,7 @@ const config = require('../config');
 const { validateTelegramInitData } = require('../auth/validateTelegramInitData');
 const { validateTelegramLogin } = require('../auth/validateTelegramLogin');
 const { validateVkLaunchParams } = require('../auth/validateVkLaunchParams');
+const { buildAuthorizeUrl, exchangeCode, verifyState } = require('../auth/vkOAuth');
 const { createToken, verifyToken } = require('../auth/session');
 const { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser } = require('../services/usersService');
 const { grantReferrerBonusOnFirstEntry, profileStats, publicProfileByCode } = require('../services/referralService');
@@ -74,6 +75,43 @@ router.post('/settings/link-vk', authRequired, authLimiter, (req, res) => {
   } catch (error) {
     console.error('[settings/link-vk] reject:', error && error.message ? error.message : String(error));
     res.status(400).json({ error: error.message || 'Не удалось привязать VK.' });
+  }
+});
+router.post('/auth/vk-oauth/start', authLimiter, (req, res) => {
+  try {
+    const action = req.body.action === 'link' ? 'link' : 'auth';
+    let userId = null;
+    if (action === 'link') {
+      userId = verifyToken((req.get('authorization') || '').replace(/^Bearer\s+/i, ''));
+      if (!userId) return res.status(401).json({ error: 'Сначала войдите в аккаунт, к которому нужно привязать VK.' });
+    }
+    const authUrl = buildAuthorizeUrl({ action, userId, refCode: req.body.refCode || '', timezone: req.body.timezone || '', locale: req.body.locale || req.locale || 'ru' });
+    res.json({ authUrl });
+  } catch (error) {
+    console.error('[auth/vk-oauth/start] reject:', error && error.message ? error.message : String(error));
+    res.status(400).json({ error: 'Не удалось начать вход через VK ID.' });
+  }
+});
+router.get('/auth/vk-oauth/callback', authLimiter, async (req, res) => {
+  try {
+    if (req.query.error) throw new Error(String(req.query.error_description || req.query.error));
+    const state = verifyState(String(req.query.state || ''));
+    const tokens = await exchangeCode({ code: String(req.query.code || ''), deviceId: String(req.query.device_id || ''), state: String(req.query.state || ''), codeVerifier: state.codeVerifier });
+    const vkId = String(tokens.user_id);
+    let user;
+    if (state.action === 'link') {
+      if (!state.userId) throw new Error('VK OAuth link target is missing');
+      user = linkVkUser(Number(state.userId), vkId);
+    } else {
+      user = upsertVkUser(vkId, state.refCode || '', state.timezone || '', state.locale || 'ru');
+    }
+    const appToken = createToken(user.id);
+    const fragment = new URLSearchParams({ vk_oauth_token: appToken, vk_oauth_action: state.action === 'link' ? 'link' : 'auth' });
+    res.redirect(303, `/#${fragment.toString()}`);
+  } catch (error) {
+    console.error('[auth/vk-oauth/callback] reject:', error && error.message ? error.message : String(error));
+    const fragment = new URLSearchParams({ vk_oauth_error: 'Не удалось завершить вход через VK ID.' });
+    res.redirect(303, `/#${fragment.toString()}`);
   }
 });
 // Public, non-sensitive config the site needs to render sign-in options.

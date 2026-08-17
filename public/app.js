@@ -33,14 +33,38 @@ function isVkMiniApp() { return Boolean(vkLaunchParams()); }
 async function initVkBridge() {
   try { if (window.vkBridge?.send) await window.vkBridge.send('VKWebAppInit'); } catch (_) { /* VK Bridge init is best-effort */ }
 }
-function openVkApp() {
-  window.location.href = 'https://vk.com/app54723764';
+async function startVkOAuth(action = 'auth') {
+  const data = await api('/api/auth/vk-oauth/start', {
+    method: 'POST',
+    body: JSON.stringify({ action, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() })
+  });
+  if (!data.authUrl) throw new Error(L('vkOauthStartFailed'));
+  window.location.assign(data.authUrl);
 }
 function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text; region.classList.toggle('error', type === 'error'); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
 function setBusy(isBusy, message = '') { state.busy = isBusy; document.querySelectorAll('button,input,textarea,select').forEach((el) => { if (el.id === 'cleanupDemo' && state.user && !state.user.isDemo) return; el.disabled = isBusy; }); document.body.setAttribute('aria-busy', isBusy ? 'true' : 'false'); if (message) setStatus(message); }
 async function withBusy(message, fn) { setBusy(true, message); try { return await fn(); } finally { setBusy(false); } }
 async function api(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.token) headers.authorization = `Bearer ${state.token}`; const res = await fetch(path, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || L('actionFailed')); return data; }
+function consumeVkOAuthResult() {
+  if (!window.location.hash || !window.location.hash.includes('vk_oauth_')) return false;
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const token = params.get('vk_oauth_token');
+  const error = params.get('vk_oauth_error');
+  if (token) {
+    state.token = token;
+    localStorage.setItem('kopilkaToken', token);
+    const clean = `${window.location.pathname}${window.location.search}`;
+    window.history.replaceState({}, document.title, clean || '/');
+    return true;
+  }
+  if (error) {
+    const clean = `${window.location.pathname}${window.location.search}`;
+    window.history.replaceState({}, document.title, clean || '/');
+    try { localStorage.setItem('kopilkaLastAuthError', error); } catch (_) {}
+  }
+  return false;
+}
 
 // Translate all [data-i18n] static nodes and set document lang.
 // Never clobber child elements: only text-bearing [data-i18n] nodes are
@@ -92,7 +116,7 @@ function renderContractTemplates() { const templates = state.product?.contractTe
 function renderWeeklyReview() { const review = state.product?.weeklyReview; if (!review) return; $('weeklyReviewText').textContent = review.summaryText; $('weeklyReviewQuestions').innerHTML = review.questions.map((q) => `<li>${escapeHtml(q)}</li>`).join(''); }
 function renderPractices() { const data = state.product?.practices; if (!data) return; const select = $('practiceGoal'); if (select.options.length === 0) { select.innerHTML = data.goals.map((g) => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.title)}</option>`).join(''); } select.value = data.goal; $('goalPractices').innerHTML = data.practices.map((p) => `<li>${escapeHtml(p)}</li>`).join(''); }
 function applyTemplate(templateId) { const t = (state.product?.contractTemplates || []).find((item) => item.id === templateId); if (!t) return; $('contractTitle').value = t.title; $('contractTarget').value = t.targetValue; $('stakeAmount').value = t.stakeAmount || ''; $('stakeCurrency').value = t.stakeCurrency || 'RUB'; $('rewardDescription').value = t.rewardDescription || ''; $('fundDescription').value = t.fundDescription || ''; setStatus(L('templateApplied', { title: t.title })); }
-function renderSettings() { if (!state.user) return; $('timezone').value = state.user.timezone || 'Asia/Novosibirsk'; $('remindersEnabled').checked = Boolean(state.user.remindersEnabled); $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00'; $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`; const vkStatus = $('vkLinkStatus'); const vkBtn = $('linkVkAccount'); if (vkStatus) vkStatus.textContent = state.user.vkLinked ? L('vkLinked') : L('vkNotLinked'); if (vkBtn) { vkBtn.hidden = Boolean(state.user.vkLinked); vkBtn.disabled = !isVkMiniApp(); } if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo; const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en')); }
+function renderSettings() { if (!state.user) return; $('timezone').value = state.user.timezone || 'Asia/Novosibirsk'; $('remindersEnabled').checked = Boolean(state.user.remindersEnabled); $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00'; $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`; const vkStatus = $('vkLinkStatus'); const vkBtn = $('linkVkAccount'); if (vkStatus) vkStatus.textContent = state.user.vkLinked ? L('vkLinked') : L('vkNotLinked'); if (vkBtn) { vkBtn.hidden = Boolean(state.user.vkLinked); vkBtn.disabled = false; } if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo; const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en')); }
 function badgeSize(n) { if (n === 0) return 'small'; if (n >= 50) return 'xlarge'; if (n >= 10) return 'large'; return 'small'; }
 function renderProfile() {
   const p = state.profile; const name = $('profileNameHeading'); const heart = document.querySelector('.badge-heart'); const count = document.querySelector('.badge-heart-count');
@@ -186,9 +210,7 @@ async function handleVkAuth({ linkOnly = false } = {}) {
   await initVkBridge();
   const launchParams = vkLaunchParams();
   if (!launchParams) {
-    if (linkOnly) throw new Error(L('vkOpenFromVk'));
-    openVkApp();
-    return null;
+    return startVkOAuth(linkOnly ? 'link' : 'auth');
   }
   const endpoint = linkOnly ? '/api/settings/link-vk' : '/api/auth/vk';
   const data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }) });
@@ -358,6 +380,8 @@ async function renderPublicProfile(code) {
 }
 (async () => {
   bindEvents(); // bind buttons in every context (site, public profile, Mini App)
+  const consumedVkOAuth = consumeVkOAuthResult();
+  if (consumedVkOAuth) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; await start(); return; }
   const inVk = isVkMiniApp();
   const publicCode = (() => { try { const m = /^\/p\/([A-Za-z0-9]+)/.exec(window.location.pathname); return m ? m[1] : null; } catch (_) { return null; } })();
   if (inVk) { await start(); return; }

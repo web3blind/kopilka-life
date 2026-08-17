@@ -18,6 +18,7 @@ const { closeDb, getDb } = require('../src/db');
 const { validateTelegramInitData } = require('../src/auth/validateTelegramInitData');
 const { validateTelegramLogin } = require('../src/auth/validateTelegramLogin');
 const { validateVkLaunchParams } = require('../src/auth/validateVkLaunchParams');
+const { verifyState } = require('../src/auth/vkOAuth');
 const { sendDueReminders, nextDueAt } = require('../src/services/remindersService');
 const { createRateLimiter } = require('../src/middleware/rateLimit');
 
@@ -122,6 +123,15 @@ async function main() {
   const cfgResp = await request('/api/config');
   assert.equal(cfgResp.res.status, 200, 'public config endpoint available');
   assert(typeof cfgResp.data.botUsername === 'string', 'public config exposes botUsername');
+  let oauthStart = await request('/api/auth/vk-oauth/start', { method: 'POST', body: JSON.stringify({ action: 'auth', refCode: 'ABC123', timezone: 'Europe/Moscow' }) });
+  assert.equal(oauthStart.res.status, 200, 'VK OAuth auth start returns URL');
+  const oauthUrl = new URL(oauthStart.data.authUrl);
+  assert.equal(oauthUrl.origin + oauthUrl.pathname, 'https://id.vk.ru/authorize', 'VK OAuth uses VK ID authorize endpoint');
+  assert.equal(oauthUrl.searchParams.get('response_type'), 'code', 'VK OAuth uses code flow');
+  assert.equal(oauthUrl.searchParams.get('client_id'), '54723764', 'VK OAuth uses configured app id');
+  assert.equal(oauthUrl.searchParams.get('redirect_uri'), 'http://localhost:3000/api/auth/vk-oauth/callback', 'VK OAuth uses backend callback');
+  assert.equal(oauthUrl.searchParams.get('code_challenge_method'), 'S256', 'VK OAuth uses PKCE S256');
+  assert.equal(verifyState(oauthUrl.searchParams.get('state')).refCode, 'ABC123', 'VK OAuth state keeps app context');
   let response = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'QA Demo' }) });
   assert.equal(response.res.status, 200, 'dev auth enabled');
   const token = response.data.token;
@@ -138,6 +148,9 @@ async function main() {
   assert.equal(loginResp.data.user.id, miniUserId, 'site login reuses the same account as Mini App (unified by telegram_id)');
   const siteToken = loginResp.data.token;
   const siteAuth = { authorization: `Bearer ${siteToken}` };
+  oauthStart = await request('/api/auth/vk-oauth/start', { method: 'POST', headers: siteAuth, body: JSON.stringify({ action: 'link', timezone: 'UTC' }) });
+  assert.equal(oauthStart.res.status, 200, 'VK OAuth link start requires and accepts current session');
+  assert.equal(verifyState(new URL(oauthStart.data.authUrl).searchParams.get('state')).action, 'link', 'VK OAuth link state stores link action');
   let meResp = await request('/api/me', { headers: siteAuth });
   assert.equal(meResp.data.user.id, miniUserId, 'site session token is valid');
   const vkOnlyResp = await request('/api/auth/vk', { method: 'POST', body: JSON.stringify({ launchParams: makeVkLaunchParams(9001, 'test-vk-secure-key'), timezone: 'Europe/Moscow' }) });
