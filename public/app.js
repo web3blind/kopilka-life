@@ -193,25 +193,30 @@ function bindEvents() {
   });
   // Native share. In Telegram use the forward-to-chat composer (openTelegramLink);
   // on the web use the OS share sheet. Always guarantee a visible result.
+  // Diagnostic: logs the chosen path into the status region so failures are visible.
   function shareUrl(url, text) {
-    if (!url) { setStatus(L('actionFailed'), 'error'); return; }
+    const dbg = (msg) => { try { setStatus(msg); console.log('[share]', msg); } catch (_) {} };
+    if (!url) { dbg('Share: нет ссылки (профиль не загружен)'); return; }
     const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
     const tg = window.Telegram?.WebApp;
+    dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} open=${!!(tg && tg.openTelegramLink)}`);
     if (inTelegram && tg && tg.openTelegramLink) {
       try {
         const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
+        dbg('Share: открываю композер Telegram…');
         tg.openTelegramLink(shareUrl);
         return;
-      } catch (_) { /* fall through */ }
+      } catch (e) { dbg('Share: openTelegramLink ошибка: ' + (e && e.message ? e.message : String(e))); }
     }
-    const finish = () => { try { navigator.clipboard.writeText(url); setStatus(L('copied')); } catch (_) { window.prompt(L('refLinkLabel'), url); } };
+    const finish = () => { try { navigator.clipboard.writeText(url); dbg('Ссылка скопирована (share недоступен).'); } catch (_) { window.prompt(L('refLinkLabel'), url); } };
     if (navigator.share) {
-      // Abort if the OS sheet is not actually supported (some WebViews hang).
+      dbg('Share: открываю системное окно…');
       let done = false;
-      const timer = setTimeout(() => { if (!done) finish(); }, 1200);
-      navigator.share({ title: 'Копилка жизни', text, url }).then(() => { clearTimeout(timer); done = true; }).catch(() => { clearTimeout(timer); done = true; if (navigator.clipboard) finish(); });
+      const timer = setTimeout(() => { if (!done) { dbg('Share: окно не открылось, копирую.'); finish(); } }, 1200);
+      navigator.share({ title: 'Копилка жизни', text, url }).then(() => { clearTimeout(timer); done = true; }).catch((e) => { clearTimeout(timer); done = true; dbg('Share: системное окно: ' + (e && e.message ? e.message : String(e))); if (navigator.clipboard) finish(); });
       return;
     }
+    dbg('Share: нативный share недоступен, копирую.');
     finish();
   }
   const shareRefBtn = $('shareRefLink');
