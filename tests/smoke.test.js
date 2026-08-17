@@ -172,6 +172,35 @@ async function main() {
   db.prepare("INSERT OR IGNORE INTO reminders (user_id, type, due_at, status) VALUES (?, 'evening', ?, 'scheduled')").run(userId, '2000-01-01T00:00:00.000Z');
   assert.equal(await sendDueReminders(), 1, 'due reminder sent once');
   assert.equal(await sendDueReminders(), 0, 'duplicate reminder not sent');
+  // ---- Referral program ----
+  // Referrer A (real Telegram user) creates an account and gets a ref code.
+  const refA = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 7001, first_name: 'Referrer A', username: 'ref_a' }, 'test-bot-token') }) });
+  const refAToken = refA.data.token; const refAId = refA.data.user.id;
+  const refAProfile = await request('/api/profile', { headers: { authorization: `Bearer ${refAToken}` } });
+  const refCodeA = refAProfile.data.profile.refCode;
+  assert(refCodeA && refCodeA.length >= 4, 'referrer gets a ref code');
+  assert(refAProfile.data.profile.refLink.includes('ref='), 'profile exposes ref link');
+  // Referred B (real Telegram user) signs up with A's code, then makes a first entry -> A gets +1 LIFE.
+  const refB = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 7002, first_name: 'Referred B', username: 'ref_b' }, 'test-bot-token'), refCode: refCodeA }) });
+  const refBToken = refB.data.token; const refBId = refB.data.user.id;
+  const refBEntry = await request('/api/entries', { method: 'POST', headers: { authorization: `Bearer ${refBToken}` }, body: JSON.stringify({ type: 'sleep' }) });
+  assert.equal(refBEntry.res.status, 201, 'referred user first entry ok');
+  const refASummary = await request('/api/summary/today', { headers: { authorization: `Bearer ${refAToken}` } });
+  assert(refASummary.data.totalLife >= 1, 'referrer credited +1 LIFE after first referred action');
+  // Second entry by B must NOT grant again (bonus once).
+  await request('/api/entries', { method: 'POST', headers: { authorization: `Bearer ${refBToken}` }, body: JSON.stringify({ type: 'movement' }) });
+  const refAProfile2 = await request('/api/profile', { headers: { authorization: `Bearer ${refAToken}` } });
+  assert.equal(refAProfile2.data.profile.activeReferred, 1, 'active referred count = 1');
+  // Public profile exposes aggregates but NEVER personal notes.
+  const publicResp = await request(`/api/public/${refCodeA}`);
+  assert.equal(publicResp.res.status, 200, 'public profile reachable by code');
+  assert(publicResp.data.profile.today && typeof publicResp.data.profile.today.todayLife === 'number', 'public profile has today stats');
+  assert(publicResp.data.profile.week && typeof publicResp.data.profile.week.activeDays === 'number', 'public profile has week stats');
+  const publicBody = JSON.stringify(publicResp.data);
+  assert(!publicBody.includes('"note"'), 'public profile never leaks personal notes');
+  const badPublic = await request('/api/public/NO_SUCH_CODE_ZZZZ');
+  assert.equal(badPublic.res.status, 404, 'unknown public profile code -> 404');
+  db.prepare('DELETE FROM users WHERE id IN (?, ?)').run(refAId, refBId);
   response = await request('/telegram/webhook', { method: 'POST', body: JSON.stringify({ message: { text: '/start', chat: { id: 555 } } }) });
   assert.equal(response.res.status, 200, 'webhook /start smoke ok');
   response = await request(`/api/dev/demo-user/${userId}`, { method: 'DELETE' });

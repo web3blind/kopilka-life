@@ -2,8 +2,22 @@ const I18N = window.KopilkaI18n;
 const locale = () => I18N.normalizeLocale(state.user?.locale || localStorage.getItem('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, activeTab: 'today', busy: false };
+const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, activeTab: 'today', busy: false };
 const $ = (id) => document.getElementById(id);
+// Capture a referral code from ?ref=, /p/CODE, or Telegram start_param, and
+// remember it until signup.
+function captureRefCode() {
+  try {
+    const sp = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+    if (sp) { localStorage.setItem('kopilkaRef', String(sp).trim().toUpperCase()); return String(sp).trim().toUpperCase(); }
+    const url = new URL(window.location.href);
+    const q = url.searchParams.get('ref');
+    if (q) { localStorage.setItem('kopilkaRef', q.trim().toUpperCase()); return q.trim().toUpperCase(); }
+    const p = /^\/p\/([A-Za-z0-9]+)/.exec(url.pathname);
+    if (p) { localStorage.setItem('kopilkaRef', p[1].toUpperCase()); return p[1].toUpperCase(); }
+  } catch (_) { /* ignore */ }
+  return localStorage.getItem('kopilkaRef') || '';
+}
 function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text; region.classList.toggle('error', type === 'error'); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
 function setBusy(isBusy, message = '') { state.busy = isBusy; document.querySelectorAll('button,input,textarea,select').forEach((el) => { if (el.id === 'cleanupDemo' && state.user && !state.user.isDemo) return; el.disabled = isBusy; }); document.body.setAttribute('aria-busy', isBusy ? 'true' : 'false'); if (message) setStatus(message); }
@@ -61,12 +75,27 @@ function renderWeeklyReview() { const review = state.product?.weeklyReview; if (
 function renderPractices() { const data = state.product?.practices; if (!data) return; const select = $('practiceGoal'); if (select.options.length === 0) { select.innerHTML = data.goals.map((g) => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.title)}</option>`).join(''); } select.value = data.goal; $('goalPractices').innerHTML = data.practices.map((p) => `<li>${escapeHtml(p)}</li>`).join(''); }
 function applyTemplate(templateId) { const t = (state.product?.contractTemplates || []).find((item) => item.id === templateId); if (!t) return; $('contractTitle').value = t.title; $('contractTarget').value = t.targetValue; $('stakeAmount').value = t.stakeAmount || ''; $('stakeCurrency').value = t.stakeCurrency || 'RUB'; $('rewardDescription').value = t.rewardDescription || ''; $('fundDescription').value = t.fundDescription || ''; setStatus(L('templateApplied', { title: t.title })); }
 function renderSettings() { if (!state.user) return; $('timezone').value = state.user.timezone || 'Asia/Novosibirsk'; $('remindersEnabled').checked = Boolean(state.user.remindersEnabled); $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00'; $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`; if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo; const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en')); }
-function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); }
+function badgeSize(n) { if (n === 0) return 'small'; if (n >= 50) return 'xlarge'; if (n >= 10) return 'large'; return 'small'; }
+function renderProfile() {
+  const p = state.profile; const name = $('profileNameHeading'); const heart = document.querySelector('.badge-heart'); const count = document.querySelector('.badge-heart-count');
+  if (!p) return;
+  if (name) name.textContent = state.user?.firstName || '—';
+  const n = p.activeReferred || 0;
+  if (heart) { heart.setAttribute('data-size', badgeSize(n)); heart.setAttribute('aria-label', `${L('publicBadgeLabel')} ${n}`); }
+  if (count) count.textContent = n;
+  const total = $('partnerTotal'); const active = $('partnerActive');
+  if (total) total.textContent = p.totalReferred || 0;
+  if (active) active.textContent = n;
+  const inBot = Boolean(window.Telegram?.WebApp?.initData);
+  const link = $('refLink');
+  if (link) link.value = inBot ? (p.botLink || '') : (p.profileLink || p.refLink || '');
+}
+function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
 async function loadData() {
   const goal = $('practiceGoal')?.value || 'calm';
-  const [summary, week, current, me, product] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`)]);
-  state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product;
+  const [summary, week, current, me, product, profile] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile')]);
+  state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile;
   localStorage.setItem('kopilkaLocale', me.user.locale || 'ru');
   renderAll();
 }
@@ -107,7 +136,7 @@ async function handleTelegramLogin(user) {
   const status = $('loginStatus');
   try {
     if (status) { status.textContent = L('loginInProgress'); status.classList.remove('error'); }
-    const data = await api('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify(user) });
+    const data = await api('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...user, refCode: captureRefCode() }) });
     state.token = data.token; state.user = data.user;
     localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
     if ($('loginScreen')) $('loginScreen').hidden = true;
@@ -124,9 +153,10 @@ window.__kopilkaOnTelegramAuth = handleTelegramLogin;
 async function authenticate() {
   if (state.token) { try { await loadData(); $('connectionStatus').textContent = L('connected'); return; } catch (e) { localStorage.removeItem('kopilkaToken'); state.token = ''; } }
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
+  const refCode = captureRefCode();
   if (inTelegram) {
     const initData = window.Telegram.WebApp.initData;
-    const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData }) });
+    const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData, refCode }) });
     state.token = data.token; state.user = data.user; localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
     $('connectionStatus').textContent = L('telegramSession');
     await loadData();
@@ -154,6 +184,21 @@ function bindEvents() {
   document.querySelectorAll('[data-lang]').forEach((btn) => btn.addEventListener('click', async () => { if (state.busy) return; try { await setLanguage(btn.dataset.lang); setStatus(L('settingsSaved')); } catch (e) { setStatus(e.message, 'error'); } }));
   const vkBtn = $('vkLoginButton');
   if (vkBtn) vkBtn.addEventListener('click', () => { vkBtn.disabled = true; vkBtn.textContent = L('loginVkSoon'); });
+  const copyBtn = $('copyRefLink');
+  if (copyBtn) copyBtn.addEventListener('click', async () => {
+    const link = $('refLink')?.value;
+    if (!link) return;
+    try { await navigator.clipboard.writeText(link); } catch (_) { /* fallback */ }
+    setStatus(L('copied'));
+  });
+  const shareBtn = $('shareProfile');
+  if (shareBtn) shareBtn.addEventListener('click', () => {
+    const link = $('refLink')?.value;
+    if (!link) return;
+    const tg = window.Telegram?.WebApp;
+    if (tg && tg.shareMessage) { try { tg.shareMessage(link); } catch (_) { window.prompt(L('refLinkLabel'), link); } }
+    else { window.prompt(L('refLinkLabel'), link); }
+  });
 }
 async function start() {
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
@@ -174,12 +219,44 @@ function waitForTelegram() {
     }, 50);
   });
 }
+// Public profile page: /p/CODE shows someone's public stats (no personal notes).
+async function renderPublicProfile(code) {
+  try {
+    const { profile } = await api(`/api/public/${encodeURIComponent(code)}`);
+    if (!profile) throw new Error('not found');
+    const n = profile.activeReferred || 0;
+    $('connectionStatus').textContent = `${L('publicProfileIntro')} ${profile.firstName}`;
+    $('appShell').hidden = false;
+    $('loginScreen').hidden = true;
+    document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== 'tab-profile'; });
+    if ($('profileNameHeading')) $('profileNameHeading').textContent = profile.firstName;
+    const heart = document.querySelector('.badge-heart');
+    const count = document.querySelector('.badge-heart-count');
+    if (heart) { heart.setAttribute('data-size', badgeSize(n)); heart.setAttribute('aria-label', `${L('publicBadgeLabel')} ${n}`); }
+    if (count) count.textContent = n;
+    const total = $('partnerTotal'); const active = $('partnerActive');
+    if (total) total.textContent = profile.totalReferred || 0;
+    if (active) active.textContent = n;
+    if ($('refLink')) $('refLink').value = `${window.location.origin}/p/${profile.refCode}`;
+    // Public stats without texts.
+    const today = profile.today || {}; const week = profile.week || {};
+    const statsBox = $('publicStats') || (() => { const box = document.createElement('div'); box.id = 'publicStats'; box.className = 'summary-card'; document.getElementById('tab-profile').appendChild(box); return box; })();
+    statsBox.innerHTML = `<h2>${escapeHtml(L('publicToday'))}: ${today.todayLife || 0} ${escapeHtml(L('life'))}</h2><h2>${escapeHtml(L('publicWeek'))}: ${week.weekLife || 0} ${escapeHtml(L('life'))}, ${week.activeDays || 0} ${escapeHtml(L('publicActiveDays'))}</h2>`;
+    return true;
+  } catch (_) {
+    $('connectionStatus').textContent = L('publicProfileNotFound');
+    await showLoginScreen();
+    return false;
+  }
+}
 (async () => {
   const hasWebApp = await waitForTelegram();
   // Even if initData is momentarily empty, if the Telegram WebApp SDK exists we
   // are inside a Mini App — authenticate (Telegram requires initData at call time).
   const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp);
   if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
+  const publicCode = (() => { try { const m = /^\/p\/([A-Za-z0-9]+)/.exec(window.location.pathname); return m ? m[1] : null; } catch (_) { return null; } })();
+  if (!inTelegram && publicCode && await renderPublicProfile(publicCode)) { applyStaticI18n(); return; }
   if (!inTelegram) { await showLoginScreen(); return; }
   await start();
 })();

@@ -1,27 +1,62 @@
+const crypto = require('crypto');
 const { getDb } = require('../db');
 const { normalizeHHMM, normalizeTimezone } = require('../time');
 const { normalizeLocale } = require('../i18n');
 
+const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I, O, 0, 1
+function generateRefCode() {
+  const bytes = crypto.randomBytes(6);
+  let code = '';
+  for (let i = 0; i < 6; i += 1) code += REF_ALPHABET[bytes[i] % REF_ALPHABET.length];
+  return code;
+}
+function ensureRefCode(userId) {
+  const db = getDb();
+  const user = db.prepare('SELECT ref_code FROM users WHERE id = ?').get(userId);
+  if (!user) return null;
+  if (user.ref_code) return user.ref_code;
+  // Try a few times to get a unique code.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = generateRefCode();
+    try {
+      db.prepare('UPDATE users SET ref_code = ? WHERE id = ?').run(code, userId);
+      return code;
+    } catch (_) { /* unique collision; retry */ }
+  }
+  // Fallback: include id to guarantee uniqueness.
+  const code = `${generateRefCode()}${userId.toString(36).toUpperCase().slice(0, 3)}`;
+  db.prepare('UPDATE users SET ref_code = ? WHERE id = ?').run(code, userId);
+  return code;
+}
+function resolveRefCode(code) {
+  if (!code || typeof code !== 'string') return null;
+  return getDb().prepare('SELECT id FROM users WHERE ref_code = ? COLLATE NOCASE').get(String(code).trim().toUpperCase()) || null;
+}
 function publicUser(user) {
   if (!user) return null;
   return { id: user.id, firstName: user.first_name, username: user.username, timezone: user.timezone, locale: normalizeLocale(user.locale), remindersEnabled: Boolean(user.reminders_enabled), eveningReminderTime: user.evening_reminder_time, isDemo: Boolean(user.is_demo) };
 }
-function upsertTelegramUser(tgUser) {
+function upsertTelegramUser(tgUser, refCode) {
   const db = getDb();
   const telegramId = String(tgUser.id);
   const locale = normalizeLocale(tgUser.language_code);
   const existing = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
   if (existing) {
+    ensureRefCode(existing.id);
     db.prepare('UPDATE users SET first_name = ?, username = ?, locale = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(tgUser.first_name || '', tgUser.username || '', locale, existing.id);
     return db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
   }
-  const info = db.prepare("INSERT INTO users (telegram_id, first_name, username, timezone, locale, reminders_enabled, is_demo) VALUES (?, ?, ?, 'Asia/Novosibirsk', ?, 0, 0)").run(telegramId, tgUser.first_name || '', tgUser.username || '', locale);
+  const referrer = resolveRefCode(refCode);
+  const info = db.prepare("INSERT INTO users (telegram_id, first_name, username, timezone, locale, reminders_enabled, is_demo, referrer_id) VALUES (?, ?, ?, 'Asia/Novosibirsk', ?, 0, 0, ?)").run(telegramId, tgUser.first_name || '', tgUser.username || '', locale, referrer ? referrer.id : null);
+  ensureRefCode(info.lastInsertRowid);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }
-function createDemoUser(name = 'Demo', locale = 'ru') {
+function createDemoUser(name = 'Demo', locale = 'ru', refCode) {
   const db = getDb();
   const telegramId = `demo:${Date.now()}:${Math.random().toString(16).slice(2)}`;
-  const info = db.prepare("INSERT INTO users (telegram_id, first_name, username, timezone, locale, reminders_enabled, is_demo) VALUES (?, ?, 'demo_user', 'Asia/Novosibirsk', ?, 0, 1)").run(telegramId, String(name).slice(0, 60), normalizeLocale(locale));
+  const referrer = resolveRefCode(refCode);
+  const info = db.prepare("INSERT INTO users (telegram_id, first_name, username, timezone, locale, reminders_enabled, is_demo, referrer_id) VALUES (?, ?, 'demo_user', 'Asia/Novosibirsk', ?, 0, 1, ?)").run(telegramId, String(name).slice(0, 60), normalizeLocale(locale), referrer ? referrer.id : null);
+  ensureRefCode(info.lastInsertRowid);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }
 function getUserById(id) { return getDb().prepare('SELECT * FROM users WHERE id = ?').get(id); }
@@ -42,4 +77,4 @@ function deleteDemoUser(userId) {
   getDb().prepare('DELETE FROM users WHERE id = ? AND is_demo = 1').run(userId);
   return true;
 }
-module.exports = { publicUser, upsertTelegramUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser };
+module.exports = { publicUser, upsertTelegramUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser, ensureRefCode, resolveRefCode };

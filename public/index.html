@@ -130,6 +130,27 @@
           <button id="cleanupDemo" type="button" class="secondary" data-i18n="cleanupDemo">Удалить demo account</button>
         </section>
       </section>
+
+      <section id="tab-profile" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-profile" hidden>
+        <h1 id="heading-profile" tabindex="-1" data-i18n="tabProfile">Профиль</h1>
+        <section class="summary-card profile-hero" aria-labelledby="profileNameHeading">
+          <h2 id="profileNameHeading" class="profile-name">—</h2>
+          <div class="badge-heart" aria-label=""><span class="badge-heart-count">0</span></div>
+          <p class="soft-note" data-i18n="profileBadgeHint">Сердце заботы растёт с каждым человеком, которому ты помог начать.</p>
+        </section>
+        <section class="summary-card" aria-labelledby="partnerHeading">
+          <h2 id="partnerHeading" data-i18n="partnerHeading">Партнёрская программа</h2>
+          <p data-i18n="partnerIntro">Пригласи человека. Когда он сделает первое действие, ты получишь +1 ЖИЗНЬ — мягко и один раз.</p>
+          <p class="soft-note"><span data-i18n="partnerInvited">Приглашено всего:</span> <strong id="partnerTotal">0</strong> · <span data-i18n="partnerActive">активных:</span> <strong id="partnerActive">0</strong></p>
+          <label for="refLink" data-i18n="refLinkLabel">Твоя реферальная ссылка</label>
+          <input id="refLink" name="refLink" readonly aria-describedby="refLinkHint">
+          <p id="refLinkHint" class="field-hint" data-i18n="refLinkHint">По этой ссылке переход и вход считаются твоим приглашением.</p>
+          <div class="close-actions">
+            <button type="button" id="copyRefLink" data-i18n="copyRefLink">Копировать ссылку</button>
+            <button type="button" id="shareProfile" class="secondary" data-i18n="shareProfile">Поделиться профилем</button>
+          </div>
+        </section>
+      </section>
     </main>
 
     <p id="statusRegion" class="status-region" role="status" aria-live="polite"></p>
@@ -138,6 +159,7 @@
       <button id="tab-button-week" type="button" role="tab" data-tab="week" aria-controls="tab-week" aria-selected="false" data-i18n="tabWeek">Неделя</button>
       <button id="tab-button-contract" type="button" role="tab" data-tab="contract" aria-controls="tab-contract" aria-selected="false" data-i18n="tabContract">Договор</button>
       <button id="tab-button-settings" type="button" role="tab" data-tab="settings" aria-controls="tab-settings" aria-selected="false" data-i18n="tabSettings">Настройки</button>
+      <button id="tab-button-profile" type="button" role="tab" data-tab="profile" aria-controls="tab-profile" aria-selected="false" data-i18n="tabProfile">Профиль</button>
     </nav>
   </div>
   <script src="/i18n.js"></script>

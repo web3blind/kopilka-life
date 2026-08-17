@@ -24,6 +24,9 @@ function createApp() {
     console.error('Unhandled request error:', err?.message || err);
     return res.status(500).json({ error: 'internal error' });
   });
+  // Public profile page (SPA): /p/CODE serves the same shell; the client renders
+  // the public profile by reading the path. API/webhook routes are handled above.
+  app.get('/p/:code', (req, res) => res.sendFile(path.join(process.cwd(), 'public', 'index.html')));
   app.use((req, res) => res.status(404).json({ error: 'not found' }));
   return app;
 }

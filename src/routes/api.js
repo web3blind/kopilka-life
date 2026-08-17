@@ -4,6 +4,7 @@ const { validateTelegramInitData } = require('../auth/validateTelegramInitData')
 const { validateTelegramLogin } = require('../auth/validateTelegramLogin');
 const { createToken, verifyToken } = require('../auth/session');
 const { publicUser, upsertTelegramUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser } = require('../services/usersService');
+const { grantReferrerBonusOnFirstEntry, profileStats, publicProfileByCode } = require('../services/referralService');
 const { createEntry, getSummary, getWeekSummary, listEntries } = require('../services/entriesService');
 const { getCurrentContract, createContract, closeContract } = require('../services/contractsService');
 const { scheduleNextReminderForUser } = require('../services/remindersService');
@@ -37,7 +38,7 @@ function disabled(res) { return res.status(404).json({ error: 'disabled' }); }
 router.post('/auth/telegram', authLimiter, (req, res) => {
   try {
     const validated = validateTelegramInitData(req.body.initData, config.botToken, { maxAgeSeconds: config.telegramAuthMaxAgeSeconds });
-    const user = upsertTelegramUser(validated.user);
+    const user = upsertTelegramUser(validated.user, req.body.refCode);
     res.json({ token: createToken(user.id), user: publicUser(user) });
   } catch (error) {
     console.error('[auth/telegram] reject:', error && error.message ? error.message : String(error));
@@ -48,7 +49,7 @@ router.post('/auth/telegram', authLimiter, (req, res) => {
 router.post('/auth/telegram-login', authLimiter, (req, res) => {
   try {
     const validated = validateTelegramLogin(req.body, config.botToken, { maxAgeSeconds: config.telegramAuthMaxAgeSeconds });
-    const user = upsertTelegramUser(validated.user);
+    const user = upsertTelegramUser(validated.user, req.body.refCode);
     res.json({ token: createToken(user.id), user: publicUser(user) });
   } catch (error) {
     res.status(401).json({ error: 'Не удалось подтвердить вход через Telegram.' });
@@ -58,7 +59,7 @@ router.post('/auth/telegram-login', authLimiter, (req, res) => {
 router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl }));
 router.post('/auth/dev', devLimiter, (req, res) => {
   if (!config.devAuthEnabled) return disabled(res);
-  const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale);
+  const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale, req.body.refCode);
   return res.json({ token: createToken(user.id), user: publicUser(user) });
 });
 router.delete('/dev/demo-user/:id', devLimiter, (req, res) => {
@@ -66,6 +67,16 @@ router.delete('/dev/demo-user/:id', devLimiter, (req, res) => {
   return res.json({ deleted: deleteDemoUser(Number(req.params.id)) });
 });
 router.get('/me', authRequired, (req, res) => res.json({ user: publicUser(req.user) }));
+router.get('/profile', authRequired, (req, res) => {
+  const stats = profileStats(req.user.id);
+  const botLink = config.botUsername ? `https://t.me/${config.botUsername.replace(/^@/, '')}?startapp=${stats.refCode}` : null;
+  res.json({ profile: { ...publicUser(req.user), ...stats, refLink: `${config.webappUrl}?ref=${stats.refCode}`, profileLink: `${config.webappUrl}/p/${stats.refCode}`, botLink } });
+});
+router.get('/public/:code', (req, res) => {
+  const profile = publicProfileByCode(req.params.code);
+  if (!profile) return res.status(404).json({ error: 'not found' });
+  res.json({ profile });
+});
 router.post('/settings/locale', authRequired, (req, res) => {
   const user = updateLocale(req.user.id, req.body.locale);
   res.json({ user: publicUser(user) });
@@ -74,6 +85,7 @@ router.get('/summary/today', authRequired, (req, res) => res.json(getSummary(req
 router.post('/entries', authRequired, (req, res) => {
   try {
     const entry = createEntry(req.user.id, req.body.type, req.body.note || '', req.locale);
+    grantReferrerBonusOnFirstEntry(req.user.id);
     res.status(201).json({ entry, summary: getSummary(req.user.id), week: getWeekSummary(req.user.id) });
   } catch (error) { res.status(400).json({ error: userError(req.locale, error.message) }); }
 });
