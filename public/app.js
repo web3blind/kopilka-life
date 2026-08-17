@@ -202,13 +202,22 @@ function bindEvents() {
     const tg = window.Telegram?.WebApp;
     const botInline = Boolean(tg && (tg.initDataUnsafe?.bot_inline ?? tg.botInline ?? tg.version));
     dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} ver=${tg ? (tg.version || '?') : '—'} inline=${tg ? !!tg.switchInlineQuery : false} botInline=${tg ? !!(tg.initDataUnsafe && tg.initDataUnsafe.bot_inline) : '?'}`);
-    // 1) Telegram inline mode: opens the native chat picker, then sends the
-    //    composed text+link to the chosen chat via answerInlineQuery. Reliable.
+    // 1) Try opening t.me/share/url via openLink — some clients intercept this and
+    //    show the FULL native share sheet (with chat folders), unlike switchInlineQuery.
+    if (inTelegram && tg && tg.openLink) {
+      try {
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
+        dbg('Share: открываю нативный пикер (openLink t.me/share)…');
+        tg.openLink(shareUrl, { try_instant_view: false });
+        return;
+      } catch (e) { dbg('Share: openLink ошибка: ' + (e && e.message ? e.message : String(e))); }
+    }
+    // 2) Telegram inline mode: opens the native chat picker (plain list, no folders).
     if (inTelegram && tg && tg.switchInlineQuery) {
       dbg('Share: открываю выбор чата (inline)…');
       try { tg.switchInlineQuery(`${text} ${url}`, ['users', 'groups', 'channels']); return; } catch (e) { dbg('Share: switchInlineQuery ошибка: ' + (e && e.message ? e.message : String(e))); }
     }
-    // 2) OS share sheet (best effort, may be unavailable in WebView).
+    // 3) OS share sheet (best effort, may be unavailable in WebView).
     if (navigator.share) {
       dbg('Share: открываю системное окно…');
       let done = false;
@@ -216,7 +225,7 @@ function bindEvents() {
       navigator.share({ title: 'Копилка жизни', text, url }).then(() => { clearTimeout(timer); done = true; }).catch((e) => { clearTimeout(timer); done = true; dbg('Share: системное окно: ' + (e && e.message ? e.message : String(e))); if (navigator.clipboard) finish(); });
       return;
     }
-    // 3) Telegram forward composer (best effort; may no-op on some clients).
+    // 4) Telegram forward composer (best effort; may no-op on some clients).
     if (inTelegram && tg && tg.openTelegramLink) {
       try {
         const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
@@ -225,7 +234,7 @@ function bindEvents() {
         return;
       } catch (e) { dbg('Share: openTelegramLink ошибка: ' + (e && e.message ? e.message : String(e))); }
     }
-    // 4) Last resort: copy.
+    // 5) Last resort: copy.
     dbg('Share: нативный share недоступен, копирую.');
     finish();
   }
