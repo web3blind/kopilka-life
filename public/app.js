@@ -278,7 +278,21 @@ function bindEvents() {
   const linkVkBtn = $('linkVkAccount');
   if (linkVkBtn) linkVkBtn.addEventListener('click', async () => {
     if (state.busy) return;
-    try { await withBusy(L('vkLinking'), () => handleVkAuth({ linkOnly: true })); } catch (e) { setStatus(e.message, 'error'); }
+    const vkStatus = $('vkLinkStatus');
+    linkVkBtn.disabled = true;
+    if (vkStatus) vkStatus.textContent = L('vkLinking');
+    try {
+      await withBusy(L('vkLinking'), () => handleVkAuth({ linkOnly: true }));
+    } catch (e) {
+      const message = e.message || L('actionFailed');
+      if (vkStatus) vkStatus.textContent = message;
+      setStatus(message, 'error');
+    } finally {
+      if (!state.user?.vkLinked) {
+        linkVkBtn.hidden = false;
+        linkVkBtn.disabled = false;
+      }
+    }
   });
   const copyBtn = $('copyRefLink');
   if (copyBtn) copyBtn.addEventListener('click', async () => {
