@@ -154,4 +154,22 @@ async function start() {
   renderQuickActions(); bindEvents(); applyStaticI18n();
   try { window.Telegram?.WebApp?.ready?.(); await authenticate(); setStatus(L('ready')); } catch (e) { $('connectionStatus').textContent = L('connectFailed'); setStatus(e.message || L('openFromTelegram'), 'error'); }
 }
-start();
+// The Telegram WebApp SDK may not be ready when app.js first runs; retry the
+// in-Telegram check until initData appears (or a short timeout), so a Mini App
+// opening inside Telegram is never misread as a plain site.
+function waitForTelegram() {
+  return new Promise((resolve) => {
+    if (window.Telegram?.WebApp?.initData) return resolve(true);
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (window.Telegram?.WebApp?.initData) { clearInterval(timer); return resolve(true); }
+      if (++tries >= 40) { clearInterval(timer); return resolve(false); } // ~2s
+    }, 50);
+  });
+}
+(async () => {
+  const inTelegram = await waitForTelegram();
+  if (inTelegram && $('appShell')) $('appShell').hidden = false;
+  if (!inTelegram) { await showLoginScreen(); return; }
+  await start();
+})();
