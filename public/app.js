@@ -2,7 +2,7 @@ const I18N = window.KopilkaI18n;
 const locale = () => I18N.normalizeLocale(state.user?.locale || localStorage.getItem('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '' };
+const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null };
 const $ = (id) => document.getElementById(id);
 // Detect the user's timezone from their device clock (IANA zone), fallback UTC.
 function detectTimezone() {
@@ -100,12 +100,19 @@ function setStatus(text, type = 'info') { const region = $('statusRegion'); regi
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
 function setBusy(isBusy, message = '') { state.busy = isBusy; document.querySelectorAll('button,input,textarea,select').forEach((el) => { if (el.id === 'cleanupDemo' && state.user && !state.user.isDemo) return; el.disabled = isBusy; }); document.body.setAttribute('aria-busy', isBusy ? 'true' : 'false'); if (message) setStatus(message); }
 async function withBusy(message, fn) { setBusy(true, message); try { return await fn(); } finally { setBusy(false); } }
-async function api(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.token) headers.authorization = `Bearer ${state.token}`; const res = await fetch(path, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || L('actionFailed')); return data; }
+async function api(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.token) headers.authorization = `Bearer ${state.token}`; const res = await fetch(path, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { const error = new Error(data.error || L('actionFailed')); error.data = data; error.status = res.status; throw error; } return data; }
 function consumeVkOAuthResult() {
   if (!window.location.hash || !window.location.hash.includes('vk_oauth_')) return false;
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const token = params.get('vk_oauth_token');
+  const mergeToken = params.get('vk_oauth_merge_token');
   const error = params.get('vk_oauth_error');
+  if (mergeToken) {
+    localStorage.setItem('kopilkaVkMergeToken', mergeToken);
+    const clean = `${window.location.pathname}${window.location.search}`;
+    window.history.replaceState({}, document.title, clean || '/');
+    return true;
+  }
   if (token) {
     state.token = token;
     localStorage.setItem('kopilkaToken', token);
@@ -177,7 +184,26 @@ function renderContractTemplates() { const templates = state.product?.contractTe
 function renderWeeklyReview() { const review = state.product?.weeklyReview; if (!review) return; $('weeklyReviewText').textContent = review.summaryText; $('weeklyReviewQuestions').innerHTML = review.questions.map((q) => `<li>${escapeHtml(q)}</li>`).join(''); }
 function renderPractices() { const data = state.product?.practices; if (!data) return; const select = $('practiceGoal'); if (select.options.length === 0) { select.innerHTML = data.goals.map((g) => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.title)}</option>`).join(''); } select.value = data.goal; $('goalPractices').innerHTML = data.practices.map((p) => `<li>${escapeHtml(p)}</li>`).join(''); }
 function applyTemplate(templateId) { const t = (state.product?.contractTemplates || []).find((item) => item.id === templateId); if (!t) return; $('contractTitle').value = t.title; $('contractTarget').value = t.targetValue; $('stakeAmount').value = t.stakeAmount || ''; $('stakeCurrency').value = t.stakeCurrency || 'RUB'; $('rewardDescription').value = t.rewardDescription || ''; $('fundDescription').value = t.fundDescription || ''; setStatus(L('templateApplied', { title: t.title })); }
-function renderSettings() { if (!state.user) return; $('timezone').value = state.user.timezone || 'Asia/Novosibirsk'; $('remindersEnabled').checked = Boolean(state.user.remindersEnabled); $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00'; $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`; const vkStatus = $('vkLinkStatus'); const vkBtn = $('linkVkAccount'); if (vkStatus) vkStatus.textContent = state.user.vkLinked ? L('vkLinked') : L('vkNotLinked'); if (vkBtn) { vkBtn.hidden = Boolean(state.user.vkLinked); vkBtn.disabled = false; } if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo; const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en')); }
+function renderMergePrompt() {
+  const container = $('accountMergePrompt') || (() => {
+    const parent = $('accountLinksHeading')?.closest('.summary-card');
+    if (!parent) return null;
+    const box = document.createElement('div');
+    box.id = 'accountMergePrompt';
+    box.className = 'contract-box';
+    parent.appendChild(box);
+    return box;
+  })();
+  if (!container) return;
+  const pending = state.pendingMerge;
+  if (!pending) { container.hidden = true; container.innerHTML = ''; return; }
+  const p = pending.preview || {};
+  const r = p.result || {};
+  const blocking = p.blocking || [];
+  container.hidden = false;
+  container.innerHTML = `<h3>${escapeHtml(L('mergeAccountsTitle'))}</h3><p>${escapeHtml(L('mergeAccountsIntro'))}</p><ul class="compact-list"><li>${escapeHtml(L('mergeMovedEntries', { count: r.movedEntries || 0 }))}</li><li>${escapeHtml(L('mergeDedupedEntries', { count: r.dedupedQuickEntries || 0 }))}</li><li>${escapeHtml(L('mergeNotes', { count: r.mergedNotes || 0 }))}</li><li>${escapeHtml(L('mergeContracts', { count: r.movedContracts || 0 }))}</li><li>${escapeHtml(L('mergeRemindersDropped', { count: r.scheduledRemindersDropped || 0 }))}</li></ul>${blocking.length ? `<p class="soft-note">${escapeHtml(L('mergeBlockedActiveContract'))}</p>` : `<button type="button" id="confirmAccountMerge">${escapeHtml(L('mergeConfirm'))}</button>`}<button type="button" id="cancelAccountMerge" class="secondary">${escapeHtml(L('mergeCancel'))}</button>`;
+}
+function renderSettings() { if (!state.user) return; $('timezone').value = state.user.timezone || 'Asia/Novosibirsk'; $('remindersEnabled').checked = Boolean(state.user.remindersEnabled); $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00'; $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`; const vkStatus = $('vkLinkStatus'); const vkBtn = $('linkVkAccount'); if (vkStatus) vkStatus.textContent = state.user.vkLinked ? L('vkLinked') : L('vkNotLinked'); if (vkBtn) { vkBtn.hidden = Boolean(state.user.vkLinked); vkBtn.disabled = false; } if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo; const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en')); renderMergePrompt(); }
 function badgeSize(n) { if (n === 0) return 'small'; if (n >= 50) return 'xlarge'; if (n >= 10) return 'large'; return 'small'; }
 function renderProfile() {
   const p = state.profile; const name = $('profileNameHeading'); const heart = document.querySelector('.badge-heart'); const count = document.querySelector('.badge-heart-count');
@@ -319,6 +345,41 @@ async function closeContract(status) { return withBusy(L('closingContract'), asy
 async function saveSettings(event) { event.preventDefault(); const payload = { timezone: $('timezone').value.trim(), remindersEnabled: $('remindersEnabled').checked, eveningReminderTime: $('eveningReminderTime').value || '20:00' }; return withBusy(L('savingSettings'), async () => { const data = await api('/api/settings/reminders', { method: 'POST', body: JSON.stringify(payload) }); state.user = data.user; renderAll(); setStatus(L('settingsSaved')); }); }
 async function setLanguage(lang) { const normalized = I18N.normalizeLocale(lang); localStorage.setItem('kopilkaLocale', normalized); if (state.token) { try { const data = await api('/api/settings/locale', { method: 'POST', body: JSON.stringify({ locale: normalized }) }); state.user = data.user; } catch (e) { /* keep local preference */ } } await loadData(); }
 async function cleanupDemo() { if (!state.user?.isDemo) { setStatus(L('notDemo'), 'error'); return; } const id = state.user.id; return withBusy(L('deletingDemo'), async () => { await api(`/api/dev/demo-user/${id}`, { method: 'DELETE' }); localStorage.removeItem('kopilkaToken'); state.token = ''; state.user = null; state.summary = null; state.week = null; state.currentContract = null; renderAll(); setStatus(L('demoDeleted')); await authenticate(); }); }
+async function loadPendingMerge() {
+  const mergeToken = localStorage.getItem('kopilkaVkMergeToken');
+  if (!mergeToken || !state.token) return;
+  try {
+    const data = await api('/api/account/merge-vk/preview', { method: 'POST', body: JSON.stringify({ mergeToken }) });
+    state.pendingMerge = data;
+    switchTab('settings');
+    renderSettings();
+    setStatus(L('mergeNeedsConfirmation'));
+  } catch (e) {
+    localStorage.removeItem('kopilkaVkMergeToken');
+    state.pendingMerge = null;
+  }
+}
+async function confirmAccountMerge() {
+  const mergeToken = state.pendingMerge?.mergeToken || localStorage.getItem('kopilkaVkMergeToken');
+  if (!mergeToken) return;
+  return withBusy(L('mergeInProgress'), async () => {
+    const data = await api('/api/account/merge-vk/confirm', { method: 'POST', body: JSON.stringify({ mergeToken }) });
+    localStorage.removeItem('kopilkaVkMergeToken');
+    state.pendingMerge = null;
+    state.user = data.user;
+    state.summary = data.summary;
+    state.week = data.week;
+    await loadData();
+    switchTab('settings');
+    setStatus(L('mergeDone'));
+  });
+}
+function cancelAccountMerge() {
+  localStorage.removeItem('kopilkaVkMergeToken');
+  state.pendingMerge = null;
+  renderSettings();
+  setStatus(L('mergeCancelled'));
+}
 function bindEvents() {
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
   $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
@@ -327,6 +388,10 @@ function bindEvents() {
   $('contractForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await createContract(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
   $('contractCurrent').addEventListener('click', async (event) => { const b = event.target.closest('button[data-close-status]'); if (!b || state.busy || state.publicReadOnly) return; try { await closeContract(b.dataset.closeStatus); } catch (e) { setStatus(e.message, 'error'); } });
   $('settingsForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await saveSettings(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
+  $('accountLinksHeading')?.closest('.summary-card')?.addEventListener('click', async (event) => {
+    if (event.target.closest('#confirmAccountMerge')) { try { await confirmAccountMerge(); } catch (e) { setStatus(e.message, 'error'); } }
+    if (event.target.closest('#cancelAccountMerge')) cancelAccountMerge();
+  });
   $('cleanupDemo').addEventListener('click', async () => { if (state.busy) return; try { await cleanupDemo(); } catch (e) { setStatus(e.message, 'error'); } });
   document.querySelectorAll('[data-lang]').forEach((btn) => btn.addEventListener('click', async () => { if (state.busy) return; try { await setLanguage(btn.dataset.lang); setStatus(L('settingsSaved')); } catch (e) { setStatus(e.message, 'error'); } }));
   const vkBtn = $('vkLoginButton');
@@ -350,6 +415,14 @@ function bindEvents() {
         goToVkOAuth(authUrl, vkStatus);
       }
     } catch (e) {
+      if (e.data?.mergeRequired) {
+        state.pendingMerge = { preview: e.data.preview, mergeToken: e.data.mergeToken };
+        localStorage.setItem('kopilkaVkMergeToken', e.data.mergeToken);
+        renderSettings();
+        switchTab('settings');
+        setStatus(L('mergeNeedsConfirmation'));
+        return;
+      }
       const message = e.message || L('actionFailed');
       if (vkStatus) vkStatus.textContent = message;
       setStatus(message, 'error');
@@ -430,7 +503,7 @@ async function start() {
   const inVk = isVkMiniApp();
   if (inTelegram || inVk) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
   renderQuickActions(); applyStaticI18n();
-  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); setStatus(L('ready')); } catch (e) { const detail = (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('openFromTelegram'), 'error'); }
+  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); await loadPendingMerge(); setStatus(state.pendingMerge ? L('mergeNeedsConfirmation') : L('ready')); } catch (e) { const detail = (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('openFromTelegram'), 'error'); }
 }
 // The Telegram WebApp SDK may not be ready when app.js first runs; retry the
 // in-Telegram check until initData appears (or a longer timeout). A Mini App

@@ -5,6 +5,8 @@ const { validateTelegramLogin } = require('../auth/validateTelegramLogin');
 const { validateVkLaunchParams } = require('../auth/validateVkLaunchParams');
 const { buildAuthorizeUrl, exchangeCode, verifyState } = require('../auth/vkOAuth');
 const { createToken, verifyToken } = require('../auth/session');
+const { buildVkMergeOffer, buildMergePreview, applyMergeByToken } = require('../services/accountMergeService');
+const { verifyMergeToken } = require('../auth/mergeToken');
 const { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser } = require('../services/usersService');
 const { grantReferrerBonusOnFirstEntry, profileStats, publicProfileByCode } = require('../services/referralService');
 const { createEntry, getSummary, getWeekSummary, listEntries } = require('../services/entriesService');
@@ -70,6 +72,8 @@ router.post('/auth/vk', authLimiter, (req, res) => {
 router.post('/settings/link-vk', authRequired, authLimiter, (req, res) => {
   try {
     const validated = validateVkLaunchParams(req.body.launchParams, config.vkSecureKey, { appId: config.vkAppId, maxAgeSeconds: config.vkAuthMaxAgeSeconds });
+    const mergeOffer = buildVkMergeOffer(req.user.id, validated.vkId);
+    if (mergeOffer) return res.status(409).json(mergeOffer);
     const user = linkVkUser(req.user.id, validated.vkId);
     res.json({ user: publicUser(user) });
   } catch (error) {
@@ -101,6 +105,11 @@ router.get('/auth/vk-oauth/callback', authLimiter, async (req, res) => {
     let user;
     if (state.action === 'link') {
       if (!state.userId) throw new Error('VK OAuth link target is missing');
+      const mergeOffer = buildVkMergeOffer(Number(state.userId), vkId);
+      if (mergeOffer) {
+        const fragment = new URLSearchParams({ vk_oauth_action: 'link', vk_oauth_merge_token: mergeOffer.mergeToken });
+        return res.redirect(303, `/#${fragment.toString()}`);
+      }
       user = linkVkUser(Number(state.userId), vkId);
     } else {
       user = upsertVkUser(vkId, state.refCode || '', state.timezone || '', state.locale || 'ru');
@@ -126,6 +135,25 @@ router.delete('/dev/demo-user/:id', devLimiter, (req, res) => {
   return res.json({ deleted: deleteDemoUser(Number(req.params.id)) });
 });
 router.get('/me', authRequired, (req, res) => res.json({ user: publicUser(req.user) }));
+router.post('/account/merge-vk/preview', authRequired, (req, res) => {
+  try {
+    const data = verifyMergeToken(req.body.mergeToken || '');
+    if (data.primaryUserId !== req.user.id) return res.status(403).json({ error: 'Нельзя объединить аккаунты из другой сессии.' });
+    res.json({ preview: buildMergePreview(data.primaryUserId, data.sourceUserId), mergeToken: req.body.mergeToken });
+  } catch (error) {
+    res.status(400).json({ error: 'Не удалось подготовить слияние аккаунтов.' });
+  }
+});
+router.post('/account/merge-vk/confirm', authRequired, (req, res) => {
+  try {
+    const result = applyMergeByToken(req.body.mergeToken || '', req.user.id);
+    res.json({ user: publicUser(result.user), preview: result.preview, summary: getSummary(req.user.id), week: getWeekSummary(req.user.id) });
+  } catch (error) {
+    console.error('[account/merge-vk/confirm] reject:', error && error.message ? error.message : String(error));
+    if (error.preview) return res.status(409).json({ error: 'Слияние пока нельзя выполнить: есть конфликт активных договоров.', preview: error.preview });
+    res.status(400).json({ error: 'Не удалось объединить аккаунты.' });
+  }
+});
 router.get('/profile', authRequired, (req, res) => {
   const stats = profileStats(req.user.id);
   const botLink = config.botUsername ? `https://t.me/${config.botUsername.replace(/^@/, '')}?startapp=${stats.refCode}` : null;
