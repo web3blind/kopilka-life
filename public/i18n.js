@@ -131,6 +131,8 @@
     partnerActive: { ru: 'активных:', en: 'active:' },
     refLinkLabel: { ru: 'Твоя реферальная ссылка', en: 'Your referral link' },
     refLinkHint: { ru: 'По этой ссылке переход и вход считаются твоим приглашением.', en: 'Following this link and signing in counts as your invite.' },
+    profileLinkLabel: { ru: 'Ссылка профиля', en: 'Profile link' },
+    profileLinkHint: { ru: 'Это публичная ссылка только для просмотра профиля. При входе она сохранится как приглашение.', en: 'This is a public read-only profile link. If the visitor signs in, it will be saved as the invite.' },
     copyRefLink: { ru: 'Копировать ссылку', en: 'Copy link' },
     shareRefLink: { ru: 'Поделиться реферальной ссылкой', en: 'Share referral link' },
     shareProfile: { ru: 'Поделиться профилем', en: 'Share profile' },

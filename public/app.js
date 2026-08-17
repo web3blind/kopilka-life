@@ -2,7 +2,7 @@ const I18N = window.KopilkaI18n;
 const locale = () => I18N.normalizeLocale(state.user?.locale || localStorage.getItem('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, activeTab: 'today', busy: false };
+const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, activeTab: 'today', busy: false, publicReadOnly: false };
 const $ = (id) => document.getElementById(id);
 // Detect the user's timezone from their device clock (IANA zone), fallback UTC.
 function detectTimezone() {
@@ -83,6 +83,18 @@ function goToVkOAuth(authUrl, statusEl = null) {
 async function startVkOAuth(action = 'auth', statusEl = null) {
   const authUrl = await getVkOAuthUrl(action);
   goToVkOAuth(authUrl, statusEl);
+}
+function setPublicReadOnlyMode(enabled) {
+  state.publicReadOnly = Boolean(enabled);
+  const nav = document.querySelector('.tab-bar');
+  if (nav) nav.hidden = state.publicReadOnly;
+  ['copyRefLink', 'shareRefLink'].forEach((id) => { const el = $(id); if (el) el.hidden = state.publicReadOnly; });
+  const shareProfile = $('shareProfile');
+  if (shareProfile) shareProfile.hidden = false;
+  const linkLabel = document.querySelector('label[for="refLink"]');
+  if (linkLabel) linkLabel.textContent = state.publicReadOnly ? L('profileLinkLabel') : L('refLinkLabel');
+  const hint = $('refLinkHint');
+  if (hint) hint.textContent = state.publicReadOnly ? L('profileLinkHint') : L('refLinkHint');
 }
 function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text; region.classList.toggle('error', type === 'error'); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
@@ -306,13 +318,13 @@ async function saveSettings(event) { event.preventDefault(); const payload = { t
 async function setLanguage(lang) { const normalized = I18N.normalizeLocale(lang); localStorage.setItem('kopilkaLocale', normalized); if (state.token) { try { const data = await api('/api/settings/locale', { method: 'POST', body: JSON.stringify({ locale: normalized }) }); state.user = data.user; } catch (e) { /* keep local preference */ } } await loadData(); }
 async function cleanupDemo() { if (!state.user?.isDemo) { setStatus(L('notDemo'), 'error'); return; } const id = state.user.id; return withBusy(L('deletingDemo'), async () => { await api(`/api/dev/demo-user/${id}`, { method: 'DELETE' }); localStorage.removeItem('kopilkaToken'); state.token = ''; state.user = null; state.summary = null; state.week = null; state.currentContract = null; renderAll(); setStatus(L('demoDeleted')); await authenticate(); }); }
 function bindEvents() {
-  document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy) switchTab(b.dataset.tab); });
-  $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
-  $('contractTemplates').addEventListener('click', (event) => { const b = event.target.closest('button[data-template-id]'); if (b && !state.busy) applyTemplate(b.dataset.templateId); });
-  $('practiceGoal').addEventListener('change', async (event) => { if (state.busy) return; try { state.product.practices = await api(`/api/product/practices?goal=${encodeURIComponent(event.target.value)}`); renderPractices(); setStatus(L('practicesUpdated')); } catch (e) { setStatus(e.message, 'error'); } });
-  $('contractForm').addEventListener('submit', async (event) => { try { await createContract(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
-  $('contractCurrent').addEventListener('click', async (event) => { const b = event.target.closest('button[data-close-status]'); if (!b || state.busy) return; try { await closeContract(b.dataset.closeStatus); } catch (e) { setStatus(e.message, 'error'); } });
-  $('settingsForm').addEventListener('submit', async (event) => { try { await saveSettings(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
+  document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
+  $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
+  $('contractTemplates').addEventListener('click', (event) => { const b = event.target.closest('button[data-template-id]'); if (b && !state.busy && !state.publicReadOnly) applyTemplate(b.dataset.templateId); });
+  $('practiceGoal').addEventListener('change', async (event) => { if (state.busy || state.publicReadOnly) return; try { state.product.practices = await api(`/api/product/practices?goal=${encodeURIComponent(event.target.value)}`); renderPractices(); setStatus(L('practicesUpdated')); } catch (e) { setStatus(e.message, 'error'); } });
+  $('contractForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await createContract(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
+  $('contractCurrent').addEventListener('click', async (event) => { const b = event.target.closest('button[data-close-status]'); if (!b || state.busy || state.publicReadOnly) return; try { await closeContract(b.dataset.closeStatus); } catch (e) { setStatus(e.message, 'error'); } });
+  $('settingsForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await saveSettings(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
   $('cleanupDemo').addEventListener('click', async () => { if (state.busy) return; try { await cleanupDemo(); } catch (e) { setStatus(e.message, 'error'); } });
   document.querySelectorAll('[data-lang]').forEach((btn) => btn.addEventListener('click', async () => { if (state.busy) return; try { await setLanguage(btn.dataset.lang); setStatus(L('settingsSaved')); } catch (e) { setStatus(e.message, 'error'); } }));
   const vkBtn = $('vkLoginButton');
@@ -432,10 +444,12 @@ function waitForTelegram() {
   });
 }
 // Public profile page: /p/CODE shows someone's public stats (no personal notes).
-async function renderPublicProfile(code) {
+async function renderPublicProfile(code, options = {}) {
   try {
     const { profile } = await api(`/api/public/${encodeURIComponent(code)}`);
     if (!profile) throw new Error('not found');
+    const readOnly = options.readOnly !== false;
+    setPublicReadOnlyMode(readOnly);
     const n = profile.activeReferred || 0;
     const status = $('connectionStatus');
     if (status) status.textContent = `${L('publicProfileIntro')} ${profile.firstName}`;
@@ -473,7 +487,13 @@ async function renderPublicProfile(code) {
   const consumedVkOAuth = consumeVkOAuthResult();
   if (consumedVkOAuth) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; await start(); return; }
   const publicCode = publicProfileCode();
-  if (publicCode) { captureRefCode(); if (await renderPublicProfile(publicCode)) { applyStaticI18n(); return; } }
+  if (publicCode) {
+    captureRefCode();
+    if (state.token) {
+      try { await start(); await renderPublicProfile(publicCode, { readOnly: false }); applyStaticI18n(); setPublicReadOnlyMode(false); return; } catch (_) { /* fall through to read-only public profile */ }
+    }
+    if (await renderPublicProfile(publicCode, { readOnly: true })) { applyStaticI18n(); setPublicReadOnlyMode(true); return; }
+  }
   const inVk = isVkMiniApp();
   if (inVk) { await start(); return; }
   const hasWebApp = await waitForTelegram();
