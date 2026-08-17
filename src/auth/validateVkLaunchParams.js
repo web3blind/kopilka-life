@@ -19,7 +19,9 @@ function parseLaunchParams(input) {
     const url = new URL(raw);
     raw = url.search || url.hash || '';
   }
-  raw = raw.replace(/^#/, '').replace(/^\?/, '');
+  while (raw.startsWith('#') || raw.startsWith('?')) raw = raw.slice(1);
+  const queryIndex = raw.indexOf('?');
+  if (queryIndex >= 0) raw = raw.slice(queryIndex + 1);
   return new URLSearchParams(raw);
 }
 

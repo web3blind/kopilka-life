@@ -23,8 +23,10 @@ function captureRefCode() {
   return localStorage.getItem('kopilkaRef') || '';
 }
 function vkLaunchParams() {
-  const raw = window.location.search || window.location.hash || '';
-  if (!raw || !raw.includes('vk_app_id') || !raw.includes('sign=')) return '';
+  const candidates = [window.location.search || '', window.location.hash || ''];
+  const raw = candidates.find((value) => value.includes('vk_app_id') && value.includes('sign=')) || '';
+  if (!raw) return '';
+  if (raw.startsWith('#') && raw.includes('?')) return raw.slice(raw.indexOf('?'));
   return raw;
 }
 function isVkMiniApp() { return Boolean(vkLaunchParams()); }

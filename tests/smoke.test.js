@@ -116,6 +116,7 @@ async function main() {
   assert.throws(() => validateTelegramLogin({ ...makeLoginWidget({ id: 777, first_name: 'Old', username: 'o' }, 'test-bot-token', 100), hash: '' }, 'test-bot-token'), /too old|hash/i, 'stale Login Widget rejected');
   const vkLaunch = makeVkLaunchParams(424242, 'test-vk-secure-key');
   assert.equal(validateVkLaunchParams(vkLaunch, 'test-vk-secure-key', { appId: '54723764' }).vkId, '424242', 'valid VK launch params pass');
+  assert.equal(validateVkLaunchParams(`#/settings${vkLaunch}`, 'test-vk-secure-key', { appId: '54723764' }).vkId, '424242', 'VK launch params pass through hash-router URLs');
   assert.throws(() => validateVkLaunchParams(vkLaunch.replace('424242', '424243'), 'test-vk-secure-key', { appId: '54723764' }), /invalid|sign/i, 'tampered VK launch params fail');
   const cfgResp = await request('/api/config');
   assert.equal(cfgResp.res.status, 200, 'public config endpoint available');
