@@ -128,6 +128,11 @@
             <button id="lang-en" type="button" data-lang="en">English</button>
           </div>
         </section>
+        <section class="summary-card" aria-labelledby="accountLinksHeading">
+          <h2 id="accountLinksHeading" data-i18n="accountLinksHeading">Связанные аккаунты</h2>
+          <p id="vkLinkStatus" class="soft-note" data-i18n="vkLinkStatusUnknown">VK не проверен.</p>
+          <button id="linkVkAccount" type="button" class="secondary" data-i18n="linkVkAccount">Привязать VK</button>
+        </section>
         <section class="summary-card" aria-labelledby="serviceHeading">
           <h2 id="serviceHeading" data-i18n="serviceHeading">Служебно</h2>
           <p id="userDebug" data-i18n="userDebug">Пользователь ещё не подключён.</p>
@@ -169,6 +174,7 @@
   </div>
   <script src="/i18n.js?v=20260817"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/app.js?v=20260817"></script>
+  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+  <script src="/app.js?v=20260817-vk1"></script>
 </body>
 </html>

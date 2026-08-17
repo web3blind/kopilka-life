@@ -34,7 +34,7 @@ function resolveRefCode(code) {
 }
 function publicUser(user) {
   if (!user) return null;
-  return { id: user.id, firstName: user.first_name, username: user.username, timezone: user.timezone, locale: normalizeLocale(user.locale), remindersEnabled: Boolean(user.reminders_enabled), eveningReminderTime: user.evening_reminder_time, isDemo: Boolean(user.is_demo) };
+  return { id: user.id, firstName: user.first_name, username: user.username, timezone: user.timezone, locale: normalizeLocale(user.locale), remindersEnabled: Boolean(user.reminders_enabled), eveningReminderTime: user.evening_reminder_time, isDemo: Boolean(user.is_demo), vkLinked: Boolean(user.vk_id) };
 }
 function upsertTelegramUser(tgUser, refCode, timezone) {
   const db = getDb();
@@ -61,6 +61,32 @@ function createDemoUser(name = 'Demo', locale = 'ru', refCode, timezone) {
   ensureRefCode(info.lastInsertRowid);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }
+function upsertVkUser(vkId, refCode, timezone, locale = 'ru') {
+  const db = getDb();
+  const vkIdText = String(vkId);
+  const existing = db.prepare('SELECT * FROM users WHERE vk_id = ?').get(vkIdText);
+  if (existing) {
+    ensureRefCode(existing.id);
+    db.prepare('UPDATE users SET locale = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(normalizeLocale(locale), existing.id);
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
+  }
+  const referrer = resolveRefCode(refCode);
+  const zone = normalizeTimezone(timezone || 'UTC');
+  const info = db.prepare("INSERT INTO users (telegram_id, vk_id, first_name, username, timezone, locale, reminders_enabled, is_demo, referrer_id) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?)")
+    .run(`vk:${vkIdText}`, vkIdText, 'VK user', '', zone, normalizeLocale(locale), referrer ? referrer.id : null);
+  ensureRefCode(info.lastInsertRowid);
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+}
+function linkVkUser(userId, vkId) {
+  const db = getDb();
+  const vkIdText = String(vkId);
+  const current = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  if (!current) throw new Error('user not found');
+  const linked = db.prepare('SELECT * FROM users WHERE vk_id = ?').get(vkIdText);
+  if (linked && linked.id !== userId) throw new Error('Этот VK уже привязан к другому аккаунту. Войдите через VK отдельно или напишите поддержке.');
+  db.prepare('UPDATE users SET vk_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(vkIdText, userId);
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+}
 function getUserById(id) { return getDb().prepare('SELECT * FROM users WHERE id = ?').get(id); }
 function updateLocale(userId, locale) {
   const normalized = normalizeLocale(locale);
@@ -79,4 +105,4 @@ function deleteDemoUser(userId) {
   getDb().prepare('DELETE FROM users WHERE id = ? AND is_demo = 1').run(userId);
   return true;
 }
-module.exports = { publicUser, upsertTelegramUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser, ensureRefCode, resolveRefCode };
+module.exports = { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser, ensureRefCode, resolveRefCode };

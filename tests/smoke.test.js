@@ -6,6 +6,8 @@ const path = require('path');
 process.env.DB_PATH = path.join(os.tmpdir(), `kopilka-life-test-${Date.now()}.sqlite`);
 process.env.BOT_TOKEN = 'test-bot-token';
 process.env.SESSION_SECRET = 'test-session-secret';
+process.env.VK_APP_ID = '54723764';
+process.env.VK_SECURE_KEY = 'test-vk-secure-key';
 process.env.DEV_AUTH_ENABLED = 'true';
 process.env.SCHEDULER_ENABLED = 'false';
 process.env.RATE_LIMIT_API_MAX = '1000';
@@ -15,6 +17,7 @@ const { createApp } = require('../src/server');
 const { closeDb, getDb } = require('../src/db');
 const { validateTelegramInitData } = require('../src/auth/validateTelegramInitData');
 const { validateTelegramLogin } = require('../src/auth/validateTelegramLogin');
+const { validateVkLaunchParams } = require('../src/auth/validateVkLaunchParams');
 const { sendDueReminders, nextDueAt } = require('../src/services/remindersService');
 const { createRateLimiter } = require('../src/middleware/rateLimit');
 
@@ -36,6 +39,21 @@ function makeLoginWidget(user, botToken, authDate = Math.floor(Date.now() / 1000
   const secretKey = crypto.createHash('sha256').update(botToken).digest();
   const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
   return { ...fields, hash };
+}
+
+function makeVkLaunchParams(vkUserId, secureKey, overrides = {}) {
+  const params = new URLSearchParams({
+    vk_app_id: '54723764',
+    vk_user_id: String(vkUserId),
+    vk_language: 'ru',
+    vk_ts: String(Math.floor(Date.now() / 1000)),
+    ...overrides
+  });
+  const signParams = Array.from(params.entries()).filter(([key]) => key.startsWith('vk_')).sort(([a], [b]) => a.localeCompare(b));
+  const query = new URLSearchParams(signParams).toString();
+  const sign = crypto.createHmac('sha256', secureKey).update(query).digest('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  params.set('sign', sign);
+  return `?${params.toString()}`;
 }
 
 function testRateLimiterUnit() {
@@ -96,6 +114,9 @@ async function main() {
   assert.equal(validateTelegramLogin(widget, 'test-bot-token').user.id, 999, 'valid Login Widget payload passes');
   assert.throws(() => validateTelegramLogin({ ...widget, hash: widget.hash.slice(0, -1) + (widget.hash.slice(-1) === 'a' ? 'b' : 'a') }, 'test-bot-token'), /invalid|hash/i, 'tampered Login Widget fails');
   assert.throws(() => validateTelegramLogin({ ...makeLoginWidget({ id: 777, first_name: 'Old', username: 'o' }, 'test-bot-token', 100), hash: '' }, 'test-bot-token'), /too old|hash/i, 'stale Login Widget rejected');
+  const vkLaunch = makeVkLaunchParams(424242, 'test-vk-secure-key');
+  assert.equal(validateVkLaunchParams(vkLaunch, 'test-vk-secure-key', { appId: '54723764' }).vkId, '424242', 'valid VK launch params pass');
+  assert.throws(() => validateVkLaunchParams(vkLaunch.replace('424242', '424243'), 'test-vk-secure-key', { appId: '54723764' }), /invalid|sign/i, 'tampered VK launch params fail');
   const cfgResp = await request('/api/config');
   assert.equal(cfgResp.res.status, 200, 'public config endpoint available');
   assert(typeof cfgResp.data.botUsername === 'string', 'public config exposes botUsername');
@@ -117,6 +138,13 @@ async function main() {
   const siteAuth = { authorization: `Bearer ${siteToken}` };
   let meResp = await request('/api/me', { headers: siteAuth });
   assert.equal(meResp.data.user.id, miniUserId, 'site session token is valid');
+  const vkOnlyResp = await request('/api/auth/vk', { method: 'POST', body: JSON.stringify({ launchParams: makeVkLaunchParams(9001, 'test-vk-secure-key'), timezone: 'Europe/Moscow' }) });
+  assert.equal(vkOnlyResp.res.status, 200, 'VK Mini App auth accepted');
+  assert.equal(vkOnlyResp.data.user.vkLinked, true, 'VK user is marked linked');
+  assert.equal(vkOnlyResp.data.user.timezone, 'Europe/Moscow', 'VK auth saves detected timezone');
+  const vkLinkResp = await request('/api/settings/link-vk', { method: 'POST', headers: siteAuth, body: JSON.stringify({ launchParams: makeVkLaunchParams(9002, 'test-vk-secure-key') }) });
+  assert.equal(vkLinkResp.res.status, 200, 'Telegram account can link verified VK id');
+  assert.equal(vkLinkResp.data.user.vkLinked, true, 'linked Telegram account reports vkLinked');
   loginResp = await request('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...makeLoginWidget({ id: 123, first_name: 'Telegram', username: 'tg_user' }, 'test-bot-token'), hash: 'deadbeef' }) });
   assert.equal(loginResp.res.status, 401, 'forged site login rejected');
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'sleep', note: 'smoke' }) });

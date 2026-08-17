@@ -2,8 +2,9 @@ const express = require('express');
 const config = require('../config');
 const { validateTelegramInitData } = require('../auth/validateTelegramInitData');
 const { validateTelegramLogin } = require('../auth/validateTelegramLogin');
+const { validateVkLaunchParams } = require('../auth/validateVkLaunchParams');
 const { createToken, verifyToken } = require('../auth/session');
-const { publicUser, upsertTelegramUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser } = require('../services/usersService');
+const { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser } = require('../services/usersService');
 const { grantReferrerBonusOnFirstEntry, profileStats, publicProfileByCode } = require('../services/referralService');
 const { createEntry, getSummary, getWeekSummary, listEntries } = require('../services/entriesService');
 const { getCurrentContract, createContract, closeContract } = require('../services/contractsService');
@@ -55,8 +56,28 @@ router.post('/auth/telegram-login', authLimiter, (req, res) => {
     res.status(401).json({ error: 'Не удалось подтвердить вход через Telegram.' });
   }
 });
+router.post('/auth/vk', authLimiter, (req, res) => {
+  try {
+    const validated = validateVkLaunchParams(req.body.launchParams, config.vkSecureKey, { appId: config.vkAppId, maxAgeSeconds: config.vkAuthMaxAgeSeconds });
+    const user = upsertVkUser(validated.vkId, req.body.refCode, req.body.timezone, validated.language || req.body.locale || 'ru');
+    res.json({ token: createToken(user.id), user: publicUser(user) });
+  } catch (error) {
+    console.error('[auth/vk] reject:', error && error.message ? error.message : String(error));
+    res.status(401).json({ error: 'Не удалось подтвердить VK-сессию. Открой приложение из VK ещё раз.' });
+  }
+});
+router.post('/settings/link-vk', authRequired, authLimiter, (req, res) => {
+  try {
+    const validated = validateVkLaunchParams(req.body.launchParams, config.vkSecureKey, { appId: config.vkAppId, maxAgeSeconds: config.vkAuthMaxAgeSeconds });
+    const user = linkVkUser(req.user.id, validated.vkId);
+    res.json({ user: publicUser(user) });
+  } catch (error) {
+    console.error('[settings/link-vk] reject:', error && error.message ? error.message : String(error));
+    res.status(400).json({ error: error.message || 'Не удалось привязать VK.' });
+  }
+});
 // Public, non-sensitive config the site needs to render the login widget.
-router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl }));
+router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl, vkAppId: config.vkAppId }));
 router.post('/auth/dev', devLimiter, (req, res) => {
   if (!config.devAuthEnabled) return disabled(res);
   const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale, req.body.refCode, req.body.timezone);

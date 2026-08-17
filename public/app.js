@@ -22,6 +22,18 @@ function captureRefCode() {
   } catch (_) { /* ignore */ }
   return localStorage.getItem('kopilkaRef') || '';
 }
+function vkLaunchParams() {
+  const raw = window.location.search || window.location.hash || '';
+  if (!raw || !raw.includes('vk_app_id') || !raw.includes('sign=')) return '';
+  return raw;
+}
+function isVkMiniApp() { return Boolean(vkLaunchParams()); }
+async function initVkBridge() {
+  try { if (window.vkBridge?.send) await window.vkBridge.send('VKWebAppInit'); } catch (_) { /* VK Bridge init is best-effort */ }
+}
+function openVkApp() {
+  window.location.href = 'https://vk.com/app54723764';
+}
 function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text; region.classList.toggle('error', type === 'error'); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
 function setBusy(isBusy, message = '') { state.busy = isBusy; document.querySelectorAll('button,input,textarea,select').forEach((el) => { if (el.id === 'cleanupDemo' && state.user && !state.user.isDemo) return; el.disabled = isBusy; }); document.body.setAttribute('aria-busy', isBusy ? 'true' : 'false'); if (message) setStatus(message); }
@@ -78,7 +90,7 @@ function renderContractTemplates() { const templates = state.product?.contractTe
 function renderWeeklyReview() { const review = state.product?.weeklyReview; if (!review) return; $('weeklyReviewText').textContent = review.summaryText; $('weeklyReviewQuestions').innerHTML = review.questions.map((q) => `<li>${escapeHtml(q)}</li>`).join(''); }
 function renderPractices() { const data = state.product?.practices; if (!data) return; const select = $('practiceGoal'); if (select.options.length === 0) { select.innerHTML = data.goals.map((g) => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.title)}</option>`).join(''); } select.value = data.goal; $('goalPractices').innerHTML = data.practices.map((p) => `<li>${escapeHtml(p)}</li>`).join(''); }
 function applyTemplate(templateId) { const t = (state.product?.contractTemplates || []).find((item) => item.id === templateId); if (!t) return; $('contractTitle').value = t.title; $('contractTarget').value = t.targetValue; $('stakeAmount').value = t.stakeAmount || ''; $('stakeCurrency').value = t.stakeCurrency || 'RUB'; $('rewardDescription').value = t.rewardDescription || ''; $('fundDescription').value = t.fundDescription || ''; setStatus(L('templateApplied', { title: t.title })); }
-function renderSettings() { if (!state.user) return; $('timezone').value = state.user.timezone || 'Asia/Novosibirsk'; $('remindersEnabled').checked = Boolean(state.user.remindersEnabled); $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00'; $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`; if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo; const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en')); }
+function renderSettings() { if (!state.user) return; $('timezone').value = state.user.timezone || 'Asia/Novosibirsk'; $('remindersEnabled').checked = Boolean(state.user.remindersEnabled); $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00'; $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`; const vkStatus = $('vkLinkStatus'); const vkBtn = $('linkVkAccount'); if (vkStatus) vkStatus.textContent = state.user.vkLinked ? L('vkLinked') : L('vkNotLinked'); if (vkBtn) { vkBtn.hidden = Boolean(state.user.vkLinked); vkBtn.disabled = !isVkMiniApp(); } if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo; const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en')); }
 function badgeSize(n) { if (n === 0) return 'small'; if (n >= 50) return 'xlarge'; if (n >= 10) return 'large'; return 'small'; }
 function renderProfile() {
   const p = state.profile; const name = $('profileNameHeading'); const heart = document.querySelector('.badge-heart'); const count = document.querySelector('.badge-heart-count');
@@ -154,10 +166,41 @@ async function handleTelegramLogin(user) {
 }
 window.__kopilkaOnTelegramAuth = handleTelegramLogin;
 
+async function handleVkAuth({ linkOnly = false } = {}) {
+  await initVkBridge();
+  const launchParams = vkLaunchParams();
+  if (!launchParams) {
+    if (linkOnly) throw new Error(L('vkOpenFromVk'));
+    openVkApp();
+    return null;
+  }
+  const endpoint = linkOnly ? '/api/settings/link-vk' : '/api/auth/vk';
+  const data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }) });
+  if (linkOnly) {
+    state.user = data.user;
+    renderAll();
+    setStatus(L('vkLinked'));
+    return data;
+  }
+  state.token = data.token; state.user = data.user;
+  localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
+  if ($('loginScreen')) $('loginScreen').hidden = true;
+  if ($('appShell')) $('appShell').hidden = false;
+  $('connectionStatus').textContent = L('vkSession');
+  await loadData();
+  setStatus(L('ready'));
+  return data;
+}
+
 async function authenticate() {
   if (state.token) { try { await loadData(); $('connectionStatus').textContent = L('connected'); return; } catch (e) { localStorage.removeItem('kopilkaToken'); state.token = ''; } }
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
+  const inVk = isVkMiniApp();
   const refCode = captureRefCode();
+  if (inVk) {
+    await handleVkAuth();
+    return;
+  }
   if (inTelegram) {
     const initData = window.Telegram.WebApp.initData;
     const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData, refCode, timezone: detectTimezone() }) });
@@ -187,7 +230,16 @@ function bindEvents() {
   $('cleanupDemo').addEventListener('click', async () => { if (state.busy) return; try { await cleanupDemo(); } catch (e) { setStatus(e.message, 'error'); } });
   document.querySelectorAll('[data-lang]').forEach((btn) => btn.addEventListener('click', async () => { if (state.busy) return; try { await setLanguage(btn.dataset.lang); setStatus(L('settingsSaved')); } catch (e) { setStatus(e.message, 'error'); } }));
   const vkBtn = $('vkLoginButton');
-  if (vkBtn) vkBtn.addEventListener('click', () => { vkBtn.disabled = true; vkBtn.textContent = L('loginVkSoon'); });
+  if (vkBtn) vkBtn.addEventListener('click', async () => {
+    vkBtn.disabled = true;
+    vkBtn.textContent = L('loginVkSoon');
+    try { await handleVkAuth(); } catch (e) { setLoginStatus(e.message || L('actionFailed'), 'error'); vkBtn.disabled = false; vkBtn.textContent = L('loginVkButton'); }
+  });
+  const linkVkBtn = $('linkVkAccount');
+  if (linkVkBtn) linkVkBtn.addEventListener('click', async () => {
+    if (state.busy) return;
+    try { await withBusy(L('vkLinking'), () => handleVkAuth({ linkOnly: true })); } catch (e) { setStatus(e.message, 'error'); }
+  });
   const copyBtn = $('copyRefLink');
   if (copyBtn) copyBtn.addEventListener('click', async () => {
     const link = $('refLink')?.value;
