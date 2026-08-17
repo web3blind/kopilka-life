@@ -19,12 +19,24 @@ function sign(payload) {
 
 function createState(data) {
   const payload = base64url(JSON.stringify({ ...data, iat: Date.now() }));
-  return `${payload}.${sign(payload)}`;
+  const envelope = { payload, signature: sign(payload) };
+  return base64url(JSON.stringify(envelope));
+}
+
+function parseStateEnvelope(state) {
+  if (!state || typeof state !== 'string') throw new Error('VK OAuth state is missing');
+  // Backward compatibility with the initial implementation. VK ID docs allow only
+  // a-z, A-Z, 0-9, _ and - in state, so new states are packed as one base64url string.
+  if (state.includes('.')) {
+    const [payload, signature] = state.split('.');
+    return { payload, signature };
+  }
+  const envelope = JSON.parse(Buffer.from(state, 'base64url').toString('utf8'));
+  return { payload: envelope.payload, signature: envelope.signature };
 }
 
 function verifyState(state, maxAgeMs = 10 * 60 * 1000) {
-  if (!state || typeof state !== 'string' || !state.includes('.')) throw new Error('VK OAuth state is missing');
-  const [payload, signature] = state.split('.');
+  const { payload, signature } = parseStateEnvelope(state);
   const expected = sign(payload);
   if (!signature || signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new Error('VK OAuth state is invalid');
   const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
