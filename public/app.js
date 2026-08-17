@@ -11,10 +11,14 @@ async function withBusy(message, fn) { setBusy(true, message); try { return awai
 async function api(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.token) headers.authorization = `Bearer ${state.token}`; const res = await fetch(path, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || L('actionFailed')); return data; }
 
 // Translate all [data-i18n] static nodes and set document lang.
+// Never clobber child elements: only text-bearing [data-i18n] nodes are
+// replaced wholesale; a node that contains child elements is skipped so that
+// id-bearing descendants (e.g. <strong id="todayLife">) are never destroyed.
 function applyStaticI18n() {
   const lang = locale();
   document.documentElement.lang = lang;
   document.querySelectorAll('[data-i18n]').forEach((el) => {
+    if (el.querySelector('*')) return; // has element children -> leave for dynamic render
     const key = el.getAttribute('data-i18n');
     el.textContent = L(key);
   });

@@ -68,6 +68,10 @@ function testStaticAccessibility() {
   assert(css.includes('qa-hint'), 'quick action description styles exist');
   assert(css.includes('language-switch'), 'language switcher styles exist');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
+  // The dynamic counter must not sit inside a [data-i18n] element, or the
+  // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
+  assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');
+  assert(html.includes('<span data-i18n="todayAdded">'), 'todayAdded label is its own i18n span');
 }
 
 async function main() {
