@@ -213,8 +213,8 @@ function bindEvents() {
     if (inTelegram && tg && tg.openTelegramLink) {
       try {
         const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
-        dbg('Share: открываю композер Telegram…');
-        tg.openTelegramLink(shareUrl);
+        dbg(`Share: открываю композер Telegram (ver=${tg.version || '?'})…`);
+        tg.openTelegramLink(shareUrl, { force_request: true });
         return;
       } catch (e) { dbg('Share: openTelegramLink ошибка: ' + (e && e.message ? e.message : String(e))); }
     }
