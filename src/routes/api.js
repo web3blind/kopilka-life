@@ -129,7 +129,16 @@ router.get('/me', authRequired, (req, res) => res.json({ user: publicUser(req.us
 router.get('/profile', authRequired, (req, res) => {
   const stats = profileStats(req.user.id);
   const botLink = config.botUsername ? `https://t.me/${config.botUsername.replace(/^@/, '')}?startapp=${stats.refCode}` : null;
-  res.json({ profile: { ...publicUser(req.user), ...stats, refLink: `${config.webappUrl}?ref=${stats.refCode}`, profileLink: `${config.webappUrl}/p/${stats.refCode}`, botLink } });
+  const vkAppBase = config.vkAppId ? `https://vk.com/app${config.vkAppId}` : null;
+  res.json({ profile: {
+    ...publicUser(req.user),
+    ...stats,
+    refLink: `${config.webappUrl}?ref=${stats.refCode}`,
+    profileLink: `${config.webappUrl}/p/${stats.refCode}`,
+    botLink,
+    vkRefLink: vkAppBase ? `${vkAppBase}#ref=${stats.refCode}` : null,
+    vkProfileLink: vkAppBase ? `${vkAppBase}#profile=${stats.refCode}` : null
+  } });
 });
 router.get('/public/:code', (req, res) => {
   const profile = publicProfileByCode(req.params.code);

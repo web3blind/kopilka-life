@@ -242,6 +242,11 @@ async function main() {
   const refCodeA = refAProfile.data.profile.refCode;
   assert(refCodeA && refCodeA.length >= 4, 'referrer gets a ref code');
   assert(refAProfile.data.profile.refLink.includes('ref='), 'profile exposes ref link');
+  assert(refAProfile.data.profile.vkRefLink.includes('vk.com/app54723764#ref='), 'profile exposes VK Mini App ref link');
+  assert(refAProfile.data.profile.vkProfileLink.includes('vk.com/app54723764#profile='), 'profile exposes VK Mini App profile link');
+  const publicShell = await fetch(`${baseUrl}/p/${refCodeA}`);
+  assert.equal(publicShell.status, 200, 'public profile path serves SPA shell without auth');
+  assert((await publicShell.text()).includes('/app.js'), 'public profile shell loads app script');
   // Referred B (real Telegram user) signs up with A's code, then makes a first entry -> A gets +1 LIFE.
   const refB = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 7002, first_name: 'Referred B', username: 'ref_b' }, 'test-bot-token'), refCode: refCodeA }) });
   const refBToken = refB.data.token; const refBId = refB.data.user.id;

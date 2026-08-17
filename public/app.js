@@ -13,14 +13,29 @@ function detectTimezone() {
 function captureRefCode() {
   try {
     const sp = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
-    if (sp) { localStorage.setItem('kopilkaRef', String(sp).trim().toUpperCase()); return String(sp).trim().toUpperCase(); }
+    const tgRef = referralLikeCode(sp);
+    if (tgRef) { localStorage.setItem('kopilkaRef', tgRef); return tgRef; }
     const url = new URL(window.location.href);
-    const q = url.searchParams.get('ref');
-    if (q) { localStorage.setItem('kopilkaRef', q.trim().toUpperCase()); return q.trim().toUpperCase(); }
+    const qRef = referralLikeCode(url.searchParams.get('ref'));
+    if (qRef) { localStorage.setItem('kopilkaRef', qRef); return qRef; }
+    const vkHash = parseHashParams(vkLaunchHash() || window.location.hash);
+    const vkRef = referralLikeCode(vkHash.get('ref') || vkHash.get('profile'));
+    if (vkRef) { localStorage.setItem('kopilkaRef', vkRef); return vkRef; }
     const p = /^\/p\/([A-Za-z0-9]+)/.exec(url.pathname);
-    if (p) { localStorage.setItem('kopilkaRef', p[1].toUpperCase()); return p[1].toUpperCase(); }
+    const pathRef = referralLikeCode(p ? p[1] : '');
+    if (pathRef) { localStorage.setItem('kopilkaRef', pathRef); return pathRef; }
   } catch (_) { /* ignore */ }
   return localStorage.getItem('kopilkaRef') || '';
+}
+function publicProfileCode() {
+  try {
+    const url = new URL(window.location.href);
+    const p = /^\/p\/([A-Za-z0-9]+)/.exec(url.pathname);
+    const pathCode = referralLikeCode(p ? p[1] : '');
+    if (pathCode) return pathCode;
+    const hash = parseHashParams(vkLaunchHash() || window.location.hash);
+    return referralLikeCode(hash.get('profile') || '');
+  } catch (_) { return ''; }
 }
 function vkLaunchParams() {
   const candidates = [window.location.search || '', window.location.hash || ''];
@@ -28,6 +43,22 @@ function vkLaunchParams() {
   if (!raw) return '';
   if (raw.startsWith('#') && raw.includes('?')) return raw.slice(raw.indexOf('?'));
   return raw;
+}
+function vkLaunchHash() {
+  try {
+    const raw = vkLaunchParams();
+    if (raw) return new URLSearchParams(raw.replace(/^[?#]/, '')).get('hash') || '';
+    return '';
+  } catch (_) { return ''; }
+}
+function parseHashParams(value) {
+  const raw = String(value || '').replace(/^#/, '').replace(/^\/?/, '');
+  if (!raw) return new URLSearchParams();
+  return new URLSearchParams(raw);
+}
+function referralLikeCode(value) {
+  const code = String(value || '').trim().toUpperCase();
+  return /^[A-Z0-9]{4,24}$/.test(code) ? code : '';
 }
 function isVkMiniApp() { return Boolean(vkLaunchParams()); }
 async function initVkBridge() {
@@ -329,7 +360,17 @@ function bindEvents() {
     const tg = window.Telegram?.WebApp;
     const botInline = Boolean(tg && (tg.initDataUnsafe?.bot_inline ?? tg.botInline ?? tg.version));
     dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} ver=${tg ? (tg.version || '?') : '—'} inline=${tg ? !!tg.switchInlineQuery : false} botInline=${tg ? !!(tg.initDataUnsafe && tg.initDataUnsafe.bot_inline) : '?'}`);
-    // 1) Telegram inline mode: opens the native chat picker and sends the composed
+    // 1) VK Mini App native share: official VK Bridge share dialog.
+    if (isVkMiniApp() && window.vkBridge?.send) {
+      dbg('Share: открываю VKWebAppShare…');
+      try {
+        window.vkBridge.send('VKWebAppShare', { link: url, text: text || '' })
+          .then(() => dbg(L('shareOpened')))
+          .catch((e) => { dbg('Share: VKWebAppShare ошибка: ' + (e && e.message ? e.message : String(e))); finish(); });
+        return;
+      } catch (e) { dbg('Share: VKWebAppShare ошибка: ' + (e && e.message ? e.message : String(e))); }
+    }
+    // 2) Telegram inline mode: opens the native chat picker and sends the composed
     //    text+link to the chosen chat via answerInlineQuery. Reliable (plain list).
     if (inTelegram && tg && tg.switchInlineQuery) {
       dbg('Share: открываю выбор чата (inline)…');
@@ -357,9 +398,18 @@ function bindEvents() {
     finish();
   }
   const shareRefBtn = $('shareRefLink');
-  if (shareRefBtn) shareRefBtn.addEventListener('click', () => { const inBot = Boolean(window.Telegram?.WebApp?.initData); const url = state.profile ? (inBot ? (state.profile.botLink || '') : (state.profile.refLink || '')) : ''; shareUrl(url, L('shareRefText')); });
+  if (shareRefBtn) shareRefBtn.addEventListener('click', () => {
+    const inBot = Boolean(window.Telegram?.WebApp?.initData);
+    const inVk = isVkMiniApp();
+    const url = state.profile ? (inVk ? (state.profile.vkRefLink || state.profile.refLink || '') : (inBot ? (state.profile.botLink || '') : (state.profile.refLink || ''))) : '';
+    shareUrl(url, L('shareRefText'));
+  });
   const shareBtn = $('shareProfile');
-  if (shareBtn) shareBtn.addEventListener('click', () => { const url = state.profile ? (state.profile.profileLink || '') : ''; shareUrl(url, L('shareProfileText')); });
+  if (shareBtn) shareBtn.addEventListener('click', () => {
+    const inVk = isVkMiniApp();
+    const url = state.profile ? (inVk ? (state.profile.vkProfileLink || state.profile.profileLink || '') : (state.profile.profileLink || '')) : '';
+    shareUrl(url, L('shareProfileText'));
+  });
 }
 async function start() {
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
@@ -373,10 +423,10 @@ async function start() {
 // opening inside Telegram must never be misread as a plain site.
 function waitForTelegram() {
   return new Promise((resolve) => {
-    if (window.Telegram?.WebApp) return resolve(true);
+    if (window.Telegram?.WebApp?.initData) return resolve(true);
     let tries = 0;
     const timer = setInterval(() => {
-      if (window.Telegram?.WebApp) { clearInterval(timer); return resolve(true); }
+      if (window.Telegram?.WebApp?.initData) { clearInterval(timer); return resolve(true); }
       if (++tries >= 200) { clearInterval(timer); return resolve(false); } // ~10s
     }, 50);
   });
@@ -403,7 +453,12 @@ async function renderPublicProfile(code) {
     // Public stats without texts.
     const today = profile.today || {}; const week = profile.week || {};
     const statsBox = $('publicStats') || (() => { const box = document.createElement('div'); box.id = 'publicStats'; box.className = 'summary-card'; document.getElementById('tab-profile').appendChild(box); return box; })();
-    statsBox.innerHTML = `<h2>${escapeHtml(L('publicToday'))}: ${today.todayLife || 0} ${escapeHtml(L('life'))}</h2><h2>${escapeHtml(L('publicWeek'))}: ${week.weekLife || 0} ${escapeHtml(L('life'))}, ${week.activeDays || 0} ${escapeHtml(L('publicActiveDays'))}</h2>`;
+    statsBox.innerHTML = `<h2>${escapeHtml(L('publicToday'))}: ${today.todayLife || 0} ${escapeHtml(L('life'))}</h2><h2>${escapeHtml(L('publicWeek'))}: ${week.weekLife || 0} ${escapeHtml(L('life'))}, ${week.activeDays || 0} ${escapeHtml(L('publicActiveDays'))}</h2><p class="soft-note">${escapeHtml(L('publicLoginHint'))}</p><button type="button" id="publicLoginCta">${escapeHtml(L('publicLoginCta'))}</button>`;
+    const cta = $('publicLoginCta');
+    if (cta) cta.addEventListener('click', async () => {
+      if (isVkMiniApp() || window.Telegram?.WebApp?.initData) { await start(); return; }
+      await showLoginScreen();
+    });
     return true;
   } catch (_) {
     $('connectionStatus').textContent = L('publicProfileNotFound');
@@ -415,15 +470,15 @@ async function renderPublicProfile(code) {
   bindEvents(); // bind buttons in every context (site, public profile, Mini App)
   const consumedVkOAuth = consumeVkOAuthResult();
   if (consumedVkOAuth) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; await start(); return; }
+  const publicCode = publicProfileCode();
+  if (publicCode) { captureRefCode(); if (await renderPublicProfile(publicCode)) { applyStaticI18n(); return; } }
   const inVk = isVkMiniApp();
-  const publicCode = (() => { try { const m = /^\/p\/([A-Za-z0-9]+)/.exec(window.location.pathname); return m ? m[1] : null; } catch (_) { return null; } })();
   if (inVk) { await start(); return; }
   const hasWebApp = await waitForTelegram();
-  // Even if initData is momentarily empty, if the Telegram WebApp SDK exists we
-  // are inside a Mini App — authenticate (Telegram requires initData at call time).
-  const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp);
+  // Inside Telegram Mini App we must have signed initData. The SDK object alone
+  // is also present on the plain website because we load telegram-web-app.js.
+  const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp?.initData);
   if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
-  if (!inTelegram && publicCode && await renderPublicProfile(publicCode)) { applyStaticI18n(); return; }
   if (!inTelegram) { await showLoginScreen(); return; }
   await start();
 })();
