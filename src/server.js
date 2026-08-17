@@ -15,6 +15,12 @@ function createApp() {
   app.use(express.json({ limit: '64kb' }));
   app.use('/api', createRateLimiter({ windowMs: config.rateLimits.apiWindowMs, max: config.rateLimits.apiMax, keyPrefix: 'api' }));
   app.use('/telegram', createRateLimiter({ windowMs: config.rateLimits.webhookWindowMs, max: config.rateLimits.webhookMax, keyPrefix: 'webhook' }));
+  // Do not cache the HTML shell (it references versioned assets) so updates apply
+  // immediately in Telegram's WebView instead of serving a stale cached app.js.
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && (req.path === '/' || /^\/p\//.test(req.path))) res.set('Cache-Control', 'no-store');
+    return next();
+  });
   app.use(express.static(path.join(process.cwd(), 'public')));
   app.get('/health', (req, res) => res.json({ ok: true }));
   app.use('/api', apiRoutes);
