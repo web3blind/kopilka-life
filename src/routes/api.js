@@ -115,7 +115,7 @@ router.get('/auth/vk-oauth/callback', authLimiter, async (req, res) => {
   }
 });
 // Public, non-sensitive config the site needs to render sign-in options.
-router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl, telegramLoginWidgetEnabled: config.telegramLoginWidgetEnabled, vkAppId: config.vkAppId }));
+router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl, telegramLoginWidgetEnabled: config.telegramLoginWidgetEnabled, vkAppId: config.vkAppId, vkOAuthEnabled: Boolean(config.vkOAuthClientId) }));
 router.post('/auth/dev', devLimiter, (req, res) => {
   if (!config.devAuthEnabled) return disabled(res);
   const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale, req.body.refCode, req.body.timezone);

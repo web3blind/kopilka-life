@@ -37,12 +37,12 @@ function oauthRedirectUri() {
 }
 
 function buildAuthorizeUrl({ action = 'auth', userId = null, refCode = '', timezone = '', locale = 'ru' } = {}) {
-  if (!config.vkAppId) throw new Error('VK_APP_ID is not configured');
-  const verifier = randomBase64Url(48);
+  if (!config.vkOAuthClientId) throw new Error('VK OAuth client id is not configured');
+  const verifier = randomBase64Url(32);
   const state = createState({ action, userId, refCode, timezone, locale, codeVerifier: verifier });
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: config.vkAppId,
+    client_id: config.vkOAuthClientId,
     redirect_uri: oauthRedirectUri(),
     state,
     code_challenge: codeChallenge(verifier),
@@ -52,7 +52,7 @@ function buildAuthorizeUrl({ action = 'auth', userId = null, refCode = '', timez
 }
 
 async function exchangeCode({ code, deviceId, state, codeVerifier }) {
-  if (!config.vkAppId) throw new Error('VK_APP_ID is not configured');
+  if (!config.vkOAuthClientId) throw new Error('VK OAuth client id is not configured');
   if (!code) throw new Error('VK OAuth code is missing');
   if (!deviceId) throw new Error('VK OAuth device_id is missing');
   if (!codeVerifier) throw new Error('VK OAuth code_verifier is missing');
@@ -61,18 +61,19 @@ async function exchangeCode({ code, deviceId, state, codeVerifier }) {
     code_verifier: codeVerifier,
     redirect_uri: oauthRedirectUri(),
     code,
-    client_id: config.vkAppId,
+    client_id: config.vkOAuthClientId,
     device_id: deviceId,
     state,
   });
-  const response = await fetch('https://id.vk.ru/oauth2/auth', {
+  if (config.vkOAuthClientSecret) body.set('client_secret', config.vkOAuthClientSecret);
+  const res = await fetch('https://id.vk.ru/oauth2/auth', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body,
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.user_id) {
-    const message = data.error_description || data.error || `VK OAuth exchange failed (${response.status})`;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.user_id) {
+    const message = data.error_description || data.error || `VK OAuth exchange failed (${res.status})`;
     throw new Error(message);
   }
   return data;

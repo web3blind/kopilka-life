@@ -34,6 +34,8 @@ async function initVkBridge() {
   try { if (window.vkBridge?.send) await window.vkBridge.send('VKWebAppInit'); } catch (_) { /* VK Bridge init is best-effort */ }
 }
 async function startVkOAuth(action = 'auth') {
+  const cfg = await api('/api/config');
+  if (!cfg.vkOAuthEnabled) throw new Error(L('vkOauthNotConfigured'));
   const data = await api('/api/auth/vk-oauth/start', {
     method: 'POST',
     body: JSON.stringify({ action, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() })
