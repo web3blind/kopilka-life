@@ -95,6 +95,8 @@ function testStaticAccessibility() {
   const frontendI18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
   assert(frontendI18n.includes('Встреча или звонок'), 'social contact quick action exists');
   assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
+  const frontendApp = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf8');
+  assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.

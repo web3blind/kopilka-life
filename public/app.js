@@ -216,8 +216,9 @@ function renderProfile() {
   if (total) total.textContent = p.totalReferred || 0;
   if (active) active.textContent = n;
   const inBot = Boolean(window.Telegram?.WebApp?.initData);
+  const inVk = isVkMiniApp();
   const link = $('refLink');
-  if (link) link.value = inBot ? (p.botLink || '') : (p.profileLink || p.refLink || '');
+  if (link) link.value = inBot ? (p.botLink || '') : (inVk ? (p.vkRefLink || p.refLink || '') : (p.profileLink || p.refLink || ''));
 }
 function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
