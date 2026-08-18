@@ -233,7 +233,10 @@ function renderArtifacts() {
   grid.innerHTML = artifacts.map((item) => {
     const text = item.unlocked ? item.unlockedText : item.lockedText;
     const date = item.awardedAt ? `<p class="artifact-date">${escapeHtml(L('artifactAwardedAt'))}: ${escapeHtml(item.awardedAt.slice(0, 10))}</p>` : '';
-    return `<article class="artifact-card${item.unlocked ? '' : ' is-locked'}" aria-label="${escapeHtml(item.title)}"><img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.alt)}" loading="lazy"><div><h3>${escapeHtml(item.title)}</h3><p class="artifact-short">${escapeHtml(item.shortTitle || '')}</p><p>${escapeHtml(text || '')}</p><p class="field-hint">${escapeHtml(item.triggerText || '')}</p>${date}</div></article>`;
+    const visual = item.unlocked
+      ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.alt)}" loading="lazy">`
+      : `<div class="artifact-mystery" role="img" aria-label="${escapeHtml(item.alt || L('artifactMysteryAlt'))}"><span aria-hidden="true">?</span></div>`;
+    return `<article class="artifact-card${item.unlocked ? '' : ' is-locked'}" aria-label="${escapeHtml(item.title)}">${visual}<div><h3>${escapeHtml(item.title)}</h3><p class="artifact-short">${escapeHtml(item.shortTitle || '')}</p><p>${escapeHtml(text || '')}</p><p class="field-hint">${escapeHtml(item.triggerText || '')}</p>${date}</div></article>`;
   }).join('');
 }
 function showArtifactToast(artifacts = []) {

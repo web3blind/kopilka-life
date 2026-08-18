@@ -95,6 +95,7 @@ function testStaticAccessibility() {
   assert(html.includes('artifactsGrid'), 'path artifacts collection exists');
   assert(html.includes('artifactToast'), 'artifact unlock toast exists');
   assert(css.includes('artifact-card'), 'artifact cards are styled');
+  assert(css.includes('artifact-mystery'), 'locked artifact mystery places are styled');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'cat_life_warmer.webp')), 'cat artifact image exists');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'nightingale_close_voices.webp')), 'nightingale artifact image exists');
   const frontendI18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
@@ -242,6 +243,9 @@ async function main() {
   assert.equal(artifactsResp.res.status, 200, 'artifacts endpoint works');
   assert.equal(artifactsResp.data.artifacts.length, 6, 'artifact catalog returned');
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id === 'nightingale_close_voices' && artifact.unlocked), 'unlocked artifact appears in collection');
+  assert(artifactsResp.data.artifacts.some((artifact) => artifact.id.startsWith('mystery_') && !artifact.unlocked), 'locked artifacts are returned as mystery slots');
+  assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && /Пёс|Ленивец|Медведь|Дракон/.test(artifact.title)), 'locked artifact titles are not revealed');
+  assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && artifact.image), 'locked artifact images are not revealed');
   const dbForArtifacts = getDb();
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'important_task', 'Важное дело', '', 3, '2026-08-01')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'food_water' }) });

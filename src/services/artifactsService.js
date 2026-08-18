@@ -79,6 +79,21 @@ const ARTIFACTS = [
 ];
 
 function publicArtifact(artifact, awarded = null) {
+  if (!awarded) {
+    return {
+      id: `mystery_${artifact.sortOrder}`,
+      title: 'Неизвестная встреча',
+      shortTitle: 'Пока скрыто',
+      triggerText: 'Пользуйся Копилкой жизни, отмечай через быстрые кнопки то, что происходит в твоей жизни — и однажды здесь появится персонаж.',
+      unlockedText: '',
+      lockedText: 'Здесь пока тёмное место. Кто появится — станет понятно только после встречи.',
+      image: '',
+      alt: 'Закрытое тёмное место для будущего персонажа.',
+      sortOrder: artifact.sortOrder,
+      unlocked: false,
+      awardedAt: null
+    };
+  }
   return {
     id: artifact.id,
     title: artifact.title,
