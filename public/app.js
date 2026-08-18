@@ -599,6 +599,9 @@ async function renderPublicProfile(code, options = {}) {
     await start();
     return;
   }
+  const hasTelegramInitData = Boolean(window.Telegram?.WebApp?.initData);
+  const looksLikeTelegramLaunch = hasTelegramInitData || Boolean(new URLSearchParams(window.location.search || '').get('tgWebAppData'));
+  if (!looksLikeTelegramLaunch) { await showLoginScreen(); return; }
   const hasWebApp = await waitForTelegram();
   // Inside Telegram Mini App we must have signed initData. The SDK object alone
   // is also present on the plain website because we load telegram-web-app.js.
