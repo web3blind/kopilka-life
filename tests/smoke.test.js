@@ -88,6 +88,9 @@ function testStaticAccessibility() {
   assert(css.includes('prefers-reduced-motion'), 'reduced motion CSS exists');
   assert(css.includes('qa-hint'), 'quick action description styles exist');
   assert(css.includes('language-switch'), 'language switcher styles exist');
+  const frontendI18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
+  assert(frontendI18n.includes('Встреча или звонок'), 'social contact quick action exists');
+  assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
@@ -215,8 +218,16 @@ async function main() {
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'honest_step', note: 'честный миллиметр' }) });
   assert.equal(response.res.status, 201, 'honest step entry created');
   assert.equal(response.data.summary.todayLife, 5, 'honest step adds visible progress');
+  response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'social_contact', note: 'созвон с давним другом' }) });
+  assert.equal(response.res.status, 201, 'social contact entry created');
+  assert.equal(response.data.summary.todayLife, 7, 'social contact adds life');
+  response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'family_time', note: 'вечер с родными' }) });
+  assert.equal(response.res.status, 201, 'family time entry created');
+  assert.equal(response.data.summary.todayLife, 9, 'family time adds life');
+  response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'family_time', note: 'duplicate family' }) });
+  assert.equal(response.res.status, 400, 'family time is still limited to once per local day');
   response = await request('/api/summary/today', { headers: auth });
-  assert.equal(response.data.totalLife, 5, 'SQLite persistence visible');
+  assert.equal(response.data.totalLife, 9, 'SQLite persistence visible');
   response = await request('/api/product?goal=sleep', { headers: auth });
   assert(response.data.dailyHint?.title, 'daily hint returned');
   assert(response.data.dailyHint.title !== 'Достаточно на сегодня', 'enough-for-today is not used as an action-like hint title');
@@ -253,7 +264,7 @@ async function main() {
   assert.equal(typeof response.data.contract.isOver, 'boolean', 'contract exposes isOver flag');
   response = await request(`/api/contracts/${contractId}/close`, { method: 'POST', headers: auth, body: JSON.stringify({ status: 'completed' }) });
   assert.equal(response.res.status, 200, 'contract closed');
-  assert.equal(response.data.summary.totalLife, 15, 'contract points added');
+  assert.equal(response.data.summary.totalLife, 19, 'contract points added');
   response = await request('/api/settings/reminders', { method: 'POST', headers: auth, body: JSON.stringify({ remindersEnabled: true, eveningReminderTime: '20:00', timezone: 'Asia/Novosibirsk' }) });
   assert.equal(response.res.status, 200, 'settings saved');
   const db = getDb();

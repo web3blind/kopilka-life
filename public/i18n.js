@@ -17,6 +17,8 @@
     dream_step: { points: 2, title: { ru: 'Шаг к мечте', en: 'Step to a dream' }, hint: { ru: 'маленькое действие к цели', en: 'small step toward a goal' } },
     kind_trace: { points: 1, title: { ru: 'Доброе дело', en: 'Kind deed' }, hint: { ru: 'помощь, спасибо, тёплое слово', en: 'help, thanks, a warm word' } },
     honest_step: { points: 2, title: { ru: 'Честный шаг', en: 'Honest step' }, hint: { ru: 'признал, исправил, закрыл мелочь', en: 'admitted, fixed, closed a small thing' } },
+    social_contact: { points: 2, title: { ru: 'Встреча или звонок', en: 'Meet-up or call' }, hint: { ru: 'общение с давним другом или подругой', en: 'talked with an old friend' } },
+    family_time: { points: 2, title: { ru: 'Время с родными', en: 'Time with family' }, hint: { ru: 'провёл время с родными', en: 'spent time with family' } },
     rest: { points: 1, title: { ru: 'Отдых', en: 'Rest' }, hint: { ru: 'восстановился хоть немного', en: 'recovered a little' } },
     hard_day: { points: 1, title: { ru: 'Сложный день', en: 'Hard day' }, hint: { ru: 'отметил день честно, без оценки', en: 'noted the day honestly, without judgment' } }
   };
