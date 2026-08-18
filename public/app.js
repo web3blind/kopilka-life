@@ -593,17 +593,17 @@ async function renderPublicProfile(code, options = {}) {
   }
   const inVk = isVkMiniApp();
   if (inVk) { await start(); return; }
-  const hasWebApp = await waitForTelegram();
-  // Inside Telegram Mini App we must have signed initData. The SDK object alone
-  // is also present on the plain website because we load telegram-web-app.js.
-  const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp?.initData);
-  if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
-  if (!inTelegram && state.token) {
+  if (state.token) {
     if ($('appShell')) $('appShell').hidden = false;
     if ($('loginScreen')) $('loginScreen').hidden = true;
     await start();
     return;
   }
+  const hasWebApp = await waitForTelegram();
+  // Inside Telegram Mini App we must have signed initData. The SDK object alone
+  // is also present on the plain website because we load telegram-web-app.js.
+  const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp?.initData);
+  if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
   if (!inTelegram) { await showLoginScreen(); return; }
   await start();
 })();
