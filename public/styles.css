@@ -192,6 +192,7 @@ h3{letter-spacing:-.015em}
 #loginScreen>p{margin-left:0;margin-right:0;color:#4d3a2b;line-height:1.52}
 #loginScreen .summary-card{margin:.9rem 0;background:#fffdf9;box-shadow:var(--shadow-soft)}
 #loginScreen .soft-note{text-align:center;margin:.85rem 0 0;color:#5a4434}
+#loginScreen .soft-note a{color:#7a4319;text-decoration-thickness:2px;text-underline-offset:.18em}
 #loginScreen .status-region{margin:.55rem 0;color:var(--success)}
 .summary-card[aria-label="Баланс ЖИЗНИ"]{
   overflow:hidden;
