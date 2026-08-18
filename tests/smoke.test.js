@@ -84,6 +84,10 @@ function testStaticAccessibility() {
   assert(html.includes('видимый след жизни и заботы'), 'life asset is framed as visible progress, not a rating');
   assert(html.includes('Не обязательно. Приложение не хранит и не переводит деньги'), 'contract money field is optional and non-custodial');
   assert(html.includes('Быстро пополнить'), 'quick action fieldset exists');
+  assert(html.includes('/privacy.html'), 'privacy policy link exists');
+  assert(html.includes('/terms.html'), 'terms link exists');
+  assert(fs.readFileSync(path.join(process.cwd(), 'public', 'privacy.html'), 'utf8').includes('не хранит банковские карты'), 'privacy policy explains no payment data');
+  assert(fs.readFileSync(path.join(process.cwd(), 'public', 'terms.html'), 'utf8').includes('ЖИЗНЬ — не деньги'), 'terms explain LIFE is not money');
   assert(css.includes(':focus-visible'), 'focus-visible styles exist');
   assert(css.includes('prefers-reduced-motion'), 'reduced motion CSS exists');
   assert(css.includes('qa-hint'), 'quick action description styles exist');
