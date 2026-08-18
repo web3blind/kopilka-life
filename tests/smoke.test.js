@@ -98,6 +98,8 @@ function testStaticAccessibility() {
   assert(css.includes('artifact-mystery'), 'locked artifact mystery places are styled');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'cat_life_warmer.webp')), 'cat artifact image exists');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'nightingale_close_voices.webp')), 'nightingale artifact image exists');
+  assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'hedgehog_small_joy.webp')), 'hedgehog artifact image exists');
+  assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'bee_good_deed_honey.webp')), 'bee artifact image exists');
   const frontendI18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
   assert(frontendI18n.includes('Встреча или звонок'), 'social contact quick action exists');
   assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
@@ -241,10 +243,10 @@ async function main() {
   assert.equal(response.res.status, 400, 'family time is still limited to once per local day');
   let artifactsResp = await request('/api/artifacts', { headers: auth });
   assert.equal(artifactsResp.res.status, 200, 'artifacts endpoint works');
-  assert.equal(artifactsResp.data.artifacts.length, 6, 'artifact catalog returned');
+  assert.equal(artifactsResp.data.artifacts.length, 8, 'artifact catalog returned');
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id === 'nightingale_close_voices' && artifact.unlocked), 'unlocked artifact appears in collection');
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id.startsWith('mystery_') && !artifact.unlocked), 'locked artifacts are returned as mystery slots');
-  assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && /Пёс|Ленивец|Медведь|Дракон/.test(artifact.title)), 'locked artifact titles are not revealed');
+  assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && /Пёс|Ленивец|Ёжик|Пчела|Медведь|Дракон/.test(artifact.title)), 'locked artifact titles are not revealed');
   assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && artifact.image), 'locked artifact images are not revealed');
   const dbForArtifacts = getDb();
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'important_task', 'Важное дело', '', 3, '2026-08-01')").run(userId);
@@ -254,6 +256,15 @@ async function main() {
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'rest', 'Отдых', '', 1, '2026-08-03')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'rest' }) });
   assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'sloth_rest_blessing'), 'third rest unlocks sloth artifact');
+  dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'joy', 'Радость', '', 1, '2026-08-05')").run(userId);
+  dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'joy', 'Радость', '', 1, '2026-08-06')").run(userId);
+  dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'joy', 'Радость', '', 1, '2026-08-07')").run(userId);
+  response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'joy' }) });
+  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'hedgehog_small_joy'), 'four joy days unlock hedgehog artifact');
+  dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'kind_trace', 'Доброе дело', '', 1, '2026-08-08')").run(userId);
+  dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'kind_trace', 'Доброе дело', '', 1, '2026-08-09')").run(userId);
+  response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'kind_trace' }) });
+  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'bee_good_deed_honey'), 'third kind deed unlocks bee artifact');
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date, created_at) VALUES (?, 'hard_day', 'Сложный день', '', 1, '2026-08-04', '2026-08-04 10:00:00')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'gratitude' }) });
   assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'bear_warm_shelter'), 'entry after hard day unlocks bear artifact');
@@ -295,7 +306,7 @@ async function main() {
   assert.equal(typeof response.data.contract.isOver, 'boolean', 'contract exposes isOver flag');
   response = await request(`/api/contracts/${contractId}/close`, { method: 'POST', headers: auth, body: JSON.stringify({ status: 'completed' }) });
   assert.equal(response.res.status, 200, 'contract closed');
-  assert.equal(response.data.summary.totalLife, 28, 'contract points added after artifact smoke entries');
+  assert.equal(response.data.summary.totalLife, 35, 'contract points added after artifact smoke entries');
   response = await request('/api/settings/reminders', { method: 'POST', headers: auth, body: JSON.stringify({ remindersEnabled: true, eveningReminderTime: '20:00', timezone: 'Asia/Novosibirsk' }) });
   assert.equal(response.res.status, 200, 'settings saved');
   const db = getDb();
@@ -344,7 +355,7 @@ async function main() {
   assert.equal(badPublic.res.status, 404, 'unknown public profile code -> 404');
   db.prepare('DELETE FROM users WHERE id IN (?, ?)').run(refAId, refBId);
   // Sanitization: XSS/script and URL/spam in notes are neutralized server-side.
-  const xssEntry = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'joy', note: '<script>alert(1)</script> https://spam.example/buy' }) });
+  const xssEntry = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'dream_step', note: '<script>alert(1)</script> https://spam.example/buy' }) });
   assert.equal(xssEntry.res.status, 201, 'xss entry accepted');
   assert(!xssEntry.data.entry.note.includes('<script>'), 'script tag stripped from stored note');
   assert(!/https?:\/\//i.test(xssEntry.data.entry.note), 'url neutralized in stored note');

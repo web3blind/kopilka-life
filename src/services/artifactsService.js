@@ -53,6 +53,30 @@ const ARTIFACTS = [
     condition: ({ counts }) => (counts.rest || 0) >= 3
   },
   {
+    id: 'hedgehog_small_joy',
+    title: 'Ёжик Радостной Мелочи',
+    shortTitle: 'Радость заметили',
+    triggerText: 'появляется после четырёх дней, где ты отметил радость',
+    unlockedText: 'Ёжик Радостной Мелочи вышел навстречу и принёс светящуюся ягоду. Он рад, что ты замечал хорошее — даже маленькое.',
+    lockedText: 'Он появляется у тех, кто несколько дней замечал радость.',
+    image: '/assets/artifacts/hedgehog_small_joy.webp',
+    alt: 'Маленький радостный ёжик держит светящуюся ягоду; вокруг тёплый свет и сердечки.',
+    sortOrder: 45,
+    condition: ({ distinctDaysByType }) => (distinctDaysByType.joy || 0) >= 4
+  },
+  {
+    id: 'bee_good_deed_honey',
+    title: 'Пчела Доброделка',
+    shortTitle: 'Мёд за добрые дела',
+    triggerText: 'появляется после трёх добрых дел',
+    unlockedText: 'Пчела Доброделка прилетела с баночкой мёда. Она сказала: добрые дела не исчезают, они где-то становятся теплом.',
+    lockedText: 'Она прилетает к тем, кто несколько раз оставил добрый след.',
+    image: '/assets/artifacts/bee_good_deed_honey.webp',
+    alt: 'Добрая улыбающаяся пчела держит баночку золотого мёда с сердцем.',
+    sortOrder: 47,
+    condition: ({ counts }) => (counts.kind_trace || 0) >= 3
+  },
+  {
     id: 'bear_warm_shelter',
     title: 'Медведь Тёплого Укрытия',
     shortTitle: 'После трудного дня',
@@ -118,10 +142,12 @@ function artifactState(userId) {
   const totalLife = db.prepare('SELECT COALESCE(SUM(life_points), 0) AS total FROM entries WHERE user_id = ?').get(userId).total;
   const rows = db.prepare('SELECT type, COUNT(*) AS count FROM entries WHERE user_id = ? GROUP BY type').all(userId);
   const counts = Object.fromEntries(rows.map((row) => [row.type, row.count]));
+  const dayRows = db.prepare('SELECT type, COUNT(DISTINCT entry_date) AS count FROM entries WHERE user_id = ? GROUP BY type').all(userId);
+  const distinctDaysByType = Object.fromEntries(dayRows.map((row) => [row.type, row.count]));
   const recentTypes = new Set(db.prepare('SELECT DISTINCT type FROM entries WHERE user_id = ? AND entry_date BETWEEN ? AND ?').all(userId, since, today).map((row) => row.type));
   const hard = db.prepare("SELECT id, created_at FROM entries WHERE user_id = ? AND type = 'hard_day' ORDER BY created_at ASC, id ASC LIMIT 1").get(userId);
   const afterHard = hard ? db.prepare('SELECT id FROM entries WHERE user_id = ? AND (created_at > ? OR (created_at = ? AND id > ?)) AND id <> ? LIMIT 1').get(userId, hard.created_at, hard.created_at, hard.id, hard.id) : null;
-  return { totalLife, counts, recentTypes, hasEntryAfterHardDay: Boolean(afterHard) };
+  return { totalLife, counts, distinctDaysByType, recentTypes, hasEntryAfterHardDay: Boolean(afterHard) };
 }
 
 function listArtifacts(userId) {
