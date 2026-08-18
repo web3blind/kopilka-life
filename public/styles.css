@@ -179,6 +179,20 @@ h1{font-size:clamp(1.75rem,6.4vw,2.75rem);line-height:1.06;margin-top:1rem;margi
 h2{font-size:1.22rem;line-height:1.2;letter-spacing:-.02em}
 h3{letter-spacing:-.015em}
 .screen-panel>p,.field-hint,.soft-note{color:var(--muted)}
+#loginScreen.screen-panel:not([hidden]){
+  width:min(calc(100% - 1.25rem),520px);
+  margin:clamp(1.2rem,6vh,3.4rem) auto 1rem;
+  padding:1.15rem;
+  color:var(--text);
+  background:linear-gradient(180deg,rgba(255,255,255,.985),rgba(255,247,235,.97));
+  border:1px solid rgba(222,202,180,.95);
+  box-shadow:0 22px 54px rgba(57,32,12,.24);
+}
+#loginScreen h1,#loginScreen h2{color:#2a160b;text-shadow:none}
+#loginScreen>p{margin-left:0;margin-right:0;color:#4d3a2b;line-height:1.52}
+#loginScreen .summary-card{margin:.9rem 0;background:#fffdf9;box-shadow:var(--shadow-soft)}
+#loginScreen .soft-note{text-align:center;margin:.85rem 0 0;color:#5a4434}
+#loginScreen .status-region{margin:.55rem 0;color:var(--success)}
 .summary-card[aria-label="Баланс ЖИЗНИ"]{
   overflow:hidden;
   background:
