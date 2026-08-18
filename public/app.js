@@ -2,7 +2,7 @@ const I18N = window.KopilkaI18n;
 const locale = () => I18N.normalizeLocale(state.user?.locale || localStorage.getItem('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null };
+const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null };
 const $ = (id) => document.getElementById(id);
 // Detect the user's timezone from their device clock (IANA zone), fallback UTC.
 function detectTimezone() {
@@ -91,6 +91,8 @@ function setPublicReadOnlyMode(enabled) {
   ['copyRefLink', 'shareRefLink'].forEach((id) => { const el = $(id); if (el) el.hidden = state.publicReadOnly; });
   const shareProfile = $('shareProfile');
   if (shareProfile) shareProfile.hidden = false;
+  const artifactsSection = $('artifactsSection');
+  if (artifactsSection) artifactsSection.hidden = state.publicReadOnly;
   const linkLabel = document.querySelector('label[for="refLink"]');
   if (linkLabel) linkLabel.textContent = state.publicReadOnly ? L('profileLinkLabel') : L('refLinkLabel');
   const hint = $('refLinkHint');
@@ -220,13 +222,40 @@ function renderProfile() {
   const link = $('refLink');
   if (link) link.value = inBot ? (p.botLink || '') : (inVk ? (p.vkRefLink || p.refLink || '') : (p.profileLink || p.refLink || ''));
 }
-function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); }
+function renderArtifacts() {
+  const grid = $('artifactsGrid');
+  if (!grid) return;
+  const artifacts = state.artifacts || [];
+  const unlocked = artifacts.filter((item) => item.unlocked).length;
+  if ($('artifactsUnlockedCount')) $('artifactsUnlockedCount').textContent = unlocked;
+  if ($('artifactsTotalCount')) $('artifactsTotalCount').textContent = artifacts.length;
+  if (!artifacts.length) { grid.innerHTML = `<p class="soft-note">${escapeHtml(L('artifactsLoading'))}</p>`; return; }
+  grid.innerHTML = artifacts.map((item) => {
+    const text = item.unlocked ? item.unlockedText : item.lockedText;
+    const date = item.awardedAt ? `<p class="artifact-date">${escapeHtml(L('artifactAwardedAt'))}: ${escapeHtml(item.awardedAt.slice(0, 10))}</p>` : '';
+    return `<article class="artifact-card${item.unlocked ? '' : ' is-locked'}" aria-label="${escapeHtml(item.title)}"><img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.alt)}" loading="lazy"><div><h3>${escapeHtml(item.title)}</h3><p class="artifact-short">${escapeHtml(item.shortTitle || '')}</p><p>${escapeHtml(text || '')}</p><p class="field-hint">${escapeHtml(item.triggerText || '')}</p>${date}</div></article>`;
+  }).join('');
+}
+function showArtifactToast(artifacts = []) {
+  const first = artifacts[0];
+  const toast = $('artifactToast');
+  if (!toast || !first) return;
+  const img = $('artifactToastImage');
+  if (img) { img.src = first.image; img.alt = first.alt; }
+  if ($('artifactToastTitle')) $('artifactToastTitle').textContent = first.title;
+  if ($('artifactToastText')) $('artifactToastText').textContent = first.unlockedText;
+  toast.hidden = false;
+  toast.focus?.();
+  setStatus(L('artifactUnlockedStatus', { title: first.title }));
+}
+function hideArtifactToast() { const toast = $('artifactToast'); if (toast) toast.hidden = true; }
+function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); renderArtifacts(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
 async function loadData() {
   state.publicStatus = '';
   const goal = $('practiceGoal')?.value || 'calm';
-  const [summary, week, current, me, product, profile] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile')]);
-  state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile;
+  const [summary, week, current, me, product, profile, artifacts] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts')]);
+  state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || [];
   localStorage.setItem('kopilkaLocale', me.user.locale || 'ru');
   renderAll();
 }
@@ -360,7 +389,7 @@ async function authenticate() {
   await showLoginScreen();
 }
 async function refreshProduct() { state.product = await api(`/api/product?goal=${encodeURIComponent($('practiceGoal')?.value || 'calm')}`); }
-async function createEntry(type) { return withBusy(L('saving'), async () => { const data = await api('/api/entries', { method: 'POST', body: JSON.stringify({ type, note: $('entryNote').value.trim() }) }); state.summary = data.summary; state.week = data.week; await refreshProduct(); $('entryNote').value = ''; renderAll(); setStatus(L('entrySaved')); }); }
+async function createEntry(type) { return withBusy(L('saving'), async () => { const data = await api('/api/entries', { method: 'POST', body: JSON.stringify({ type, note: $('entryNote').value.trim() }) }); state.summary = data.summary; state.week = data.week; if (data.awardedArtifacts?.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts; await refreshProduct(); $('entryNote').value = ''; renderAll(); if (data.awardedArtifacts?.length) showArtifactToast(data.awardedArtifacts); else setStatus(L('entrySaved')); }); }
 async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshProduct(); renderAll(); setStatus(L('contractCreated')); }); }
 async function closeContract(status) { return withBusy(L('closingContract'), async () => { const data = await api(`/api/contracts/${state.currentContract.id}/close`, { method: 'POST', body: JSON.stringify({ status, resultNote: '' }) }); state.currentContract = null; state.summary = data.summary; state.week = data.week; await refreshProduct(); renderAll(); setStatus(L('contractClosed')); }); }
 async function saveSettings(event) { event.preventDefault(); const payload = { timezone: $('timezone').value.trim(), remindersEnabled: $('remindersEnabled').checked, eveningReminderTime: $('eveningReminderTime').value || '20:00' }; return withBusy(L('savingSettings'), async () => { const data = await api('/api/settings/reminders', { method: 'POST', body: JSON.stringify(payload) }); state.user = data.user; renderAll(); setStatus(L('settingsSaved')); }); }
@@ -404,6 +433,7 @@ function cancelAccountMerge() {
 function bindEvents() {
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
   $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
+  $('artifactToastClose')?.addEventListener('click', hideArtifactToast);
   $('contractTemplates').addEventListener('click', (event) => { const b = event.target.closest('button[data-template-id]'); if (b && !state.busy && !state.publicReadOnly) applyTemplate(b.dataset.templateId); });
   $('practiceGoal').addEventListener('change', async (event) => { if (state.busy || state.publicReadOnly) return; try { state.product.practices = await api(`/api/product/practices?goal=${encodeURIComponent(event.target.value)}`); renderPractices(); setStatus(L('practicesUpdated')); } catch (e) { setStatus(e.message, 'error'); } });
   $('contractForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await createContract(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });

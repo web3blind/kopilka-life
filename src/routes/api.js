@@ -9,6 +9,7 @@ const { buildVkMergeOffer, buildMergePreview, applyMergeByToken } = require('../
 const { verifyMergeToken } = require('../auth/mergeToken');
 const { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser } = require('../services/usersService');
 const { grantReferrerBonusOnFirstEntry, profileStats, publicProfileByCode } = require('../services/referralService');
+const { listArtifacts, awardArtifactsForUser, artifactSummary } = require('../services/artifactsService');
 const { createEntry, getSummary, getWeekSummary, listEntries } = require('../services/entriesService');
 const { getCurrentContract, createContract, closeContract } = require('../services/contractsService');
 const { scheduleNextReminderForUser } = require('../services/remindersService');
@@ -161,6 +162,7 @@ router.get('/profile', authRequired, (req, res) => {
   res.json({ profile: {
     ...publicUser(req.user),
     ...stats,
+    artifacts: artifactSummary(req.user.id),
     refLink: `${config.webappUrl}?ref=${stats.refCode}`,
     profileLink: `${config.webappUrl}/p/${stats.refCode}`,
     botLink,
@@ -173,6 +175,7 @@ router.get('/public/:code', (req, res) => {
   if (!profile) return res.status(404).json({ error: 'not found' });
   res.json({ profile });
 });
+router.get('/artifacts', authRequired, (req, res) => res.json({ artifacts: listArtifacts(req.user.id) }));
 router.post('/settings/locale', authRequired, (req, res) => {
   const user = updateLocale(req.user.id, req.body.locale);
   res.json({ user: publicUser(user) });
@@ -182,7 +185,8 @@ router.post('/entries', authRequired, (req, res) => {
   try {
     const entry = createEntry(req.user.id, req.body.type, req.body.note || '', req.locale);
     grantReferrerBonusOnFirstEntry(req.user.id);
-    res.status(201).json({ entry, summary: getSummary(req.user.id), week: getWeekSummary(req.user.id) });
+    const awardedArtifacts = awardArtifactsForUser(req.user.id, entry.id);
+    res.status(201).json({ entry, summary: getSummary(req.user.id), week: getWeekSummary(req.user.id), awardedArtifacts });
   } catch (error) { res.status(400).json({ error: userError(req.locale, error.message) }); }
 });
 router.get('/entries', authRequired, (req, res) => {
