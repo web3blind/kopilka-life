@@ -200,9 +200,26 @@
       <button id="tab-button-profile" type="button" role="tab" data-tab="profile" aria-controls="tab-profile" aria-selected="false" data-i18n="tabProfile">Профиль</button>
     </nav>
   </div>
+  <script>
+    // VK Android may keep showing the Mini Apps loading screen until it sees
+    // VKWebAppInit. Send it from the HTML shell before any external script can
+    // block or delay app.js execution; app.js repeats this later as fallback.
+    (function () {
+      try {
+        if (/[?&]vk_app_id=/.test(window.location.search || '')) {
+          window.parent && window.parent.postMessage && window.parent.postMessage({
+            handler: 'VKWebAppInit',
+            params: { request_id: 'html_init_' + Date.now() },
+            type: 'vk-connect',
+            connectVersion: '3.0.2'
+          }, '*');
+        }
+      } catch (_) {}
+    })();
+  </script>
   <script src="/i18n.js?v=20260820-vkreminders4"></script>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
-  <script src="/app.js?v=20260820-vknotify5"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js" defer></script>
+  <script src="/app.js?v=20260820-vkinit6"></script>
 </body>
 </html>
