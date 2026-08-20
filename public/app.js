@@ -1,14 +1,29 @@
 const I18N = window.KopilkaI18n;
-const locale = () => I18N.normalizeLocale(state.user?.locale || localStorage.getItem('kopilkaLocale') || 'ru');
+const storage = {
+  get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
+  set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
+  remove(key) { try { window.localStorage?.removeItem(key); } catch (_) { /* storage may be unavailable in some WebViews */ } }
+};
+const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null };
+const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null };
 function fireVkBridgeInit() {
   try {
     if (!vkLaunchParams()) return;
     window.parent?.postMessage?.({ handler: 'VKWebAppInit', params: { request_id: `init_${Date.now()}` }, type: 'vk-connect', connectVersion: '3.0.2' }, '*');
     window.vkBridge?.send?.('VKWebAppInit').catch?.(() => {});
   } catch (_) { /* best-effort VK wrapper initialization */ }
+}
+function clientLog(event, details = '') {
+  try {
+    const payload = JSON.stringify({ event, details: String(details || '').slice(0, 240), platform: new URLSearchParams(window.location.search || '').get('vk_platform') || '' });
+    if (navigator.sendBeacon) {
+      const ok = navigator.sendBeacon('/api/client-log', new Blob([payload], { type: 'application/json' }));
+      if (ok) return;
+    }
+    fetch('/api/client-log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+  } catch (_) { /* diagnostics only */ }
 }
 const $ = (id) => document.getElementById(id);
 // Detect the user's timezone from their device clock (IANA zone), fallback UTC.
@@ -21,18 +36,18 @@ function captureRefCode() {
   try {
     const sp = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
     const tgRef = referralLikeCode(sp);
-    if (tgRef) { localStorage.setItem('kopilkaRef', tgRef); return tgRef; }
+    if (tgRef) { storage.set('kopilkaRef', tgRef); return tgRef; }
     const url = new URL(window.location.href);
     const qRef = referralLikeCode(url.searchParams.get('ref'));
-    if (qRef) { localStorage.setItem('kopilkaRef', qRef); return qRef; }
+    if (qRef) { storage.set('kopilkaRef', qRef); return qRef; }
     const vkHash = parseHashParams(vkLaunchHash() || window.location.hash);
     const vkRef = referralLikeCode(vkHash.get('ref') || vkHash.get('profile'));
-    if (vkRef) { localStorage.setItem('kopilkaRef', vkRef); return vkRef; }
+    if (vkRef) { storage.set('kopilkaRef', vkRef); return vkRef; }
     const p = /^\/p\/([A-Za-z0-9]+)/.exec(url.pathname);
     const pathRef = referralLikeCode(p ? p[1] : '');
-    if (pathRef) { localStorage.setItem('kopilkaRef', pathRef); return pathRef; }
+    if (pathRef) { storage.set('kopilkaRef', pathRef); return pathRef; }
   } catch (_) { /* ignore */ }
-  return localStorage.getItem('kopilkaRef') || '';
+  return storage.get('kopilkaRef') || '';
 }
 function publicProfileCode() {
   try {
@@ -126,14 +141,14 @@ function consumeVkOAuthResult() {
   const mergeToken = params.get('vk_oauth_merge_token');
   const error = params.get('vk_oauth_error');
   if (mergeToken) {
-    localStorage.setItem('kopilkaVkMergeToken', mergeToken);
+    storage.set('kopilkaVkMergeToken', mergeToken);
     const clean = `${window.location.pathname}${window.location.search}`;
     window.history.replaceState({}, document.title, clean || '/');
     return true;
   }
   if (token) {
     state.token = token;
-    localStorage.setItem('kopilkaToken', token);
+    storage.set('kopilkaToken', token);
     const clean = `${window.location.pathname}${window.location.search}`;
     window.history.replaceState({}, document.title, clean || '/');
     return true;
@@ -141,7 +156,7 @@ function consumeVkOAuthResult() {
   if (error) {
     const clean = `${window.location.pathname}${window.location.search}`;
     window.history.replaceState({}, document.title, clean || '/');
-    try { localStorage.setItem('kopilkaLastAuthError', error); } catch (_) {}
+    try { storage.set('kopilkaLastAuthError', error); } catch (_) {}
   }
   return false;
 }
@@ -302,7 +317,7 @@ async function loadData() {
   const goal = $('practiceGoal')?.value || 'calm';
   const [summary, week, current, me, product, profile, artifacts] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts')]);
   state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || [];
-  localStorage.setItem('kopilkaLocale', me.user.locale || 'ru');
+  storage.set('kopilkaLocale', me.user.locale || 'ru');
   renderAll();
 }
 
@@ -358,7 +373,7 @@ async function handleTelegramLogin(user) {
     if (status) { status.textContent = L('loginInProgress'); status.classList.remove('error'); }
     const data = await api('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...user, refCode: captureRefCode(), timezone: detectTimezone() }) });
     state.token = data.token; state.user = data.user;
-    localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
+    storage.set('kopilkaToken', state.token); storage.set('kopilkaLocale', data.user.locale || 'ru');
     if ($('loginScreen')) $('loginScreen').hidden = true;
     if ($('appShell')) $('appShell').hidden = false;
     $('connectionStatus').textContent = L('telegramSession');
@@ -371,12 +386,15 @@ async function handleTelegramLogin(user) {
 window.__kopilkaOnTelegramAuth = handleTelegramLogin;
 
 async function handleVkAuth({ linkOnly = false } = {}) {
+  clientLog('before_vk_auth', `linkOnly=${linkOnly}`);
   await initVkBridge();
   const launchParams = vkLaunchParams();
+  clientLog('after_vk_init', `hasLaunch=${Boolean(launchParams)} len=${launchParams.length}`);
   if (!launchParams) {
     return startVkOAuth(linkOnly ? 'link' : 'auth');
   }
   const endpoint = linkOnly ? '/api/settings/link-vk' : '/api/auth/vk';
+  clientLog('post_vk_auth', endpoint);
   const data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }) });
   if (linkOnly) {
     state.user = data.user;
@@ -385,7 +403,7 @@ async function handleVkAuth({ linkOnly = false } = {}) {
     return data;
   }
   state.token = data.token; state.user = data.user;
-  localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
+  storage.set('kopilkaToken', state.token); storage.set('kopilkaLocale', data.user.locale || 'ru');
   if ($('loginScreen')) $('loginScreen').hidden = true;
   if ($('appShell')) $('appShell').hidden = false;
   $('connectionStatus').textContent = L('vkSession');
@@ -404,7 +422,7 @@ async function authenticate() {
       return;
     } catch (e) {
       if (e.status === 401) {
-        localStorage.removeItem('kopilkaToken');
+        storage.remove('kopilkaToken');
         state.token = '';
       } else {
         const message = e.message || L('actionFailed');
@@ -426,7 +444,7 @@ async function authenticate() {
   if (inTelegram) {
     const initData = window.Telegram.WebApp.initData;
     const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData, refCode, timezone: detectTimezone() }) });
-    state.token = data.token; state.user = data.user; localStorage.setItem('kopilkaToken', state.token); localStorage.setItem('kopilkaLocale', data.user.locale || 'ru');
+    state.token = data.token; state.user = data.user; storage.set('kopilkaToken', state.token); storage.set('kopilkaLocale', data.user.locale || 'ru');
     $('connectionStatus').textContent = L('telegramSession');
     await loadData();
     return;
@@ -452,10 +470,10 @@ async function enableVkReminders() {
   renderAll();
   setStatus(L('vkReminderAllowed'));
 }
-async function setLanguage(lang) { const normalized = I18N.normalizeLocale(lang); localStorage.setItem('kopilkaLocale', normalized); if (state.token) { try { const data = await api('/api/settings/locale', { method: 'POST', body: JSON.stringify({ locale: normalized }) }); state.user = data.user; } catch (e) { /* keep local preference */ } } await loadData(); }
-async function cleanupDemo() { if (!state.user?.isDemo) { setStatus(L('notDemo'), 'error'); return; } const id = state.user.id; return withBusy(L('deletingDemo'), async () => { await api(`/api/dev/demo-user/${id}`, { method: 'DELETE' }); localStorage.removeItem('kopilkaToken'); state.token = ''; state.user = null; state.summary = null; state.week = null; state.currentContract = null; renderAll(); setStatus(L('demoDeleted')); await authenticate(); }); }
+async function setLanguage(lang) { const normalized = I18N.normalizeLocale(lang); storage.set('kopilkaLocale', normalized); if (state.token) { try { const data = await api('/api/settings/locale', { method: 'POST', body: JSON.stringify({ locale: normalized }) }); state.user = data.user; } catch (e) { /* keep local preference */ } } await loadData(); }
+async function cleanupDemo() { if (!state.user?.isDemo) { setStatus(L('notDemo'), 'error'); return; } const id = state.user.id; return withBusy(L('deletingDemo'), async () => { await api(`/api/dev/demo-user/${id}`, { method: 'DELETE' }); storage.remove('kopilkaToken'); state.token = ''; state.user = null; state.summary = null; state.week = null; state.currentContract = null; renderAll(); setStatus(L('demoDeleted')); await authenticate(); }); }
 async function loadPendingMerge() {
-  const mergeToken = localStorage.getItem('kopilkaVkMergeToken');
+  const mergeToken = storage.get('kopilkaVkMergeToken');
   if (!mergeToken || !state.token) return;
   try {
     const data = await api('/api/account/merge-vk/preview', { method: 'POST', body: JSON.stringify({ mergeToken }) });
@@ -464,16 +482,16 @@ async function loadPendingMerge() {
     renderSettings();
     setStatus(L('mergeNeedsConfirmation'));
   } catch (e) {
-    localStorage.removeItem('kopilkaVkMergeToken');
+    storage.remove('kopilkaVkMergeToken');
     state.pendingMerge = null;
   }
 }
 async function confirmAccountMerge() {
-  const mergeToken = state.pendingMerge?.mergeToken || localStorage.getItem('kopilkaVkMergeToken');
+  const mergeToken = state.pendingMerge?.mergeToken || storage.get('kopilkaVkMergeToken');
   if (!mergeToken) return;
   return withBusy(L('mergeInProgress'), async () => {
     const data = await api('/api/account/merge-vk/confirm', { method: 'POST', body: JSON.stringify({ mergeToken }) });
-    localStorage.removeItem('kopilkaVkMergeToken');
+    storage.remove('kopilkaVkMergeToken');
     state.pendingMerge = null;
     state.user = data.user;
     state.summary = data.summary;
@@ -484,7 +502,7 @@ async function confirmAccountMerge() {
   });
 }
 function cancelAccountMerge() {
-  localStorage.removeItem('kopilkaVkMergeToken');
+  storage.remove('kopilkaVkMergeToken');
   state.pendingMerge = null;
   renderSettings();
   setStatus(L('mergeCancelled'));
@@ -528,7 +546,7 @@ function bindEvents() {
     } catch (e) {
       if (e.data?.mergeRequired) {
         state.pendingMerge = { preview: e.data.preview, mergeToken: e.data.mergeToken };
-        localStorage.setItem('kopilkaVkMergeToken', e.data.mergeToken);
+        storage.set('kopilkaVkMergeToken', e.data.mergeToken);
         renderSettings();
         switchTab('settings');
         setStatus(L('mergeNeedsConfirmation'));
@@ -675,6 +693,7 @@ async function renderPublicProfile(code, options = {}) {
   const consumedVkOAuth = consumeVkOAuthResult();
   if (consumedVkOAuth) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; await start(); return; }
   const inVk = isVkMiniApp();
+  clientLog('bootstrap', `inVk=${inVk} hasSearch=${Boolean(window.location.search)} hasHash=${Boolean(window.location.hash)} token=${Boolean(state.token)}`);
   if (inVk) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
   // In VK Mini App, a referral link can arrive as a hash payload (#ref=CODE or
   // hash=ref=CODE). Treat it only as signup attribution and always enter the
@@ -705,7 +724,16 @@ async function renderPublicProfile(code, options = {}) {
   if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
   if (!inTelegram) { await showLoginScreen(); return; }
   await start();
-})();
+})().catch((error) => {
+  const msg = error?.message || String(error || 'bootstrap failed');
+  clientLog('bootstrap_error', msg);
+  try {
+    if ($('appShell')) $('appShell').hidden = false;
+    if ($('loginScreen')) $('loginScreen').hidden = true;
+    if ($('connectionStatus')) $('connectionStatus').textContent = msg;
+    setStatus(msg, 'error');
+  } catch (_) { /* diagnostics only */ }
+});
 // Surface any runtime JS error into the status region so it is visible/audible
 // (helps a11y users and makes client-side failures diagnosable).
 window.addEventListener('error', (event) => {

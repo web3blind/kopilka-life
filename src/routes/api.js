@@ -39,6 +39,17 @@ function authRequired(req, res, next) {
   return next();
 }
 function disabled(res) { return res.status(404).json({ error: 'disabled' }); }
+function compactClientLog(value) {
+  return String(value || '').replace(/[\r\n\t]+/g, ' ').replace(/(sign=)[^&\s]+/g, '$1[REDACTED]').replace(/(token=)[^&\s]+/gi, '$1[REDACTED]').slice(0, 240);
+}
+
+router.post('/client-log', (req, res) => {
+  const event = compactClientLog(req.body.event);
+  const details = compactClientLog(req.body.details);
+  const platform = compactClientLog(req.body.platform);
+  if (event) console.log(`[client-log] ${event} platform=${platform} details=${details}`);
+  res.json({ ok: true });
+});
 
 router.post('/auth/telegram', authLimiter, (req, res) => {
   try {
