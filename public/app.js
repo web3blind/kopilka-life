@@ -62,7 +62,13 @@ function referralLikeCode(value) {
 }
 function isVkMiniApp() { return Boolean(vkLaunchParams()); }
 async function initVkBridge() {
-  try { if (window.vkBridge?.send) await window.vkBridge.send('VKWebAppInit'); } catch (_) { /* VK Bridge init is best-effort */ }
+  try {
+    if (!window.vkBridge?.send) return;
+    await Promise.race([
+      window.vkBridge.send('VKWebAppInit'),
+      new Promise((resolve) => setTimeout(resolve, 1500))
+    ]);
+  } catch (_) { /* VK Bridge init is best-effort */ }
 }
 async function getVkOAuthUrl(action = 'auth') {
   const cfg = await getPublicConfig();
