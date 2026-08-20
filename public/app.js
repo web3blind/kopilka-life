@@ -457,15 +457,38 @@ async function createEntry(type) { return withBusy(L('saving'), async () => { co
 async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshProduct(); renderAll(); setStatus(L('contractCreated')); }); }
 async function closeContract(status) { return withBusy(L('closingContract'), async () => { const data = await api(`/api/contracts/${state.currentContract.id}/close`, { method: 'POST', body: JSON.stringify({ status, resultNote: '' }) }); state.currentContract = null; state.summary = data.summary; state.week = data.week; await refreshProduct(); renderAll(); setStatus(L('contractClosed')); }); }
 async function saveSettings(event) { event.preventDefault(); const payload = { timezone: $('timezone').value.trim(), remindersEnabled: $('remindersEnabled').checked, eveningReminderTime: $('eveningReminderTime').value || '20:00' }; return withBusy(L('savingSettings'), async () => { const data = await api('/api/settings/reminders', { method: 'POST', body: JSON.stringify(payload) }); state.user = data.user; renderAll(); setStatus(L('settingsSaved')); }); }
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms))
+  ]);
+}
 async function enableVkReminders() {
-  if (!isVkMiniApp() || !window.vkBridge?.send) throw new Error(L('vkReminderStatusNeedVk'));
+  clientLog('vk_reminder_click', `inVk=${isVkMiniApp()} hasBridge=${Boolean(window.vkBridge?.send)}`);
+  if (!isVkMiniApp()) throw new Error(L('vkReminderStatusNeedVk'));
+  if (!window.vkBridge?.send) {
+    clientLog('vk_reminder_no_bridge', navigator.userAgent || '');
+    throw new Error(L('vkReminderStatusNeedVk'));
+  }
   const cfg = await getPublicConfig();
+  clientLog('vk_reminder_config', `group=${Boolean(cfg.vkGroupId)} enabled=${Boolean(cfg.vkMessagesEnabled)}`);
   if (!cfg.vkGroupId || !cfg.vkMessagesEnabled) throw new Error(L('vkReminderDenied'));
   setStatus(L('vkReminderRequesting'));
-  const result = await window.vkBridge.send('VKWebAppAllowMessagesFromGroup', { group_id: Number(cfg.vkGroupId) });
+  let result;
+  try {
+    result = await withTimeout(window.vkBridge.send('VKWebAppAllowMessagesFromGroup', { group_id: Number(cfg.vkGroupId) }), 8000, 'VK permission dialog timeout');
+    clientLog('vk_reminder_bridge_result', JSON.stringify(result || {}).slice(0, 180));
+  } catch (error) {
+    clientLog('vk_reminder_bridge_error', error?.message || String(error));
+    throw new Error(L('vkReminderDenied'));
+  }
   const allowed = result?.result === true || result?.result === 1 || result?.result === '1';
-  if (!allowed) throw new Error(L('vkReminderDenied'));
+  if (!allowed) {
+    clientLog('vk_reminder_not_allowed', JSON.stringify(result || {}).slice(0, 180));
+    throw new Error(L('vkReminderDenied'));
+  }
   const data = await api('/api/settings/vk-messages', { method: 'POST', body: JSON.stringify({ allowed: true, enableReminders: true }) });
+  clientLog('vk_reminder_api_saved', 'ok');
   state.user = data.user;
   renderAll();
   setStatus(L('vkReminderAllowed'));
