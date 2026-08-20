@@ -10,6 +10,8 @@ process.env.VK_APP_ID = '54723764';
 process.env.VK_OAUTH_CLIENT_ID = '54723764';
 process.env.VK_OAUTH_CLIENT_SECRET = 'test-vk-oauth-secret';
 process.env.VK_SECURE_KEY = 'test-vk-secure-key';
+process.env.VK_GROUP_ID = '240966481';
+process.env.VK_GROUP_TOKEN = 'test-vk-group-token';
 process.env.DEV_AUTH_ENABLED = 'true';
 process.env.SCHEDULER_ENABLED = 'false';
 process.env.RATE_LIMIT_API_MAX = '1000';
@@ -94,6 +96,7 @@ function testStaticAccessibility() {
   assert(css.includes('language-switch'), 'language switcher styles exist');
   assert(html.includes('artifactsGrid'), 'path artifacts collection exists');
   assert(html.includes('artifactToast'), 'artifact unlock toast exists');
+  assert(html.includes('enableVkReminders'), 'VK reminders opt-in button exists');
   assert(css.includes('artifact-card'), 'artifact cards are styled');
   assert(css.includes('artifact-mystery'), 'locked artifact mystery places are styled');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'cat_life_warmer.webp')), 'cat artifact image exists');
@@ -105,6 +108,7 @@ function testStaticAccessibility() {
   assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
   const frontendApp = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf8');
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
+  assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
@@ -142,6 +146,8 @@ async function main() {
   const cfgResp = await request('/api/config');
   assert.equal(cfgResp.res.status, 200, 'public config endpoint available');
   assert(typeof cfgResp.data.botUsername === 'string', 'public config exposes botUsername');
+  assert.equal(cfgResp.data.vkGroupId, '240966481', 'public config exposes VK community id');
+  assert.equal(cfgResp.data.vkMessagesEnabled, true, 'public config reports VK messages enabled when token is configured');
   let oauthStart = await request('/api/auth/vk-oauth/start', { method: 'POST', body: JSON.stringify({ action: 'auth', refCode: 'ABC123', timezone: 'Europe/Moscow' }) });
   assert.equal(oauthStart.res.status, 200, 'VK OAuth auth start returns URL');
   const oauthUrl = new URL(oauthStart.data.authUrl);
@@ -176,6 +182,15 @@ async function main() {
   assert.equal(vkOnlyResp.res.status, 200, 'VK Mini App auth accepted');
   assert.equal(vkOnlyResp.data.user.vkLinked, true, 'VK user is marked linked');
   assert.equal(vkOnlyResp.data.user.timezone, 'Europe/Moscow', 'VK auth saves detected timezone');
+  const vkOnlyAuth = { authorization: `Bearer ${vkOnlyResp.data.token}` };
+  const vkMessageOptIn = await request('/api/settings/vk-messages', { method: 'POST', headers: vkOnlyAuth, body: JSON.stringify({ allowed: true, enableReminders: true }) });
+  assert.equal(vkMessageOptIn.res.status, 200, 'VK message opt-in saved');
+  assert.equal(vkMessageOptIn.data.user.vkMessagesAllowed, true, 'VK message opt-in is exposed');
+  assert.equal(vkMessageOptIn.data.user.remindersEnabled, true, 'VK opt-in enables reminders');
+  const vkScheduled = getDb().prepare("SELECT id FROM reminders WHERE user_id = ? AND status = 'scheduled'").get(vkOnlyResp.data.user.id);
+  assert(vkScheduled?.id, 'VK opt-in schedules an evening reminder');
+  getDb().prepare("UPDATE reminders SET due_at = '2000-01-01T00:00:00.000Z' WHERE id = ?").run(vkScheduled.id);
+  assert.equal(await sendDueReminders(), 1, 'VK due reminder is sent through dry-run community messages');
   const vkLinkResp = await request('/api/settings/link-vk', { method: 'POST', headers: siteAuth, body: JSON.stringify({ launchParams: makeVkLaunchParams(9002, 'test-vk-secure-key') }) });
   assert.equal(vkLinkResp.res.status, 200, 'Telegram account can link verified VK id');
   assert.equal(vkLinkResp.data.user.vkLinked, true, 'linked Telegram account reports vkLinked');

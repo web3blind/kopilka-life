@@ -34,7 +34,7 @@ function resolveRefCode(code) {
 }
 function publicUser(user) {
   if (!user) return null;
-  return { id: user.id, firstName: user.first_name, username: user.username, timezone: user.timezone, locale: normalizeLocale(user.locale), remindersEnabled: Boolean(user.reminders_enabled), eveningReminderTime: user.evening_reminder_time, isDemo: Boolean(user.is_demo), vkLinked: Boolean(user.vk_id) };
+  return { id: user.id, firstName: user.first_name, username: user.username, timezone: user.timezone, locale: normalizeLocale(user.locale), remindersEnabled: Boolean(user.reminders_enabled), eveningReminderTime: user.evening_reminder_time, isDemo: Boolean(user.is_demo), vkLinked: Boolean(user.vk_id), vkMessagesAllowed: Boolean(user.vk_messages_allowed) };
 }
 function upsertTelegramUser(tgUser, refCode, timezone) {
   const db = getDb();
@@ -113,10 +113,14 @@ function updateSettings(userId, settings) {
   getDb().prepare('UPDATE users SET timezone = ?, evening_reminder_time = ?, reminders_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(timezone, reminderTime, settings.remindersEnabled ? 1 : 0, userId);
   return getUserById(userId);
 }
+function updateVkMessagesAllowed(userId, allowed) {
+  getDb().prepare('UPDATE users SET vk_messages_allowed = ?, vk_messages_allowed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(allowed ? 1 : 0, allowed ? 1 : 0, userId);
+  return getUserById(userId);
+}
 function deleteDemoUser(userId) {
   const user = getUserById(userId);
   if (!user || !user.is_demo) return false;
   getDb().prepare('DELETE FROM users WHERE id = ? AND is_demo = 1').run(userId);
   return true;
 }
-module.exports = { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser, ensureRefCode, resolveRefCode };
+module.exports = { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, updateVkMessagesAllowed, deleteDemoUser, ensureRefCode, resolveRefCode };

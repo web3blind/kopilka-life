@@ -14,6 +14,8 @@ module.exports = {
   vkSecureKey: process.env.VK_SECURE_KEY || '',
   vkOAuthClientId: process.env.VK_OAUTH_CLIENT_ID || '',
   vkOAuthClientSecret: process.env.VK_OAUTH_CLIENT_SECRET || '',
+  vkGroupId: process.env.VK_GROUP_ID || '',
+  vkGroupToken: process.env.VK_GROUP_TOKEN || '',
   vkAuthMaxAgeSeconds: Number(process.env.VK_AUTH_MAX_AGE_SECONDS || 86400),
   dbPath: process.env.DB_PATH || path.join(process.cwd(), 'data', 'kopilka-life.sqlite'),
   sessionSecret: process.env.SESSION_SECRET || 'local-dev-secret-change-me',

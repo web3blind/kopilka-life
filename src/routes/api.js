@@ -7,7 +7,7 @@ const { buildAuthorizeUrl, exchangeCode, verifyState } = require('../auth/vkOAut
 const { createToken, verifyToken } = require('../auth/session');
 const { buildVkMergeOffer, buildMergePreview, applyMergeByToken } = require('../services/accountMergeService');
 const { verifyMergeToken } = require('../auth/mergeToken');
-const { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, deleteDemoUser } = require('../services/usersService');
+const { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, updateVkMessagesAllowed, deleteDemoUser } = require('../services/usersService');
 const { grantReferrerBonusOnFirstEntry, profileStats, publicProfileByCode } = require('../services/referralService');
 const { listArtifacts, awardArtifactsForUser, artifactSummary } = require('../services/artifactsService');
 const { createEntry, getSummary, getWeekSummary, listEntries } = require('../services/entriesService');
@@ -125,7 +125,7 @@ router.get('/auth/vk-oauth/callback', authLimiter, async (req, res) => {
   }
 });
 // Public, non-sensitive config the site needs to render sign-in options.
-router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl, telegramLoginWidgetEnabled: config.telegramLoginWidgetEnabled, vkAppId: config.vkAppId, vkOAuthEnabled: Boolean(config.vkOAuthClientId) }));
+router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl, telegramLoginWidgetEnabled: config.telegramLoginWidgetEnabled, vkAppId: config.vkAppId, vkGroupId: config.vkGroupId, vkOAuthEnabled: Boolean(config.vkOAuthClientId), vkMessagesEnabled: Boolean(config.vkGroupId && config.vkGroupToken) }));
 router.post('/auth/dev', devLimiter, (req, res) => {
   if (!config.devAuthEnabled) return disabled(res);
   const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale, req.body.refCode, req.body.timezone);
@@ -210,5 +210,15 @@ router.post('/settings/reminders', authRequired, (req, res) => {
   const user = updateSettings(req.user.id, req.body);
   scheduleNextReminderForUser(req.user.id, { replace: true });
   res.json({ user: publicUser(user) });
+});
+router.post('/settings/vk-messages', authRequired, (req, res) => {
+  if (!req.user.vk_id) return res.status(400).json({ error: 'VK не привязан к этому аккаунту.' });
+  const allowed = Boolean(req.body.allowed);
+  let user = updateVkMessagesAllowed(req.user.id, allowed);
+  if (allowed && req.body.enableReminders !== false) {
+    user = updateSettings(req.user.id, { remindersEnabled: true, eveningReminderTime: user.evening_reminder_time, timezone: user.timezone });
+  }
+  scheduleNextReminderForUser(req.user.id, { replace: true });
+  res.json({ user: publicUser(getUserById(req.user.id)) });
 });
 module.exports = router;

@@ -65,7 +65,7 @@ async function initVkBridge() {
   try { if (window.vkBridge?.send) await window.vkBridge.send('VKWebAppInit'); } catch (_) { /* VK Bridge init is best-effort */ }
 }
 async function getVkOAuthUrl(action = 'auth') {
-  const cfg = await api('/api/config');
+  const cfg = await getPublicConfig();
   if (!cfg.vkOAuthEnabled) throw new Error(L('vkOauthNotConfigured'));
   const data = await api('/api/auth/vk-oauth/start', {
     method: 'POST',
@@ -103,6 +103,8 @@ function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (cha
 function setBusy(isBusy, message = '') { state.busy = isBusy; document.querySelectorAll('button,input,textarea,select').forEach((el) => { if (el.id === 'cleanupDemo' && state.user && !state.user.isDemo) return; el.disabled = isBusy; }); document.body.setAttribute('aria-busy', isBusy ? 'true' : 'false'); if (message) setStatus(message); }
 async function withBusy(message, fn) { setBusy(true, message); try { return await fn(); } finally { setBusy(false); } }
 async function api(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.token) headers.authorization = `Bearer ${state.token}`; const res = await fetch(path, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { const error = new Error(data.error || L('actionFailed')); error.data = data; error.status = res.status; throw error; } return data; }
+let publicConfigCache = null;
+async function getPublicConfig() { if (!publicConfigCache) publicConfigCache = await api('/api/config'); return publicConfigCache; }
 function consumeVkOAuthResult() {
   if (!window.location.hash || !window.location.hash.includes('vk_oauth_')) return false;
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
@@ -205,7 +207,26 @@ function renderMergePrompt() {
   container.hidden = false;
   container.innerHTML = `<h3>${escapeHtml(L('mergeAccountsTitle'))}</h3><p>${escapeHtml(L('mergeAccountsIntro'))}</p><ul class="compact-list"><li>${escapeHtml(L('mergeMovedEntries', { count: r.movedEntries || 0 }))}</li><li>${escapeHtml(L('mergeDedupedEntries', { count: r.dedupedQuickEntries || 0 }))}</li><li>${escapeHtml(L('mergeNotes', { count: r.mergedNotes || 0 }))}</li><li>${escapeHtml(L('mergeContracts', { count: r.movedContracts || 0 }))}</li><li>${escapeHtml(L('mergeRemindersDropped', { count: r.scheduledRemindersDropped || 0 }))}</li></ul>${blocking.length ? `<p class="soft-note">${escapeHtml(L('mergeBlockedActiveContract'))}</p>` : `<button type="button" id="confirmAccountMerge">${escapeHtml(L('mergeConfirm'))}</button>`}<button type="button" id="cancelAccountMerge" class="secondary">${escapeHtml(L('mergeCancel'))}</button>`;
 }
-function renderSettings() { if (!state.user) return; $('timezone').value = state.user.timezone || 'Asia/Novosibirsk'; $('remindersEnabled').checked = Boolean(state.user.remindersEnabled); $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00'; $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`; const vkStatus = $('vkLinkStatus'); const vkBtn = $('linkVkAccount'); if (vkStatus) vkStatus.textContent = state.user.vkLinked ? L('vkLinked') : L('vkNotLinked'); if (vkBtn) { vkBtn.hidden = Boolean(state.user.vkLinked); vkBtn.disabled = false; } if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo; const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en')); renderMergePrompt(); }
+function renderSettings() {
+  if (!state.user) return;
+  $('timezone').value = state.user.timezone || 'Asia/Novosibirsk';
+  $('remindersEnabled').checked = Boolean(state.user.remindersEnabled);
+  $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00';
+  $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`;
+  const vkStatus = $('vkLinkStatus'); const vkBtn = $('linkVkAccount');
+  if (vkStatus) vkStatus.textContent = state.user.vkLinked ? L('vkLinked') : L('vkNotLinked');
+  if (vkBtn) { vkBtn.hidden = Boolean(state.user.vkLinked); vkBtn.disabled = false; }
+  const vkReminderBox = $('vkReminderBox');
+  const vkReminderStatus = $('vkReminderStatus');
+  const vkReminderBtn = $('enableVkReminders');
+  const showVkReminders = isVkMiniApp() && Boolean(state.user.vkLinked);
+  if (vkReminderBox) vkReminderBox.hidden = !showVkReminders;
+  if (vkReminderStatus) vkReminderStatus.textContent = state.user.vkMessagesAllowed ? L('vkReminderStatusOn') : (showVkReminders ? L('vkReminderStatusUnknown') : L('vkReminderStatusNeedVk'));
+  if (vkReminderBtn) { vkReminderBtn.textContent = state.user.vkMessagesAllowed ? L('vkReminderEnableAgain') : L('vkReminderEnable'); vkReminderBtn.disabled = false; }
+  if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo;
+  const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en'));
+  renderMergePrompt();
+}
 function badgeSize(n) { if (n === 0) return 'small'; if (n >= 50) return 'xlarge'; if (n >= 10) return 'large'; return 'small'; }
 function renderProfile() {
   const p = state.profile; const name = $('profileNameHeading'); const heart = document.querySelector('.badge-heart'); const count = document.querySelector('.badge-heart-count');
@@ -275,7 +296,7 @@ async function showLoginScreen() {
 
 async function initTelegramLogin() {
   let cfg;
-  try { cfg = await api('/api/config'); } catch (e) { cfg = {}; }
+  try { cfg = await getPublicConfig(); } catch (e) { cfg = {}; }
   const username = (cfg.botUsername || '').replace(/^@/, '').trim();
   const box = $('telegramLoginButton');
   const hint = $('loginTelegramHint');
@@ -396,6 +417,19 @@ async function createEntry(type) { return withBusy(L('saving'), async () => { co
 async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshProduct(); renderAll(); setStatus(L('contractCreated')); }); }
 async function closeContract(status) { return withBusy(L('closingContract'), async () => { const data = await api(`/api/contracts/${state.currentContract.id}/close`, { method: 'POST', body: JSON.stringify({ status, resultNote: '' }) }); state.currentContract = null; state.summary = data.summary; state.week = data.week; await refreshProduct(); renderAll(); setStatus(L('contractClosed')); }); }
 async function saveSettings(event) { event.preventDefault(); const payload = { timezone: $('timezone').value.trim(), remindersEnabled: $('remindersEnabled').checked, eveningReminderTime: $('eveningReminderTime').value || '20:00' }; return withBusy(L('savingSettings'), async () => { const data = await api('/api/settings/reminders', { method: 'POST', body: JSON.stringify(payload) }); state.user = data.user; renderAll(); setStatus(L('settingsSaved')); }); }
+async function enableVkReminders() {
+  if (!isVkMiniApp() || !window.vkBridge?.send) throw new Error(L('vkReminderStatusNeedVk'));
+  const cfg = await getPublicConfig();
+  if (!cfg.vkGroupId || !cfg.vkMessagesEnabled) throw new Error(L('vkReminderDenied'));
+  setStatus(L('vkReminderRequesting'));
+  const result = await window.vkBridge.send('VKWebAppAllowMessagesFromGroup', { group_id: Number(cfg.vkGroupId) });
+  const allowed = result?.result === true || result?.result === 1 || result?.result === '1';
+  if (!allowed) throw new Error(L('vkReminderDenied'));
+  const data = await api('/api/settings/vk-messages', { method: 'POST', body: JSON.stringify({ allowed: true, enableReminders: true }) });
+  state.user = data.user;
+  renderAll();
+  setStatus(L('vkReminderAllowed'));
+}
 async function setLanguage(lang) { const normalized = I18N.normalizeLocale(lang); localStorage.setItem('kopilkaLocale', normalized); if (state.token) { try { const data = await api('/api/settings/locale', { method: 'POST', body: JSON.stringify({ locale: normalized }) }); state.user = data.user; } catch (e) { /* keep local preference */ } } await loadData(); }
 async function cleanupDemo() { if (!state.user?.isDemo) { setStatus(L('notDemo'), 'error'); return; } const id = state.user.id; return withBusy(L('deletingDemo'), async () => { await api(`/api/dev/demo-user/${id}`, { method: 'DELETE' }); localStorage.removeItem('kopilkaToken'); state.token = ''; state.user = null; state.summary = null; state.week = null; state.currentContract = null; renderAll(); setStatus(L('demoDeleted')); await authenticate(); }); }
 async function loadPendingMerge() {
@@ -442,6 +476,7 @@ function bindEvents() {
   $('contractForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await createContract(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
   $('contractCurrent').addEventListener('click', async (event) => { const b = event.target.closest('button[data-close-status]'); if (!b || state.busy || state.publicReadOnly) return; try { await closeContract(b.dataset.closeStatus); } catch (e) { setStatus(e.message, 'error'); } });
   $('settingsForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await saveSettings(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
+  $('enableVkReminders')?.addEventListener('click', async () => { if (state.busy || state.publicReadOnly) return; try { await withBusy(L('vkReminderRequesting'), enableVkReminders); } catch (e) { setStatus(e.message || L('vkReminderDenied'), 'error'); renderSettings(); } });
   $('accountLinksHeading')?.closest('.summary-card')?.addEventListener('click', async (event) => {
     if (event.target.closest('#confirmAccountMerge')) { try { await confirmAccountMerge(); } catch (e) { setStatus(e.message, 'error'); } }
     if (event.target.closest('#cancelAccountMerge')) cancelAccountMerge();
