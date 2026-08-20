@@ -674,6 +674,13 @@ async function renderPublicProfile(code, options = {}) {
   bindEvents(); // bind buttons in every context (site, public profile, Mini App)
   const consumedVkOAuth = consumeVkOAuthResult();
   if (consumedVkOAuth) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; await start(); return; }
+  const inVk = isVkMiniApp();
+  if (inVk) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
+  // In VK Mini App, a referral link can arrive as a hash payload (#ref=CODE or
+  // hash=ref=CODE). Treat it only as signup attribution and always enter the
+  // signed VK auth flow first. If we try public-profile routing before auth,
+  // repeated referral opens in VK Android can stop before /api/auth/vk.
+  if (inVk) { captureRefCode(); await start(); return; }
   const publicCode = publicProfileCode();
   if (publicCode) {
     captureRefCode();
@@ -682,8 +689,6 @@ async function renderPublicProfile(code, options = {}) {
     }
     if (await renderPublicProfile(publicCode, { readOnly: true })) { applyStaticI18n(); setPublicReadOnlyMode(true); return; }
   }
-  const inVk = isVkMiniApp();
-  if (inVk) { await start(); return; }
   if (state.token) {
     if ($('appShell')) $('appShell').hidden = false;
     if ($('loginScreen')) $('loginScreen').hidden = true;
@@ -706,4 +711,9 @@ async function renderPublicProfile(code, options = {}) {
 window.addEventListener('error', (event) => {
   const msg = event.error ? `${event.error.name || ''}: ${event.error.message || ''}` : (event.message || 'JS error');
   try { if ($('connectionStatus')) $('connectionStatus').textContent = msg; if (window.__kopilkaSetDiag) window.__kopilkaSetDiag(msg); } catch (_) {}
+});
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason || {};
+  const msg = reason.message || String(reason || 'Unhandled promise rejection');
+  try { if ($('connectionStatus')) $('connectionStatus').textContent = msg; setStatus(msg, 'error'); if (window.__kopilkaSetDiag) window.__kopilkaSetDiag(msg); } catch (_) {}
 });
