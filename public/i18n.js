@@ -178,6 +178,8 @@
     settingsReminders: { ru: 'Вечернее напоминание включено', en: 'Evening reminder enabled' },
     settingsReminderTime: { ru: 'Время напоминания', en: 'Reminder time' },
     settingsReminderNote: { ru: 'Пример: “Если есть силы, можно за 10 секунд пополнить Копилку жизни.”', en: 'Example: “If you have energy, you can top up your Life Harbor in 10 seconds.”' },
+    vkReminderPromptTitle: { ru: 'Хочешь мягкое вечернее напоминание?', en: 'Want a gentle evening reminder?' },
+    vkReminderPromptText: { ru: 'Можно разрешить сообщения от сообщества «Копилка жизни». Тогда вечером VK сможет тихо напомнить зайти. Личные записи в сообщения не отправляются.', en: 'You can allow messages from the Life Harbor community. Then VK can gently remind you to open the app in the evening. Personal entries are not sent to messages.' },
     vkReminderStatusUnknown: { ru: 'VK-напоминания ещё не включены.', en: 'VK reminders are not enabled yet.' },
     vkReminderStatusOn: { ru: 'VK-напоминания включены. Вечером сообщество сможет мягко напомнить зайти.', en: 'VK reminders are enabled. The community can gently remind you in the evening.' },
     vkReminderStatusNeedVk: { ru: 'VK-напоминания доступны внутри VK Mini App.', en: 'VK reminders are available inside the VK Mini App.' },

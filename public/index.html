@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
   <link rel="apple-touch-icon" href="/assets/icon-150.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260820-vkreminders1">
+  <link rel="stylesheet" href="/styles.css?v=20260820-vkreminders2">
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="skipToContent">Перейти к содержимому</a>
@@ -34,6 +34,11 @@
       <section id="tab-today" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-today">
         <h1 id="heading-today" tabindex="-1" data-i18n="tabToday">Сегодня</h1>
         <p data-i18n="todayIntro">Что сегодня пополнило жизнь? Можно отметить одну маленькую конкретную вещь.</p>
+        <section id="vkReminderPrompt" class="summary-card" aria-labelledby="vkReminderPromptHeading" aria-live="polite" hidden>
+          <h2 id="vkReminderPromptHeading" data-i18n="vkReminderPromptTitle">Хочешь мягкое вечернее напоминание?</h2>
+          <p data-i18n="vkReminderPromptText">Можно разрешить сообщения от сообщества «Копилка жизни». Тогда вечером VK сможет тихо напомнить зайти. Личные записи в сообщения не отправляются.</p>
+          <button type="button" class="secondary" data-enable-vk-reminders data-i18n="vkReminderEnable">Включить напоминания в VK</button>
+        </section>
         <section class="summary-card" aria-label="Баланс ЖИЗНИ">
           <p class="big-number"><span id="totalLife">0</span> ЖИЗНЬ</p>
           <p><span data-i18n="todayAdded">Сегодня добавлено: </span><strong id="todayLife">0</strong><span data-i18n="todayAddedNote">. Это видимый след жизни и заботы, не оценка тебя.</span></p>
@@ -122,7 +127,7 @@
           <p class="soft-note" data-i18n="settingsReminderNote">Пример: “Если есть силы, можно за 10 секунд пополнить Копилку жизни.”</p>
           <div id="vkReminderBox" class="contract-box" hidden>
             <p id="vkReminderStatus" class="soft-note" data-i18n="vkReminderStatusUnknown">VK-напоминания ещё не включены.</p>
-            <button id="enableVkReminders" type="button" class="secondary" data-i18n="vkReminderEnable">Включить напоминания в VK</button>
+            <button id="enableVkReminders" type="button" class="secondary" data-enable-vk-reminders data-i18n="vkReminderEnable">Включить напоминания в VK</button>
             <p class="field-hint" data-i18n="vkReminderHint">Нужно разрешить сообщения от сообщества. Личные записи в VK не отправляются.</p>
           </div>
           <button type="submit" data-i18n="settingsSave">Сохранить настройки</button>
@@ -195,9 +200,9 @@
       <button id="tab-button-profile" type="button" role="tab" data-tab="profile" aria-controls="tab-profile" aria-selected="false" data-i18n="tabProfile">Профиль</button>
     </nav>
   </div>
-  <script src="/i18n.js?v=20260820-vkreminders1"></script>
+  <script src="/i18n.js?v=20260820-vkreminders2"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
-  <script src="/app.js?v=20260820-vkreminders1"></script>
+  <script src="/app.js?v=20260820-vkreminders2"></script>
 </body>
 </html>

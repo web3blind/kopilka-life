@@ -216,18 +216,26 @@ function renderSettings() {
   const vkStatus = $('vkLinkStatus'); const vkBtn = $('linkVkAccount');
   if (vkStatus) vkStatus.textContent = state.user.vkLinked ? L('vkLinked') : L('vkNotLinked');
   if (vkBtn) { vkBtn.hidden = Boolean(state.user.vkLinked); vkBtn.disabled = false; }
-  const vkReminderBox = $('vkReminderBox');
-  const vkReminderStatus = $('vkReminderStatus');
-  const vkReminderBtn = $('enableVkReminders');
-  const showVkReminders = isVkMiniApp() && Boolean(state.user.vkLinked);
-  if (vkReminderBox) vkReminderBox.hidden = !showVkReminders;
-  if (vkReminderStatus) vkReminderStatus.textContent = state.user.vkMessagesAllowed ? L('vkReminderStatusOn') : (showVkReminders ? L('vkReminderStatusUnknown') : L('vkReminderStatusNeedVk'));
-  if (vkReminderBtn) { vkReminderBtn.textContent = state.user.vkMessagesAllowed ? L('vkReminderEnableAgain') : L('vkReminderEnable'); vkReminderBtn.disabled = false; }
+  renderVkReminderOffer();
   if ($('cleanupDemo')) $('cleanupDemo').disabled = !state.user.isDemo;
   const lang = locale(); $('lang-ru').setAttribute('aria-pressed', String(lang === 'ru')); $('lang-en').setAttribute('aria-pressed', String(lang === 'en'));
   renderMergePrompt();
 }
 function badgeSize(n) { if (n === 0) return 'small'; if (n >= 50) return 'xlarge'; if (n >= 10) return 'large'; return 'small'; }
+function renderVkReminderOffer() {
+  const showVkReminders = Boolean(state.user) && isVkMiniApp() && Boolean(state.user.vkLinked);
+  const needsPermission = showVkReminders && !state.user.vkMessagesAllowed;
+  const vkReminderPrompt = $('vkReminderPrompt');
+  const vkReminderBox = $('vkReminderBox');
+  const vkReminderStatus = $('vkReminderStatus');
+  if (vkReminderPrompt) vkReminderPrompt.hidden = !needsPermission;
+  if (vkReminderBox) vkReminderBox.hidden = !showVkReminders;
+  if (vkReminderStatus) vkReminderStatus.textContent = state.user?.vkMessagesAllowed ? L('vkReminderStatusOn') : (showVkReminders ? L('vkReminderStatusUnknown') : L('vkReminderStatusNeedVk'));
+  document.querySelectorAll('[data-enable-vk-reminders]').forEach((btn) => {
+    btn.textContent = state.user?.vkMessagesAllowed ? L('vkReminderEnableAgain') : L('vkReminderEnable');
+    btn.disabled = false;
+  });
+}
 function renderProfile() {
   const p = state.profile; const name = $('profileNameHeading'); const heart = document.querySelector('.badge-heart'); const count = document.querySelector('.badge-heart-count');
   if (!p) return;
@@ -273,7 +281,7 @@ function showArtifactToast(artifacts = []) {
   setStatus(L('artifactUnlockedStatus', { title: first.title }));
 }
 function hideArtifactToast() { const toast = $('artifactToast'); if (toast) toast.hidden = true; }
-function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); renderArtifacts(); }
+function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); renderArtifacts(); renderVkReminderOffer(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
 async function loadData() {
   state.publicStatus = '';
@@ -476,7 +484,7 @@ function bindEvents() {
   $('contractForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await createContract(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
   $('contractCurrent').addEventListener('click', async (event) => { const b = event.target.closest('button[data-close-status]'); if (!b || state.busy || state.publicReadOnly) return; try { await closeContract(b.dataset.closeStatus); } catch (e) { setStatus(e.message, 'error'); } });
   $('settingsForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await saveSettings(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });
-  $('enableVkReminders')?.addEventListener('click', async () => { if (state.busy || state.publicReadOnly) return; try { await withBusy(L('vkReminderRequesting'), enableVkReminders); } catch (e) { setStatus(e.message || L('vkReminderDenied'), 'error'); renderSettings(); } });
+  document.querySelectorAll('[data-enable-vk-reminders]').forEach((btn) => btn.addEventListener('click', async () => { if (state.busy || state.publicReadOnly) return; try { await withBusy(L('vkReminderRequesting'), enableVkReminders); } catch (e) { setStatus(e.message || L('vkReminderDenied'), 'error'); renderVkReminderOffer(); } }));
   $('accountLinksHeading')?.closest('.summary-card')?.addEventListener('click', async (event) => {
     if (event.target.closest('#confirmAccountMerge')) { try { await confirmAccountMerge(); } catch (e) { setStatus(e.message, 'error'); } }
     if (event.target.closest('#cancelAccountMerge')) cancelAccountMerge();
