@@ -16,7 +16,10 @@ module.exports = {
   vkOAuthClientSecret: process.env.VK_OAUTH_CLIENT_SECRET || '',
   vkGroupId: process.env.VK_GROUP_ID || '',
   vkGroupToken: process.env.VK_GROUP_TOKEN || '',
-  vkAuthMaxAgeSeconds: Number(process.env.VK_AUTH_MAX_AGE_SECONDS || 86400),
+  // VK Android can reopen Mini Apps from messages/favorites with a cached
+  // signed vk_ts older than 24h. Keep a bounded replay window, but allow
+  // real saved-link launches to work.
+  vkAuthMaxAgeSeconds: Number(process.env.VK_AUTH_MAX_AGE_SECONDS || 604800),
   dbPath: process.env.DB_PATH || path.join(process.cwd(), 'data', 'kopilka-life.sqlite'),
   sessionSecret: process.env.SESSION_SECRET || 'local-dev-secret-change-me',
   devAuthEnabled: !isProduction && process.env.DEV_AUTH_ENABLED === 'true',
