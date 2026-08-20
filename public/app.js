@@ -3,6 +3,13 @@ const locale = () => I18N.normalizeLocale(state.user?.locale || localStorage.get
 const L = (key, params) => I18N.t(locale(), key, params);
 
 const state = { token: localStorage.getItem('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null };
+function fireVkBridgeInit() {
+  try {
+    if (!vkLaunchParams()) return;
+    window.parent?.postMessage?.({ handler: 'VKWebAppInit', params: { request_id: `init_${Date.now()}` }, type: 'vk-connect', connectVersion: '3.0.2' }, '*');
+    window.vkBridge?.send?.('VKWebAppInit').catch?.(() => {});
+  } catch (_) { /* best-effort VK wrapper initialization */ }
+}
 const $ = (id) => document.getElementById(id);
 // Detect the user's timezone from their device clock (IANA zone), fallback UTC.
 function detectTimezone() {
@@ -62,6 +69,7 @@ function referralLikeCode(value) {
 }
 function isVkMiniApp() { return Boolean(vkLaunchParams()); }
 async function initVkBridge() {
+  fireVkBridgeInit();
   try {
     if (!window.vkBridge?.send) return;
     await Promise.race([
@@ -662,6 +670,7 @@ async function renderPublicProfile(code, options = {}) {
   }
 }
 (async () => {
+  fireVkBridgeInit();
   bindEvents(); // bind buttons in every context (site, public profile, Mini App)
   const consumedVkOAuth = consumeVkOAuthResult();
   if (consumedVkOAuth) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; await start(); return; }
