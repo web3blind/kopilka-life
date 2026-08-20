@@ -476,7 +476,7 @@ async function enableVkReminders() {
   setStatus(L('vkReminderRequesting'));
   let result;
   try {
-    result = await withTimeout(window.vkBridge.send('VKWebAppAllowMessagesFromGroup', { group_id: Number(cfg.vkGroupId) }), 8000, 'VK permission dialog timeout');
+    result = await withTimeout(window.vkBridge.send('VKWebAppAllowMessagesFromGroup', { group_id: Number(cfg.vkGroupId), key: 'evening_reminders' }), 8000, 'VK permission dialog timeout');
     clientLog('vk_reminder_bridge_result', JSON.stringify(result || {}).slice(0, 180));
   } catch (error) {
     clientLog('vk_reminder_bridge_error', error?.message || String(error));

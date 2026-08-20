@@ -202,8 +202,8 @@
   </div>
   <script>
     // VK Android may keep showing the Mini Apps loading screen until it sees
-    // VKWebAppInit. Send it from the HTML shell before any external script can
-    // block or delay app.js execution; app.js repeats this later as fallback.
+    // VKWebAppInit. Send a shell-level postMessage before any external script;
+    // then send the official vkBridge init as soon as the pinned local bridge loads.
     (function () {
       try {
         if (/[?&]vk_app_id=/.test(window.location.search || '')) {
@@ -219,7 +219,16 @@
   </script>
   <script src="/i18n.js?v=20260820-vkreminders4"></script>
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
-  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js" defer></script>
-  <script src="/app.js?v=20260820-vkinit6"></script>
+  <script src="/vendor/vk-bridge-3.0.2.min.js?v=20260820"></script>
+  <script>
+    (function () {
+      try {
+        if (/[?&]vk_app_id=/.test(window.location.search || '') && window.vkBridge && window.vkBridge.send) {
+          window.vkBridge.send('VKWebAppInit').catch(function () {});
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <script src="/app.js?v=20260820-vkbridge7"></script>
 </body>
 </html>
