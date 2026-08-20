@@ -194,6 +194,21 @@ async function main() {
   const vkLinkResp = await request('/api/settings/link-vk', { method: 'POST', headers: siteAuth, body: JSON.stringify({ launchParams: makeVkLaunchParams(9002, 'test-vk-secure-key') }) });
   assert.equal(vkLinkResp.res.status, 200, 'Telegram account can link verified VK id');
   assert.equal(vkLinkResp.data.user.vkLinked, true, 'linked Telegram account reports vkLinked');
+  const linkedVkOptIn = await request('/api/settings/vk-messages', { method: 'POST', headers: siteAuth, body: JSON.stringify({ allowed: true, enableReminders: true }) });
+  assert.equal(linkedVkOptIn.res.status, 200, 'linked Telegram+VK account can opt in to VK messages');
+  const linkedReminder = getDb().prepare("SELECT id FROM reminders WHERE user_id = ? AND status = 'scheduled' ORDER BY id DESC LIMIT 1").get(miniUserId);
+  assert(linkedReminder?.id, 'linked account has a scheduled reminder');
+  getDb().prepare("UPDATE reminders SET due_at = '2000-01-01T00:00:00.000Z' WHERE id = ?").run(linkedReminder.id);
+  const originalLog = console.log;
+  const deliveryLogs = [];
+  console.log = (...args) => { deliveryLogs.push(args.join(' ')); originalLog(...args); };
+  try {
+    assert.equal(await sendDueReminders(), 1, 'linked Telegram+VK due reminder is processed once');
+  } finally {
+    console.log = originalLog;
+  }
+  assert(deliveryLogs.some((line) => line.includes('[telegram:dry] sendMessage')), 'linked account reminder sends to Telegram');
+  assert(deliveryLogs.some((line) => line.includes('[vk:dry] messages.send')), 'linked account reminder also sends to VK');
   const mergeTarget = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 124, first_name: 'Merge Target', username: 'merge_target' }, 'test-bot-token') }) });
   const mergeTargetAuth = { authorization: `Bearer ${mergeTarget.data.token}` };
   const disposableVk = await request('/api/auth/vk', { method: 'POST', body: JSON.stringify({ launchParams: makeVkLaunchParams(9003, 'test-vk-secure-key'), timezone: 'Europe/Moscow' }) });

@@ -46,15 +46,24 @@ async function sendDueReminders(limit = 20) {
     if (db.prepare("UPDATE reminders SET status = 'sending' WHERE id = ? AND sent_at IS NULL AND status = 'scheduled'").run(reminder.id).changes !== 1) continue;
     try {
       const telegramId = String(reminder.telegram_id || '');
-      if (telegramId.startsWith('demo:')) {
-        // Development/demo users are counted as sent without external calls.
-      } else if (telegramId && !telegramId.startsWith('vk:')) {
-        await sendReminder(telegramId, reminder.locale);
-      } else if (reminder.vk_id && reminder.vk_messages_allowed) {
-        await sendVkReminder(reminder.vk_id, reminder.locale);
-      } else {
-        throw new Error('No reminder delivery channel is available');
+      const channels = [];
+      if (telegramId.startsWith('demo:')) channels.push({ name: 'demo', send: async () => {} });
+      if (telegramId && !telegramId.startsWith('vk:')) channels.push({ name: 'telegram', send: () => sendReminder(telegramId, reminder.locale) });
+      if (reminder.vk_id && reminder.vk_messages_allowed) channels.push({ name: 'vk', send: () => sendVkReminder(reminder.vk_id, reminder.locale) });
+      if (!channels.length) throw new Error('No reminder delivery channel is available');
+
+      let delivered = 0;
+      const errors = [];
+      for (const channel of channels) {
+        try {
+          await channel.send();
+          delivered += 1;
+        } catch (channelError) {
+          errors.push(`${channel.name}: ${channelError.message}`);
+        }
       }
+      if (!delivered) throw new Error(errors.join('; ') || 'All reminder delivery channels failed');
+      if (errors.length) console.error('Reminder partial delivery error:', errors.join('; '));
       db.prepare("UPDATE reminders SET sent_at = CURRENT_TIMESTAMP, status = 'sent' WHERE id = ?").run(reminder.id);
       scheduleNextReminderForUser(reminder.user_id);
       sent += 1;
