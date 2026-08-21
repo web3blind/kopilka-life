@@ -38,20 +38,29 @@ async function callVk(method, payload) {
     const code = data.error?.error_code || res.status;
     const msg = data.error?.error_msg || `HTTP ${res.status}`;
     console.error(`VK API error ${method}:`, code, msg);
-    throw new Error(`VK API error: ${code}`);
+    const error = new Error(`VK API error: ${code}`);
+    error.code = code;
+    error.vkMessage = msg;
+    throw error;
   }
   return data;
 }
 
 async function sendVkReminder(vkUserId, locale) {
   if (!vkUserId) throw new Error('VK user id is missing');
-  return callVk('messages.send', {
+  const basePayload = {
     user_id: String(vkUserId),
     random_id: crypto.randomInt(1, 2147483647),
     message: reminderText(locale),
-    keyboard: reminderKeyboard(locale),
     dont_parse_links: 0
-  });
+  };
+  try {
+    return await callVk('messages.send', { ...basePayload, keyboard: reminderKeyboard(locale) });
+  } catch (error) {
+    if (Number(error.code) !== 912) throw error;
+    console.error('VK keyboard disabled; retrying reminder without keyboard');
+    return callVk('messages.send', { ...basePayload, random_id: crypto.randomInt(1, 2147483647) });
+  }
 }
 
 module.exports = { callVk, sendVkReminder, reminderText, reminderKeyboard, vkAppUrl };
