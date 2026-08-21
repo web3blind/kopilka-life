@@ -13,6 +13,18 @@ function reminderText(locale) {
   const url = vkAppUrl();
   return url ? `${message}\n\n${url}` : message;
 }
+function reminderKeyboard(locale) {
+  const url = vkAppUrl();
+  if (!url) return undefined;
+  const lang = normalizeLocale(locale);
+  return JSON.stringify({
+    inline: true,
+    buttons: [[{
+      action: { type: 'open_link', label: t(lang, 'bot.open'), link: url },
+      color: 'primary'
+    }]]
+  });
+}
 
 async function callVk(method, payload) {
   if (!config.vkGroupToken || config.vkGroupToken === 'replace_me' || config.vkGroupToken.startsWith('test-') || config.nodeEnv === 'test') {
@@ -37,8 +49,9 @@ async function sendVkReminder(vkUserId, locale) {
     user_id: String(vkUserId),
     random_id: crypto.randomInt(1, 2147483647),
     message: reminderText(locale),
+    keyboard: reminderKeyboard(locale),
     dont_parse_links: 0
   });
 }
 
-module.exports = { callVk, sendVkReminder, reminderText, vkAppUrl };
+module.exports = { callVk, sendVkReminder, reminderText, reminderKeyboard, vkAppUrl };
