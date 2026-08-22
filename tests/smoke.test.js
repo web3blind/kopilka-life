@@ -210,6 +210,7 @@ async function main() {
   assert(deliveryLogs.some((line) => line.includes('[telegram:dry] sendMessage')), 'linked account reminder sends to Telegram');
   assert(deliveryLogs.some((line) => line.includes('[vk:dry] messages.send')), 'linked account reminder also sends to VK');
   assert(deliveryLogs.some((line) => line.includes('keyboard') && line.includes('open_link') && line.includes('Открыть Копилку жизни') && line.includes('https://vk.com/app')), 'VK reminder includes an open-app keyboard button');
+  assert(!deliveryLogs.some((line) => line.includes('keyboard') && line.includes('open_link') && line.includes('color')), 'VK open-link keyboard button does not use color, which VK rejects for open_link');
   const mergeTarget = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 124, first_name: 'Merge Target', username: 'merge_target' }, 'test-bot-token') }) });
   const mergeTargetAuth = { authorization: `Bearer ${mergeTarget.data.token}` };
   const disposableVk = await request('/api/auth/vk', { method: 'POST', body: JSON.stringify({ launchParams: makeVkLaunchParams(9003, 'test-vk-secure-key'), timezone: 'Europe/Moscow' }) });

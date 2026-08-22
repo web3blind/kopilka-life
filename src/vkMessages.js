@@ -20,8 +20,7 @@ function reminderKeyboard(locale) {
   return JSON.stringify({
     inline: true,
     buttons: [[{
-      action: { type: 'open_link', label: t(lang, 'bot.open'), link: url },
-      color: 'primary'
+      action: { type: 'open_link', label: t(lang, 'bot.open'), link: url }
     }]]
   });
 }
@@ -57,8 +56,8 @@ async function sendVkReminder(vkUserId, locale) {
   try {
     return await callVk('messages.send', { ...basePayload, keyboard: reminderKeyboard(locale) });
   } catch (error) {
-    if (Number(error.code) !== 912) throw error;
-    console.error('VK keyboard disabled; retrying reminder without keyboard');
+    if (![911, 912].includes(Number(error.code))) throw error;
+    console.error('VK keyboard rejected; retrying reminder without keyboard');
     return callVk('messages.send', { ...basePayload, random_id: crypto.randomInt(1, 2147483647) });
   }
 }
