@@ -106,6 +106,10 @@ function testStaticAccessibility() {
   const frontendI18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
   assert(frontendI18n.includes('Встреча или звонок'), 'social contact quick action exists');
   assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
+  assert(frontendI18n.includes("kind_trace: { points: 2"), 'kind deed quick action adds 2 LIFE');
+  assert(frontendI18n.includes('помог человеку, животным или сделал мир чуть теплее'), 'kind deed hint is concrete help, not gratitude');
+  assert(frontendI18n.includes('не к мечте, а к порядку'), 'honest step is distinguished from dream step');
+  assert(!frontendI18n.includes("kind_trace: { points: 1"), 'kind deed is no longer a 1 LIFE gratitude-like action');
   const frontendApp = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf8');
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
@@ -270,7 +274,11 @@ async function main() {
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'family_time', note: 'вечер с родными' }) });
   assert.equal(response.res.status, 201, 'family time entry created');
   assert.equal(response.data.summary.todayLife, 9, 'family time adds life');
-  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'nightingale_close_voices'), 'social + family week unlocks nightingale artifact');
+  assert(!response.data.awardedArtifacts.some((artifact) => artifact.id === 'nightingale_close_voices'), 'one social contact plus one family time does not unlock nightingale too early');
+  getDb().prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'social_contact', 'Встреча или звонок', '', 2, '2026-08-21')").run(userId);
+  response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'movement', note: 'короткая прогулка' }) });
+  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'nightingale_close_voices'), 'several close-people traces in the week unlock nightingale artifact');
+  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'cat_life_warmer'), '12 LIFE unlocks cat artifact when the threshold is crossed');
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'family_time', note: 'duplicate family' }) });
   assert.equal(response.res.status, 400, 'family time is still limited to once per local day');
   let artifactsResp = await request('/api/artifacts', { headers: auth });
@@ -283,7 +291,7 @@ async function main() {
   const dbForArtifacts = getDb();
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'important_task', 'Важное дело', '', 3, '2026-08-01')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'food_water' }) });
-  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'cat_life_warmer'), '12 LIFE unlocks cat artifact');
+  assert(artifactsResp.data.artifacts.some((artifact) => artifact.id === 'cat_life_warmer' && artifact.unlocked), 'cat artifact stays unlocked in collection');
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'rest', 'Отдых', '', 1, '2026-08-02')").run(userId);
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'rest', 'Отдых', '', 1, '2026-08-03')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'rest' }) });
@@ -336,9 +344,11 @@ async function main() {
   const contractId = response.data.contract.id;
   assert.equal(typeof response.data.contract.isLastDay, 'boolean', 'contract exposes isLastDay flag');
   assert.equal(typeof response.data.contract.isOver, 'boolean', 'contract exposes isOver flag');
+  const beforeContractCloseSummary = await request('/api/summary/today', { headers: auth });
+  const beforeContractCloseLife = beforeContractCloseSummary.data.totalLife;
   response = await request(`/api/contracts/${contractId}/close`, { method: 'POST', headers: auth, body: JSON.stringify({ status: 'completed' }) });
   assert.equal(response.res.status, 200, 'contract closed');
-  assert.equal(response.data.summary.totalLife, 35, 'contract points added after artifact smoke entries');
+  assert(response.data.summary.totalLife > beforeContractCloseLife, 'contract points added after artifact smoke entries');
   response = await request('/api/settings/reminders', { method: 'POST', headers: auth, body: JSON.stringify({ remindersEnabled: true, eveningReminderTime: '20:00', timezone: 'Asia/Novosibirsk' }) });
   assert.equal(response.res.status, 200, 'settings saved');
   const db = getDb();

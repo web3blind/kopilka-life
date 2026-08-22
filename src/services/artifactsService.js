@@ -32,13 +32,17 @@ const ARTIFACTS = [
     id: 'nightingale_close_voices',
     title: 'Соловей Близких Голосов',
     shortTitle: 'Связь с людьми',
-    triggerText: 'появляется, если за неделю были и встреча или звонок, и время с родными',
-    unlockedText: 'Соловей Близких Голосов пропел тихо: хорошо, что ты был не один. Друг, подруга, родные — это тоже жизнь.',
-    lockedText: 'Он прилетает после недели, где нашлось место и друзьям, и родным.',
+    triggerText: 'появляется после нескольких отметок общения и времени с родными за неделю',
+    unlockedText: 'Соловей Близких Голосов пропел тихо: хорошо, что ты не терял связь с людьми. Друг, подруга, родные — это тоже жизнь.',
+    lockedText: 'Он прилетает после недели, где несколько раз нашлось место и друзьям, и родным.',
     image: '/assets/artifacts/nightingale_close_voices.webp',
     alt: 'Небольшая поющая птица сидит на ветке; на крыльях и груди мягкие сердечные узоры.',
     sortOrder: 30,
-    condition: ({ recentTypes }) => recentTypes.has('social_contact') && recentTypes.has('family_time')
+    condition: ({ recentCounts }) => (
+      (recentCounts.social_contact || 0) >= 1
+      && (recentCounts.family_time || 0) >= 1
+      && ((recentCounts.social_contact || 0) + (recentCounts.family_time || 0)) >= 3
+    )
   },
   {
     id: 'sloth_rest_blessing',
@@ -144,10 +148,11 @@ function artifactState(userId) {
   const counts = Object.fromEntries(rows.map((row) => [row.type, row.count]));
   const dayRows = db.prepare('SELECT type, COUNT(DISTINCT entry_date) AS count FROM entries WHERE user_id = ? GROUP BY type').all(userId);
   const distinctDaysByType = Object.fromEntries(dayRows.map((row) => [row.type, row.count]));
-  const recentTypes = new Set(db.prepare('SELECT DISTINCT type FROM entries WHERE user_id = ? AND entry_date BETWEEN ? AND ?').all(userId, since, today).map((row) => row.type));
+  const recentCountsRows = db.prepare('SELECT type, COUNT(*) AS count FROM entries WHERE user_id = ? AND entry_date BETWEEN ? AND ? GROUP BY type').all(userId, since, today);
+  const recentCounts = Object.fromEntries(recentCountsRows.map((row) => [row.type, row.count]));
   const hard = db.prepare("SELECT id, created_at FROM entries WHERE user_id = ? AND type = 'hard_day' ORDER BY created_at ASC, id ASC LIMIT 1").get(userId);
   const afterHard = hard ? db.prepare('SELECT id FROM entries WHERE user_id = ? AND (created_at > ? OR (created_at = ? AND id > ?)) AND id <> ? LIMIT 1').get(userId, hard.created_at, hard.created_at, hard.id, hard.id) : null;
-  return { totalLife, counts, distinctDaysByType, recentTypes, hasEntryAfterHardDay: Boolean(afterHard) };
+  return { totalLife, counts, distinctDaysByType, recentCounts, hasEntryAfterHardDay: Boolean(afterHard) };
 }
 
 function listArtifacts(userId) {
