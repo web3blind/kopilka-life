@@ -7,7 +7,7 @@ const storage = {
 const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null };
+const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, artifactReturnFocus: null };
 function fireVkBridgeInit() {
   try {
     if (!vkLaunchParams()) return;
@@ -305,11 +305,30 @@ function showArtifactToast(artifacts = []) {
   if (img) { img.src = first.image; img.alt = first.alt; }
   if ($('artifactToastTitle')) $('artifactToastTitle').textContent = first.title;
   if ($('artifactToastText')) $('artifactToastText').textContent = first.unlockedText;
+  state.artifactReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   toast.hidden = false;
-  toast.focus?.();
+  toast.focus({ preventScroll: true });
   setStatus(L('artifactUnlockedStatus', { title: first.title }));
 }
-function hideArtifactToast() { const toast = $('artifactToast'); if (toast) toast.hidden = true; }
+function hideArtifactToast() {
+  const toast = $('artifactToast');
+  if (toast) toast.hidden = true;
+  const target = state.artifactReturnFocus;
+  state.artifactReturnFocus = null;
+  if (target && document.contains(target)) target.focus?.({ preventScroll: true });
+}
+function keepArtifactDialogFocus(event) {
+  if (event.key === 'Escape') { hideArtifactToast(); return; }
+  if (event.key !== 'Tab') return;
+  const toast = $('artifactToast');
+  if (!toast || toast.hidden) return;
+  const focusable = Array.from(toast.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter((el) => !el.disabled && !el.hidden);
+  if (!focusable.length) { event.preventDefault(); toast.focus({ preventScroll: true }); return; }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
 function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); renderArtifacts(); renderVkReminderOffer(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
 async function loadData() {
@@ -534,6 +553,7 @@ function bindEvents() {
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
   $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
   $('artifactToastClose')?.addEventListener('click', hideArtifactToast);
+  $('artifactToast')?.addEventListener('keydown', keepArtifactDialogFocus);
   $('contractTemplates').addEventListener('click', (event) => { const b = event.target.closest('button[data-template-id]'); if (b && !state.busy && !state.publicReadOnly) applyTemplate(b.dataset.templateId); });
   $('practiceGoal').addEventListener('change', async (event) => { if (state.busy || state.publicReadOnly) return; try { state.product.practices = await api(`/api/product/practices?goal=${encodeURIComponent(event.target.value)}`); renderPractices(); setStatus(L('practicesUpdated')); } catch (e) { setStatus(e.message, 'error'); } });
   $('contractForm').addEventListener('submit', async (event) => { if (state.publicReadOnly) { event.preventDefault(); return; } try { await createContract(event); } catch (e) { event.preventDefault(); setStatus(e.message, 'error'); } });

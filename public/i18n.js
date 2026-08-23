@@ -150,7 +150,7 @@
     artifactsUnlocked: { ru: 'Открыто:', en: 'Unlocked:' },
     artifactsLoading: { ru: 'Артефакты загрузятся после подключения.', en: 'Artifacts will load after connecting.' },
     artifactAwardedAt: { ru: 'Встреча', en: 'Met' },
-    artifactNewEyebrow: { ru: 'Новая встреча на пути', en: 'New encounter on the path' },
+    artifactNewEyebrow: { ru: 'Встреча случилась', en: 'An encounter happened' },
     artifactToastClose: { ru: 'Забрать в коллекцию', en: 'Add to collection' },
     artifactUnlockedStatus: { ru: 'Открыт новый артефакт: {title}.', en: 'New artifact unlocked: {title}.' },
     artifactMysteryAlt: { ru: 'Закрытое тёмное место для будущего персонажа.', en: 'A closed dark place for a future character.' },
