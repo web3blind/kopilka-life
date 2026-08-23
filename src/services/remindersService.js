@@ -1,7 +1,8 @@
 const { getDb } = require('../db');
 const { sendReminder } = require('../telegram');
 const { sendVkReminder } = require('../vkMessages');
-const { nextDueAt: computeNextDueAt, normalizeHHMM, normalizeTimezone } = require('../time');
+const { nextDueAt: computeNextDueAt, normalizeHHMM, normalizeTimezone, localDateString } = require('../time');
+const { normalizeLocale, t } = require('../i18n');
 
 function nextDueAt(timeHHMM, timezone = 'UTC', now = new Date()) {
   return computeNextDueAt(timeHHMM, timezone, now);
@@ -38,6 +39,15 @@ function scheduleRemindersForEnabledUsers() {
   return users.length;
 }
 
+function contractReminderText(userId, locale, now = new Date()) {
+  const db = getDb();
+  const user = db.prepare('SELECT timezone, locale FROM users WHERE id = ?').get(userId);
+  if (!user) return '';
+  const today = localDateString(now, normalizeTimezone(user.timezone));
+  const contract = db.prepare("SELECT id FROM weekly_contracts WHERE user_id = ? AND status = 'active' AND week_end <= ? ORDER BY created_at DESC LIMIT 1").get(userId, today);
+  return contract ? t(normalizeLocale(locale || user.locale), 'reminder.contractLastDay') : '';
+}
+
 async function sendDueReminders(limit = 20) {
   const db = getDb();
   const due = db.prepare("SELECT r.*, u.telegram_id, u.vk_id, u.vk_messages_allowed, u.locale FROM reminders r JOIN users u ON u.id = r.user_id WHERE r.status = 'scheduled' AND r.sent_at IS NULL AND r.due_at <= ? ORDER BY r.due_at ASC LIMIT ?").all(new Date().toISOString(), limit);
@@ -47,9 +57,10 @@ async function sendDueReminders(limit = 20) {
     try {
       const telegramId = String(reminder.telegram_id || '');
       const channels = [];
+      const extraText = contractReminderText(reminder.user_id, reminder.locale);
       if (telegramId.startsWith('demo:')) channels.push({ name: 'demo', send: async () => {} });
-      if (telegramId && !telegramId.startsWith('vk:')) channels.push({ name: 'telegram', send: () => sendReminder(telegramId, reminder.locale) });
-      if (reminder.vk_id && reminder.vk_messages_allowed) channels.push({ name: 'vk', send: () => sendVkReminder(reminder.vk_id, reminder.locale) });
+      if (telegramId && !telegramId.startsWith('vk:')) channels.push({ name: 'telegram', send: () => sendReminder(telegramId, reminder.locale, extraText) });
+      if (reminder.vk_id && reminder.vk_messages_allowed) channels.push({ name: 'vk', send: () => sendVkReminder(reminder.vk_id, reminder.locale, extraText) });
       if (!channels.length) throw new Error('No reminder delivery channel is available');
 
       let delivered = 0;
@@ -75,4 +86,4 @@ async function sendDueReminders(limit = 20) {
   return sent;
 }
 
-module.exports = { nextDueAt, scheduleNextReminderForUser, scheduleRemindersForEnabledUsers, sendDueReminders, clearScheduledRemindersForUser };
+module.exports = { nextDueAt, scheduleNextReminderForUser, scheduleRemindersForEnabledUsers, sendDueReminders, clearScheduledRemindersForUser, contractReminderText };

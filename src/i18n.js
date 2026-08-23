@@ -26,8 +26,12 @@ const STRINGS = {
   'entry.important_task.hint': { ru: 'довёл одно дело до конца', en: 'finished one task' },
   'entry.dream_step.title': { ru: 'Шаг к мечте', en: 'Step to a dream' },
   'entry.dream_step.hint': { ru: 'маленькое действие к мечте или важной цели', en: 'small step toward a dream or important goal' },
+  'entry.dreamed.title': { ru: 'Помечтал', en: 'Dreamed' },
+  'entry.dreamed.hint': { ru: 'представил, какой жизни хочется', en: 'imagined the life you want' },
   'entry.kind_trace.title': { ru: 'Доброе дело', en: 'Kind deed' },
-  'entry.kind_trace.hint': { ru: 'помог человеку, животным или сделал мир чуть теплее', en: 'helped a person, animals, or made the world a little warmer' },
+  'entry.kind_trace.hint': { ru: 'помог, поддержал человека, позаботился о животных или сделал мир чуть теплее', en: 'helped or supported someone, cared for animals, or made the world a little warmer' },
+  'entry.gifted_joy.title': { ru: 'Подарил радость', en: 'Gifted joy' },
+  'entry.gifted_joy.hint': { ru: 'маленький подарок или приятный жест для другого человека', en: 'a small gift or kind gesture for someone else' },
   'entry.honest_step.title': { ru: 'Честный шаг', en: 'Honest step' },
   'entry.honest_step.hint': { ru: 'не к мечте, а к порядку: признал факт, исправил ошибку, закрыл хвост', en: 'not toward a dream, but toward order: admitted a fact, fixed a mistake, closed a loose end' },
   'entry.social_contact.title': { ru: 'Встреча или звонок', en: 'Meet-up or call' },
@@ -53,6 +57,7 @@ const STRINGS = {
   'ui.criteria': { ru: 'Критерий', en: 'Criteria' },
   'ui.careFund': { ru: 'Фонд заботы', en: 'Care fund' },
   'ui.giftSelf': { ru: 'Подарок себе', en: 'Gift to yourself' },
+  'ui.contractLastDayReminder': { ru: 'Сегодня стоит выбрать итог договора: получилось выполнить или нет. Это не оценка, а честное закрытие недели.', en: 'Today is the day to choose the contract result: completed or not. It is not a judgment, just an honest weekly close.' },
   'ui.notSpecified': { ru: 'не указан', en: 'not specified' },
   'ui.canChooseLater': { ru: 'можно выбрать позже', en: 'can choose later' },
 
@@ -118,6 +123,7 @@ const STRINGS = {
   'bot.start': { ru: 'Это Копилка жизни. Здесь можно за 10 секунд отметить маленькие вещи, которые поддержали день.', en: 'This is your Life Harbor. Here you can note small things that supported your day in 10 seconds.' },
   'bot.reminder': { ru: 'Если есть силы, можно за 10 секунд пополнить Копилку жизни.', en: 'If you have the energy, you can top up your Life Harbor in 10 seconds.' },
   'vk.reminder': { ru: 'Вечер. Можно за 10 секунд отметить, что сегодня поддержало жизнь.', en: 'Evening. You can take 10 seconds to note what supported life today.' },
+  'reminder.contractLastDay': { ru: 'Если есть недельный договор, сегодня стоит выбрать итог: выполнен он или нет.', en: 'If you have a weekly contract, today is the day to choose whether it was completed or not.' },
   'inline.shareTitle': { ru: 'Копилка жизни', en: 'Life Harbor' },
 };
 

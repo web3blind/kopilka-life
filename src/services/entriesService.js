@@ -4,8 +4,8 @@ const { normalizeLocale, t } = require('../i18n');
 const { sanitizeText } = require('../utils/sanitize');
 
 // Life points per entry type. Titles/hints are localized via i18n by type key.
-const ENTRY_TYPES = ['sleep', 'movement', 'food_water', 'joy', 'gratitude', 'important_task', 'dream_step', 'kind_trace', 'honest_step', 'social_contact', 'family_time', 'rest', 'hard_day'];
-const ENTRY_POINTS = { sleep: 3, movement: 2, food_water: 1, joy: 1, gratitude: 1, important_task: 2, dream_step: 2, kind_trace: 2, honest_step: 2, social_contact: 2, family_time: 2, rest: 1, hard_day: 1 };
+const ENTRY_TYPES = ['sleep', 'movement', 'food_water', 'joy', 'gratitude', 'important_task', 'dream_step', 'dreamed', 'kind_trace', 'gifted_joy', 'honest_step', 'social_contact', 'family_time', 'rest', 'hard_day'];
+const ENTRY_POINTS = { sleep: 3, movement: 2, food_water: 1, joy: 1, gratitude: 1, important_task: 2, dream_step: 2, dreamed: 1, kind_trace: 2, gifted_joy: 2, honest_step: 2, social_contact: 2, family_time: 2, rest: 1, hard_day: 1 };
 
 function entryTitle(type, locale) {
   return t(locale, `entry.${type}.title`);

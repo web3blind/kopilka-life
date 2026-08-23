@@ -120,11 +120,15 @@ function testStaticAccessibility() {
   assert(frontendI18n.includes('Открыть и засчитать'), 'support action CTA is clear');
   assert(frontendI18n.includes('Встреча или звонок'), 'social contact quick action exists');
   assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
+  assert(frontendI18n.includes('Помечтал'), 'dreamed quick action exists');
+  assert(frontendI18n.includes('Подарил радость'), 'gifted joy quick action exists');
   assert(frontendI18n.includes("kind_trace: { points: 2"), 'kind deed quick action adds 2 LIFE');
-  assert(frontendI18n.includes('помог человеку, животным или сделал мир чуть теплее'), 'kind deed hint is concrete help, not gratitude');
+  assert(frontendI18n.includes('поддержал человека'), 'kind deed hint includes emotional support');
   assert(frontendI18n.includes('не к мечте, а к порядку'), 'honest step is distinguished from dream step');
   assert(!frontendI18n.includes("kind_trace: { points: 1"), 'kind deed is no longer a 1 LIFE gratitude-like action');
   const frontendApp = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf8');
+  assert(frontendApp.includes('qa-icon') && frontendApp.includes('aria-hidden="true"'), 'quick action icons are decorative for screen readers');
+  assert(frontendApp.includes('contractLastDayReminder'), 'contract last-day reminder is rendered near close actions');
   assert(frontendApp.includes('artifactReturnFocus'), 'artifact dialog remembers and restores focus');
   assert(frontendApp.includes('keepArtifactDialogFocus'), 'artifact dialog traps keyboard focus');
   assert(frontendApp.includes("event.key === 'Escape'"), 'artifact dialog closes with Escape');
@@ -266,6 +270,7 @@ async function main() {
   assert.equal(linkedVkOptIn.res.status, 200, 'linked Telegram+VK account can opt in to VK messages');
   const linkedReminder = getDb().prepare("SELECT id FROM reminders WHERE user_id = ? AND status = 'scheduled' ORDER BY id DESC LIMIT 1").get(miniUserId);
   assert(linkedReminder?.id, 'linked account has a scheduled reminder');
+  getDb().prepare("INSERT INTO weekly_contracts (user_id, title, target_value, week_start, week_end, status) VALUES (?, 'last-day contract', 'check result', '1999-12-25', '2000-01-01', 'active')").run(miniUserId);
   getDb().prepare("UPDATE reminders SET due_at = '2000-01-01T00:00:00.000Z' WHERE id = ?").run(linkedReminder.id);
   const originalLog = console.log;
   const deliveryLogs = [];
@@ -277,6 +282,7 @@ async function main() {
   }
   assert(deliveryLogs.some((line) => line.includes('[telegram:dry] sendMessage')), 'linked account reminder sends to Telegram');
   assert(deliveryLogs.some((line) => line.includes('[vk:dry] messages.send')), 'linked account reminder also sends to VK');
+  assert(deliveryLogs.some((line) => line.includes('недельный договор') && line.includes('выполнен он или нет')), 'last-day contract reminder is included in evening notifications');
   assert(deliveryLogs.some((line) => line.includes('keyboard') && line.includes('open_link') && line.includes('Открыть Копилку жизни') && line.includes('https://vk.com/app')), 'VK reminder includes an open-app keyboard button');
   assert(!deliveryLogs.some((line) => line.includes('keyboard') && line.includes('open_link') && line.includes('color')), 'VK open-link keyboard button does not use color, which VK rejects for open_link');
   const mergeTarget = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 124, first_name: 'Merge Target', username: 'merge_target' }, 'test-bot-token') }) });
@@ -374,6 +380,17 @@ async function main() {
   assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'bear_warm_shelter'), 'entry after hard day unlocks bear artifact');
   response = await request('/api/summary/today', { headers: auth });
   assert(response.data.totalLife >= 14, 'SQLite persistence visible after artifact scenario');
+
+  const newActionUser = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'New Actions QA' }) });
+  const newActionAuth = { authorization: `Bearer ${newActionUser.data.token}` };
+  let newActionResp = await request('/api/entries', { method: 'POST', headers: newActionAuth, body: JSON.stringify({ type: 'dreamed' }) });
+  assert.equal(newActionResp.res.status, 201, 'dreamed quick action can be created');
+  assert.equal(newActionResp.data.entry.title, 'Помечтал', 'dreamed quick action title is localized');
+  assert.equal(newActionResp.data.entry.life_points, 1, 'dreamed quick action grants 1 LIFE');
+  newActionResp = await request('/api/entries', { method: 'POST', headers: newActionAuth, body: JSON.stringify({ type: 'gifted_joy' }) });
+  assert.equal(newActionResp.res.status, 201, 'gifted joy quick action can be created');
+  assert.equal(newActionResp.data.entry.life_points, 2, 'gifted joy grants 2 LIFE');
+
   response = await request('/api/product?goal=sleep', { headers: auth });
   assert(response.data.dailyHint?.title, 'daily hint returned');
   assert(response.data.dailyHint.title !== 'Достаточно на сегодня', 'enough-for-today is not used as an action-like hint title');

@@ -7,9 +7,9 @@ function vkAppUrl() {
   return config.webappUrl;
 }
 
-function reminderText(locale) {
+function reminderText(locale, extraText = '') {
   const lang = normalizeLocale(locale);
-  const message = t(lang, 'vk.reminder');
+  const message = [t(lang, 'vk.reminder'), String(extraText || '').trim()].filter(Boolean).join('\n\n');
   const url = vkAppUrl();
   return url ? `${message}\n\n${url}` : message;
 }
@@ -45,12 +45,12 @@ async function callVk(method, payload) {
   return data;
 }
 
-async function sendVkReminder(vkUserId, locale) {
+async function sendVkReminder(vkUserId, locale, extraText = '') {
   if (!vkUserId) throw new Error('VK user id is missing');
   const basePayload = {
     user_id: String(vkUserId),
     random_id: crypto.randomInt(1, 2147483647),
-    message: reminderText(locale),
+    message: reminderText(locale, extraText),
     dont_parse_links: 0
   };
   try {

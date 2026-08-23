@@ -255,6 +255,20 @@ h3{letter-spacing:-.015em}
   color:var(--muted);
   border-style:dashed;
 }
+.qa-head{display:flex;align-items:center;gap:.48rem}
+.qa-icon{
+  width:1.85rem;
+  height:1.85rem;
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  background:var(--accent-softer);
+  color:var(--accent);
+  font-size:1.02rem;
+  line-height:1;
+}
 .qa-title{font-weight:950;letter-spacing:-.02em;color:#2c190e;font-size:1rem}
 .qa-hint{color:var(--muted);font-size:.91rem;line-height:1.28}
 .qa-points{
@@ -280,6 +294,7 @@ h3{letter-spacing:-.015em}
 .compact-list li{padding:.52rem .68rem;margin:.32rem 0}
 .contract-box{background:linear-gradient(180deg,#fffdf9,#fff4e5)}
 .contract-box p{margin:.48rem 0}.contract-box strong{font-size:1.08rem}
+.contract-reminder{border-left:4px solid var(--accent);padding:.55rem .7rem;background:var(--accent-softer);border-radius:14px}
 .template-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.62rem;margin:.65rem 0 1rem}
 .template-grid button{border-radius:18px;min-height:3.4rem;text-align:left;justify-content:flex-start}
 .card-form button[type="submit"]{margin-top:1rem;width:100%}

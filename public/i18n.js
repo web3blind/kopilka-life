@@ -8,19 +8,21 @@
 
   // Entry types: id -> { points, title:{ru,en}, hint:{ru,en} }
   const ENTRY_DEFS = {
-    sleep: { points: 3, title: { ru: 'Нормальный сон', en: 'Good sleep' }, hint: { ru: 'выспался или лёг вовремя', en: 'slept well or went to bed on time' } },
-    movement: { points: 2, title: { ru: 'Движение', en: 'Movement' }, hint: { ru: 'прогулка, разминка, спорт', en: 'walk, stretch, sport' } },
-    food_water: { points: 1, title: { ru: 'Еда или вода', en: 'Food or water' }, hint: { ru: 'поел или попил воды', en: 'ate or drank water' } },
-    joy: { points: 1, title: { ru: 'Радость', en: 'Joy' }, hint: { ru: 'что-то приятное, без KPI; посмеялся, смешное видео', en: 'something pleasant, no KPI; laughed, a funny video' } },
-    gratitude: { points: 1, title: { ru: 'Благодарность', en: 'Gratitude' }, hint: { ru: 'факт, за который благодарен', en: 'something you are grateful for' } },
-    important_task: { points: 2, title: { ru: 'Важное дело', en: 'Important task' }, hint: { ru: 'довёл одно дело до конца', en: 'finished one task' } },
-    dream_step: { points: 2, title: { ru: 'Шаг к мечте', en: 'Step to a dream' }, hint: { ru: 'маленькое действие к мечте или важной цели', en: 'small step toward a dream or important goal' } },
-    kind_trace: { points: 2, title: { ru: 'Доброе дело', en: 'Kind deed' }, hint: { ru: 'помог человеку, животным или сделал мир чуть теплее', en: 'helped a person, animals, or made the world a little warmer' } },
-    honest_step: { points: 2, title: { ru: 'Честный шаг', en: 'Honest step' }, hint: { ru: 'не к мечте, а к порядку: признал факт, исправил ошибку, закрыл хвост', en: 'not toward a dream, but toward order: admitted a fact, fixed a mistake, closed a loose end' } },
-    social_contact: { points: 2, title: { ru: 'Встреча или звонок', en: 'Meet-up or call' }, hint: { ru: 'общение с давним другом или подругой', en: 'talked with an old friend' } },
-    family_time: { points: 2, title: { ru: 'Время с родными', en: 'Time with family' }, hint: { ru: 'провёл время с родными', en: 'spent time with family' } },
-    rest: { points: 1, title: { ru: 'Отдых', en: 'Rest' }, hint: { ru: 'восстановился хоть немного', en: 'recovered a little' } },
-    hard_day: { points: 1, title: { ru: 'Сложный день', en: 'Hard day' }, hint: { ru: 'отметил день честно, без оценки', en: 'noted the day honestly, without judgment' } }
+    sleep: { points: 3, icon: '🌙', title: { ru: 'Нормальный сон', en: 'Good sleep' }, hint: { ru: 'выспался или лёг вовремя', en: 'slept well or went to bed on time' } },
+    movement: { points: 2, icon: '🌿', title: { ru: 'Движение', en: 'Movement' }, hint: { ru: 'прогулка, разминка, спорт', en: 'walk, stretch, sport' } },
+    food_water: { points: 1, icon: '💧', title: { ru: 'Еда или вода', en: 'Food or water' }, hint: { ru: 'поел или попил воды', en: 'ate or drank water' } },
+    joy: { points: 1, icon: '✨', title: { ru: 'Радость', en: 'Joy' }, hint: { ru: 'что-то приятное, без KPI; посмеялся, смешное видео', en: 'something pleasant, no KPI; laughed, a funny video' } },
+    gratitude: { points: 1, icon: '❤', title: { ru: 'Благодарность', en: 'Gratitude' }, hint: { ru: 'факт, за который благодарен', en: 'something you are grateful for' } },
+    important_task: { points: 2, icon: '✓', title: { ru: 'Важное дело', en: 'Important task' }, hint: { ru: 'довёл одно дело до конца', en: 'finished one task' } },
+    dream_step: { points: 2, icon: '⭐', title: { ru: 'Шаг к мечте', en: 'Step to a dream' }, hint: { ru: 'маленькое действие к мечте или важной цели', en: 'small step toward a dream or important goal' } },
+    dreamed: { points: 1, icon: '☁', title: { ru: 'Помечтал', en: 'Dreamed' }, hint: { ru: 'представил, какой жизни хочется', en: 'imagined the life you want' } },
+    kind_trace: { points: 2, icon: '🐝', title: { ru: 'Доброе дело', en: 'Kind deed' }, hint: { ru: 'помог, поддержал человека, позаботился о животных или сделал мир чуть теплее', en: 'helped or supported someone, cared for animals, or made the world a little warmer' } },
+    gifted_joy: { points: 2, icon: '🎁', title: { ru: 'Подарил радость', en: 'Gifted joy' }, hint: { ru: 'маленький подарок или приятный жест для другого человека', en: 'a small gift or kind gesture for someone else' } },
+    honest_step: { points: 2, icon: '🧭', title: { ru: 'Честный шаг', en: 'Honest step' }, hint: { ru: 'не к мечте, а к порядку: признал факт, исправил ошибку, закрыл хвост', en: 'not toward a dream, but toward order: admitted a fact, fixed a mistake, closed a loose end' } },
+    social_contact: { points: 2, icon: '☎', title: { ru: 'Встреча или звонок', en: 'Meet-up or call' }, hint: { ru: 'общение с давним другом или подругой', en: 'talked with an old friend' } },
+    family_time: { points: 2, icon: '🏠', title: { ru: 'Время с родными', en: 'Time with family' }, hint: { ru: 'провёл время с родными', en: 'spent time with family' } },
+    rest: { points: 1, icon: '☕', title: { ru: 'Отдых', en: 'Rest' }, hint: { ru: 'восстановился хоть немного', en: 'recovered a little' } },
+    hard_day: { points: 1, icon: '🛡', title: { ru: 'Сложный день', en: 'Hard day' }, hint: { ru: 'отметил день честно, без оценки', en: 'noted the day honestly, without judgment' } }
   };
 
   const STRINGS = {
@@ -39,6 +41,7 @@
     criteria: { ru: 'Критерий', en: 'Criteria' },
     careFund: { ru: 'Фонд заботы', en: 'Care fund' },
     giftSelf: { ru: 'Подарок себе', en: 'Gift to yourself' },
+    contractLastDayReminder: { ru: 'Сегодня стоит выбрать итог договора: получилось выполнить или нет. Это не оценка, а честное закрытие недели.', en: 'Today is the day to choose the contract result: completed or not. It is not a judgment, just an honest weekly close.' },
     notSpecified: { ru: 'не указан', en: 'not specified' },
     canChooseLater: { ru: 'можно выбрать позже', en: 'can choose later' },
     connected: { ru: 'Подключено.', en: 'Connected.' },
@@ -236,7 +239,7 @@
     const def = ENTRY_DEFS[type];
     if (!def) return null;
     const lang = normalizeLocale(locale);
-    return { type, title: def.title[lang] || def.title[DEFAULT_LOCALE], hint: def.hint[lang] || def.hint[DEFAULT_LOCALE], points: def.points };
+    return { type, title: def.title[lang] || def.title[DEFAULT_LOCALE], hint: def.hint[lang] || def.hint[DEFAULT_LOCALE], points: def.points, icon: def.icon };
   }
 
   function entryTypes(locale) {
