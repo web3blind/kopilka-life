@@ -188,10 +188,10 @@ router.get('/public/:code', (req, res) => {
   res.json({ profile });
 });
 router.get('/artifacts', authRequired, (req, res) => res.json({ artifacts: listArtifacts(req.user.id) }));
-router.get('/support/actions', authRequired, (req, res) => res.json(listSupportActions(req.user.id, req.query.source || 'web')));
+router.get('/support/actions', authRequired, (req, res) => res.json(listSupportActions(req.user.id, req.query.source || 'web', req.locale)));
 router.post('/support/actions/:id/open', authRequired, (req, res) => {
   try {
-    res.json(openSupportAction(req.user.id, Number(req.params.id), req.body.source || 'app'));
+    res.json(openSupportAction(req.user.id, Number(req.params.id), req.body.source || 'app', req.locale));
   } catch (error) {
     res.status(404).json({ error: 'Не удалось открыть это действие поддержки.' });
   }

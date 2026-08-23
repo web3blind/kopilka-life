@@ -1,6 +1,6 @@
 const { getDb } = require('../db');
 
-const BADGE_TITLE = 'Светлячок поддержки';
+const BADGE_TITLE = { ru: 'Светлячок поддержки', en: 'Support firefly' };
 const SURFACES = new Set(['vk', 'telegram', 'web']);
 
 function normalizeSurface(surface = 'web') {
@@ -16,7 +16,17 @@ function isActiveWhere(now = new Date()) {
   };
 }
 
-function badgeForUser(userId) {
+function normalizeLocale(locale = 'ru') {
+  return String(locale || '').toLowerCase().startsWith('en') ? 'en' : 'ru';
+}
+
+function pickLocalized(row, field, locale) {
+  if (locale === 'en' && row[`${field}_en`]) return row[`${field}_en`];
+  return row[field] || '';
+}
+
+function badgeForUser(userId, locale = 'ru') {
+  const lang = normalizeLocale(locale);
   const db = getDb();
   const row = db.prepare(`
     SELECT COALESCE(SUM(a.reward_points), 0) AS points
@@ -25,7 +35,7 @@ function badgeForUser(userId) {
     WHERE ua.user_id = ? AND ua.credited_at IS NOT NULL
   `).get(userId);
   const points = Number(row?.points || 0);
-  return { title: BADGE_TITLE, points, level: supportLevel(points) };
+  return { title: BADGE_TITLE[lang], points, level: supportLevel(points) };
 }
 
 function supportLevel(points) {
@@ -36,23 +46,24 @@ function supportLevel(points) {
   return 0;
 }
 
-function projectAction(row) {
+function projectAction(row, locale = 'ru') {
+  const lang = normalizeLocale(locale);
   const opened = Boolean(row.opened_at || row.credited_at);
   const status = row.status || (opened ? 'opened' : 'available');
   return {
     id: row.id,
     slug: row.slug,
-    title: row.title,
-    description: row.description,
-    buttonLabel: row.button_label,
+    title: pickLocalized(row, 'title', lang),
+    description: pickLocalized(row, 'description', lang),
+    buttonLabel: pickLocalized(row, 'button_label', lang),
     url: row.url,
     platform: row.platform,
     kind: row.kind,
     rewardPoints: Number(row.reward_points || 0),
-    rewardLabel: `+${Number(row.reward_points || 0)} Светлячок`,
+    rewardLabel: lang === 'en' ? `+${Number(row.reward_points || 0)} Support firefly` : `+${Number(row.reward_points || 0)} Светлячок`,
     isPartner: Boolean(row.is_partner),
     isAd: Boolean(row.is_ad),
-    disclosureText: row.disclosure_text || '',
+    disclosureText: pickLocalized(row, 'disclosure_text', lang),
     status,
     openedAt: row.opened_at || null,
     creditedAt: row.credited_at || null,
@@ -60,7 +71,7 @@ function projectAction(row) {
   };
 }
 
-function listSupportActions(userId, surface = 'web') {
+function listSupportActions(userId, surface = 'web', locale = 'ru') {
   const db = getDb();
   const active = isActiveWhere();
   const targetSurface = normalizeSurface(surface);
@@ -72,9 +83,9 @@ function listSupportActions(userId, surface = 'web') {
       AND a.platform IN ('common', ?)
     ORDER BY a.created_at DESC, a.sort_order DESC, a.id DESC
   `).all(userId, ...active.params, targetSurface);
-  const actions = rows.map(projectAction);
+  const actions = rows.map((row) => projectAction(row, locale));
   return {
-    badge: badgeForUser(userId),
+    badge: badgeForUser(userId, locale),
     summary: {
       availableCount: actions.length,
       newCount: actions.filter((action) => action.status === 'available').length
@@ -89,7 +100,7 @@ function getActiveAction(actionId) {
   return getDb().prepare(`SELECT * FROM support_actions WHERE id = ? AND ${active.sql}`).get(Number(actionId), ...active.params) || null;
 }
 
-function openSupportAction(userId, actionId, source = '') {
+function openSupportAction(userId, actionId, source = '', locale = 'ru') {
   const db = getDb();
   const action = getActiveAction(actionId);
   if (!action) throw new Error('support action not found');
@@ -121,7 +132,7 @@ function openSupportAction(userId, actionId, source = '') {
     LEFT JOIN user_support_actions ua ON ua.action_id = a.id AND ua.user_id = ?
     WHERE a.id = ?
   `).get(userId, action.id);
-  return { openUrl: action.url, action: projectAction(row), badge: badgeForUser(userId), summary: listSupportActions(userId, source).summary };
+  return { openUrl: action.url, action: projectAction(row, locale), badge: badgeForUser(userId, locale), summary: listSupportActions(userId, source, locale).summary };
 }
 
 module.exports = { listSupportActions, openSupportAction, badgeForUser, normalizeSurface };

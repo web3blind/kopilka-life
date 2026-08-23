@@ -243,6 +243,15 @@ async function main() {
   assert(supportResp.data.actions.find((action) => action.slug === 'telegram-channel').description.includes('не потерять обновления'), 'Telegram card copy explains user benefit');
   supportResp = await request('/api/support/actions?source=vk', { headers: auth });
   assert.equal(supportResp.data.actions.find((action) => action.id === vkSupport.id).status, 'opened', 'opened card stays marked');
+  const enUser = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'Support EN', locale: 'en' }) });
+  const enSupportAuth = { authorization: `Bearer ${enUser.data.token}` };
+  const enSupport = await request('/api/support/actions?source=vk', { headers: enSupportAuth });
+  const enCommunity = enSupport.data.actions.find((action) => action.slug === 'vk-community');
+  assert.equal(enSupport.data.badge.title, 'Support firefly', 'support badge title is localized to English');
+  assert.equal(enCommunity.title, 'Open the VK community', 'VK support card title is localized to English');
+  assert(enCommunity.description.includes('Life Harbor news'), 'VK support card description is localized to English');
+  assert.equal(enCommunity.buttonLabel, 'Open and count', 'support card CTA is localized to English');
+  assert.equal(enCommunity.rewardLabel, '+1 Support firefly', 'support reward label is localized to English');
   // Site login end-to-end: same telegram_id as Mini App -> same account (unified).
   // 1) Mini App login creates/returns the Telegram user (id 123).
   let miniResp = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: valid }) });
