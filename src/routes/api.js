@@ -14,6 +14,7 @@ const { createEntry, getSummary, getWeekSummary, listEntries } = require('../ser
 const { getCurrentContract, createContract, closeContract } = require('../services/contractsService');
 const { scheduleNextReminderForUser } = require('../services/remindersService');
 const { getProductLayer, getPractices } = require('../services/productContentService');
+const { listSupportActions, openSupportAction } = require('../services/supportActionsService');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { normalizeLocale, t } = require('../i18n');
 
@@ -187,6 +188,14 @@ router.get('/public/:code', (req, res) => {
   res.json({ profile });
 });
 router.get('/artifacts', authRequired, (req, res) => res.json({ artifacts: listArtifacts(req.user.id) }));
+router.get('/support/actions', authRequired, (req, res) => res.json(listSupportActions(req.user.id)));
+router.post('/support/actions/:id/open', authRequired, (req, res) => {
+  try {
+    res.json(openSupportAction(req.user.id, Number(req.params.id), req.body.source || 'app'));
+  } catch (error) {
+    res.status(404).json({ error: 'Не удалось открыть это действие поддержки.' });
+  }
+});
 router.post('/settings/locale', authRequired, (req, res) => {
   const user = updateLocale(req.user.id, req.body.locale);
   res.json({ user: publicUser(user) });

@@ -7,7 +7,7 @@ const storage = {
 const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, artifactReturnFocus: null };
+const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, artifactReturnFocus: null };
 function fireVkBridgeInit() {
   try {
     if (!vkLaunchParams()) return;
@@ -297,6 +297,29 @@ function renderArtifacts() {
     return `<article class="artifact-card${item.unlocked ? '' : ' is-locked'}" aria-label="${escapeHtml(item.title)}">${visual}<div><h3>${escapeHtml(item.title)}</h3><p class="artifact-short">${escapeHtml(item.shortTitle || '')}</p><p>${escapeHtml(text || '')}</p><p class="field-hint">${escapeHtml(item.triggerText || '')}</p>${date}</div></article>`;
   }).join('');
 }
+function renderSupportActions() {
+  const box = $('supportActionsList');
+  if (!box) return;
+  const support = state.support || { badge: { points: 0 }, summary: { newCount: 0 }, actions: [] };
+  const points = $('supportBadgePoints');
+  if (points) points.textContent = support.badge?.points || 0;
+  const count = $('supportNewCount');
+  const newCount = Number(support.summary?.newCount || 0);
+  if (count) { count.textContent = newCount; count.hidden = newCount <= 0; }
+  const supportTab = $('tab-button-support');
+  if (supportTab) supportTab.setAttribute('aria-label', newCount > 0 ? L('supportTabNew', { count: newCount }) : L('tabSupport'));
+  const summary = $('supportNewSummary');
+  if (summary) summary.textContent = newCount > 0 ? L('supportNewSummary', { count: newCount }) : L('supportNoNew');
+  const actions = support.actions || [];
+  if (!actions.length) { box.innerHTML = `<p class="soft-note">${escapeHtml(L('supportEmpty'))}</p>`; return; }
+  box.innerHTML = actions.map((action) => {
+    const opened = action.status !== 'available';
+    const disclosure = action.disclosureText ? `<p class="field-hint">${escapeHtml(action.disclosureText)}</p>` : '';
+    const ad = action.isAd || action.isPartner ? `<span class="support-pill">${escapeHtml(action.isAd ? L('supportAd') : L('supportPartner'))}</span>` : '';
+    const statePill = opened ? `<span class="support-pill done">${escapeHtml(L('supportDone'))}</span>` : `<span class="support-pill">${escapeHtml(action.rewardLabel || L('supportReward'))}</span>`;
+    return `<article class="support-action-card${opened ? ' is-opened' : ''}" data-support-action-id="${action.id}" aria-label="${escapeHtml(action.title)}"><h3>${escapeHtml(action.title)}</h3><p>${escapeHtml(action.description)}</p>${disclosure}<div class="support-action-meta">${statePill}${ad}</div><button type="button" ${opened ? 'class="secondary"' : ''} data-support-open="${action.id}">${escapeHtml(opened ? L('supportOpenAgain') : (action.buttonLabel || L('supportOpen')))}</button></article>`;
+  }).join('');
+}
 function showArtifactToast(artifacts = []) {
   const first = artifacts[0];
   const toast = $('artifactToast');
@@ -329,13 +352,13 @@ function keepArtifactDialogFocus(event) {
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 }
-function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); renderArtifacts(); renderVkReminderOffer(); }
+function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
 async function loadData() {
   state.publicStatus = '';
   const goal = $('practiceGoal')?.value || 'calm';
-  const [summary, week, current, me, product, profile, artifacts] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts')]);
-  state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || [];
+  const [summary, week, current, me, product, profile, artifacts, support] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts'), api('/api/support/actions')]);
+  state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || []; state.support = support;
   storage.set('kopilkaLocale', me.user.locale || 'ru');
   renderAll();
 }
@@ -472,6 +495,18 @@ async function authenticate() {
   await showLoginScreen();
 }
 async function refreshProduct() { state.product = await api(`/api/product?goal=${encodeURIComponent($('practiceGoal')?.value || 'calm')}`); }
+async function openSupportAction(actionId) {
+  return withBusy(L('supportOpening'), async () => {
+    const data = await api(`/api/support/actions/${encodeURIComponent(actionId)}/open`, { method: 'POST', body: JSON.stringify({ source: isVkMiniApp() ? 'vk' : (window.Telegram?.WebApp?.initData ? 'telegram' : 'web') }) });
+    state.support = await api('/api/support/actions');
+    renderSupportActions();
+    setStatus(L('supportCredited'));
+    const url = data.openUrl;
+    if (url) {
+      try { window.open(url, '_blank', 'noopener'); } catch (_) { window.location.href = url; }
+    }
+  });
+}
 async function createEntry(type) { return withBusy(L('saving'), async () => { const data = await api('/api/entries', { method: 'POST', body: JSON.stringify({ type, note: $('entryNote').value.trim() }) }); state.summary = data.summary; state.week = data.week; if (data.awardedArtifacts?.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts; await refreshProduct(); $('entryNote').value = ''; renderAll(); if (data.awardedArtifacts?.length) showArtifactToast(data.awardedArtifacts); else setStatus(L('entrySaved')); }); }
 async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshProduct(); renderAll(); setStatus(L('contractCreated')); }); }
 async function closeContract(status) { return withBusy(L('closingContract'), async () => { const data = await api(`/api/contracts/${state.currentContract.id}/close`, { method: 'POST', body: JSON.stringify({ status, resultNote: '' }) }); state.currentContract = null; state.summary = data.summary; state.week = data.week; await refreshProduct(); renderAll(); setStatus(L('contractClosed')); }); }
@@ -513,7 +548,7 @@ async function enableVkReminders() {
   setStatus(L('vkReminderAllowed'));
 }
 async function setLanguage(lang) { const normalized = I18N.normalizeLocale(lang); storage.set('kopilkaLocale', normalized); if (state.token) { try { const data = await api('/api/settings/locale', { method: 'POST', body: JSON.stringify({ locale: normalized }) }); state.user = data.user; } catch (e) { /* keep local preference */ } } await loadData(); }
-async function cleanupDemo() { if (!state.user?.isDemo) { setStatus(L('notDemo'), 'error'); return; } const id = state.user.id; return withBusy(L('deletingDemo'), async () => { await api(`/api/dev/demo-user/${id}`, { method: 'DELETE' }); storage.remove('kopilkaToken'); state.token = ''; state.user = null; state.summary = null; state.week = null; state.currentContract = null; renderAll(); setStatus(L('demoDeleted')); await authenticate(); }); }
+async function cleanupDemo() { if (!state.user?.isDemo) { setStatus(L('notDemo'), 'error'); return; } const id = state.user.id; return withBusy(L('deletingDemo'), async () => { await api(`/api/dev/demo-user/${id}`, { method: 'DELETE' }); storage.remove('kopilkaToken'); state.token = ''; state.user = null; state.summary = null; state.week = null; state.currentContract = null; state.support = null; renderAll(); setStatus(L('demoDeleted')); await authenticate(); }); }
 async function loadPendingMerge() {
   const mergeToken = storage.get('kopilkaVkMergeToken');
   if (!mergeToken || !state.token) return;
@@ -552,6 +587,7 @@ function cancelAccountMerge() {
 function bindEvents() {
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
   $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
+  $('supportActionsList')?.addEventListener('click', async (event) => { const b = event.target.closest('button[data-support-open]'); if (!b || state.busy || state.publicReadOnly) return; try { await openSupportAction(b.dataset.supportOpen); } catch (e) { setStatus(e.message, 'error'); } });
   $('artifactToastClose')?.addEventListener('click', hideArtifactToast);
   $('artifactToast')?.addEventListener('keydown', keepArtifactDialogFocus);
   $('contractTemplates').addEventListener('click', (event) => { const b = event.target.closest('button[data-template-id]'); if (b && !state.busy && !state.publicReadOnly) applyTemplate(b.dataset.templateId); });

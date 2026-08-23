@@ -78,6 +78,11 @@ function testStaticAccessibility() {
   assert(html.includes('class="skip-link"'), 'skip link exists');
   assert(html.includes('role="status"'), 'status region has role=status');
   assert(html.includes('role="tablist"'), 'bottom navigation has tablist role');
+  assert(html.includes('tab-button-support'), 'support actions tab exists');
+  assert(html.includes('tab-support'), 'support actions panel exists');
+  assert(html.includes('supportNewCount'), 'support tab exposes new action indicator');
+  assert(html.includes('supportActionsList'), 'support actions list exists');
+  assert(!html.includes('supportActionsPreview'), 'support actions are not shown on the main screen');
   assert(html.includes('aria-controls="tab-today"'), 'tabs point to panels');
   assert(html.includes('Подсказка дня'), 'daily hint section exists');
   assert(html.includes('Шаблоны недельных договоров'), 'contract templates section exists');
@@ -110,6 +115,9 @@ function testStaticAccessibility() {
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'bee_good_deed_honey.webp')), 'bee artifact image exists');
   const frontendI18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
   assert(frontendI18n.includes('Встреча случилась'), 'artifact dialog uses a clear encounter headline');
+  assert(frontendI18n.includes('Полезное рядом'), 'support actions tab is localized');
+  assert(frontendI18n.includes('Светлячок поддержки'), 'support badge is localized');
+  assert(frontendI18n.includes('Открыть и засчитать'), 'support action CTA is clear');
   assert(frontendI18n.includes('Встреча или звонок'), 'social contact quick action exists');
   assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
   assert(frontendI18n.includes("kind_trace: { points: 2"), 'kind deed quick action adds 2 LIFE');
@@ -121,6 +129,8 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('keepArtifactDialogFocus'), 'artifact dialog traps keyboard focus');
   assert(frontendApp.includes("event.key === 'Escape'"), 'artifact dialog closes with Escape');
   assert(frontendApp.includes('preventScroll: true'), 'artifact dialog focus changes avoid jumpy scroll');
+  assert(frontendApp.includes('/api/support/actions'), 'frontend loads support actions');
+  assert(frontendApp.includes('renderSupportActions'), 'frontend renders support actions');
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
@@ -176,6 +186,26 @@ async function main() {
   const token = response.data.token;
   const userId = response.data.user.id;
   const auth = { authorization: `Bearer ${token}` };
+  let supportResp = await request('/api/support/actions', { headers: auth });
+  assert.equal(supportResp.res.status, 200, 'support actions endpoint works');
+  assert.equal(supportResp.data.badge.title, 'Светлячок поддержки', 'support badge is separate from LIFE');
+  assert.equal(supportResp.data.badge.points, 0, 'support badge starts at zero');
+  assert(supportResp.data.summary.availableCount >= 2, 'initial support actions are seeded');
+  assert(supportResp.data.summary.newCount >= 1, 'new support actions are visible on the tab');
+  assert(supportResp.data.actions[0].createdAt >= supportResp.data.actions[supportResp.data.actions.length - 1].createdAt, 'support actions are sorted newest first');
+  const vkSupport = supportResp.data.actions.find((action) => action.slug === 'vk-community');
+  assert(vkSupport && vkSupport.status === 'available', 'VK community support card is available');
+  assert.equal(vkSupport.rewardLabel, '+1 Светлячок', 'support action reward is not LIFE');
+  const openedSupport = await request(`/api/support/actions/${vkSupport.id}/open`, { method: 'POST', headers: auth });
+  assert.equal(openedSupport.res.status, 200, 'support action can be opened and credited');
+  assert.equal(openedSupport.data.action.status, 'opened', 'opened support action status saved');
+  assert.equal(openedSupport.data.badge.points, 1, 'support badge increments once');
+  assert(openedSupport.data.openUrl.includes('vk.com/life_harbor_game'), 'support open returns the target URL');
+  const openedAgain = await request(`/api/support/actions/${vkSupport.id}/open`, { method: 'POST', headers: auth });
+  assert.equal(openedAgain.res.status, 200, 'support action repeated open is idempotent');
+  assert.equal(openedAgain.data.badge.points, 1, 'support badge does not double count repeated opens');
+  supportResp = await request('/api/support/actions', { headers: auth });
+  assert.equal(supportResp.data.actions.find((action) => action.id === vkSupport.id).status, 'opened', 'opened card stays marked');
   // Site login end-to-end: same telegram_id as Mini App -> same account (unified).
   // 1) Mini App login creates/returns the Telegram user (id 123).
   let miniResp = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: valid }) });
