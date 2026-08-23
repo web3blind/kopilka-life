@@ -419,7 +419,7 @@ h3{letter-spacing:-.015em}
   font-size:.76rem;
   font-weight:880;
 }
-.tab-label{display:block}.tab-count{position:absolute;right:.2rem;top:.15rem;min-width:1.2rem;height:1.2rem;padding:0 .28rem;border-radius:999px;background:var(--heart);color:#fff;font-size:.68rem;line-height:1.2rem;font-weight:950;box-shadow:0 6px 12px rgba(201,77,77,.25)}
+.tab-label{display:block}.tab-count{position:absolute;right:.12rem;top:.08rem;min-width:1.2rem;height:1.2rem;padding:0 .36rem;border-radius:999px;background:var(--heart);color:#fff;font-size:.62rem;line-height:1.2rem;font-weight:950;white-space:nowrap;box-shadow:0 6px 12px rgba(201,77,77,.25)}
 .tab-bar button::before{display:block;font-size:.92rem;margin-bottom:.04rem;line-height:1}
 #tab-button-today::before{content:"✦"}#tab-button-week::before{content:"☼"}#tab-button-contract::before{content:"✍"}#tab-button-settings::before{content:"⚙"}#tab-button-support::before{content:"✧"}#tab-button-profile::before{content:"❤"}
 .tab-bar button[aria-selected="true"]{

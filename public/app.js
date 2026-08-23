@@ -312,6 +312,15 @@ function renderArtifacts() {
     return `<article class="artifact-card${item.unlocked ? '' : ' is-locked'}" aria-label="${escapeHtml(item.title)}">${visual}<div><h3>${escapeHtml(item.title)}</h3><p class="artifact-short">${escapeHtml(item.shortTitle || '')}</p><p>${escapeHtml(text || '')}</p><p class="field-hint">${escapeHtml(item.triggerText || '')}</p>${date}</div></article>`;
   }).join('');
 }
+function supportNewLabel(count) {
+  const n = Number(count || 0);
+  if (locale() !== 'ru') return `${n} new`;
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} новая`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} новые`;
+  return `${n} новых`;
+}
 function renderSupportActions() {
   const box = $('supportActionsList');
   if (!box) return;
@@ -320,11 +329,12 @@ function renderSupportActions() {
   if (points) points.textContent = support.badge?.points || 0;
   const count = $('supportNewCount');
   const newCount = Number(support.summary?.newCount || 0);
-  if (count) { count.textContent = newCount; count.hidden = newCount <= 0; }
+  const newLabel = supportNewLabel(newCount);
+  if (count) { count.textContent = newCount > 0 ? L('supportTabNewShort', { label: newLabel }) : ''; count.hidden = newCount <= 0; }
   const supportTab = $('tab-button-support');
-  if (supportTab) supportTab.setAttribute('aria-label', newCount > 0 ? L('supportTabNew', { count: newCount }) : L('tabSupport'));
+  if (supportTab) supportTab.setAttribute('aria-label', newCount > 0 ? L('supportTabNew', { label: newLabel }) : L('tabSupport'));
   const summary = $('supportNewSummary');
-  if (summary) summary.textContent = newCount > 0 ? L('supportNewSummary', { count: newCount }) : L('supportNoNew');
+  if (summary) summary.textContent = newCount > 0 ? L('supportNewSummary', { label: newLabel }) : L('supportNoNew');
   const actions = support.actions || [];
   if (!actions.length) { box.innerHTML = `<p class="soft-note">${escapeHtml(L('supportEmpty'))}</p>`; return; }
   box.innerHTML = actions.map((action) => {
@@ -334,6 +344,11 @@ function renderSupportActions() {
     const statePill = opened ? `<span class="support-pill done">${escapeHtml(L('supportDone'))}</span>` : `<span class="support-pill">${escapeHtml(action.rewardLabel || L('supportReward'))}</span>`;
     return `<article class="support-action-card${opened ? ' is-opened' : ''}" data-support-action-id="${action.id}" aria-label="${escapeHtml(action.title)}"><h3>${escapeHtml(action.title)}</h3><p>${escapeHtml(action.description)}</p>${disclosure}<div class="support-action-meta">${statePill}${ad}</div><button type="button" ${opened ? 'class="secondary" disabled aria-disabled="true"' : ''} data-support-open="${action.id}">${escapeHtml(opened ? L('supportDone') : (action.buttonLabel || L('supportOpen')))}</button></article>`;
   }).join('');
+}
+function renderTodayContractReminder() {
+  const box = $('todayContractReminder');
+  if (!box) return;
+  box.hidden = !(state.currentContract && state.currentContract.isLastDay);
 }
 function showArtifactToast(artifacts = []) {
   const first = artifacts[0];
@@ -367,7 +382,7 @@ function keepArtifactDialogFocus(event) {
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 }
-function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderSettings(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); }
+function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderTodayContractReminder(); renderSettings(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
 async function loadData() {
   state.publicStatus = '';
@@ -603,6 +618,7 @@ function bindEvents() {
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
   $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
   $('supportActionsList')?.addEventListener('click', async (event) => { const b = event.target.closest('button[data-support-open]'); if (!b || state.busy || state.publicReadOnly) return; try { await openSupportAction(b.dataset.supportOpen); } catch (e) { setStatus(e.message, 'error'); } });
+  document.querySelectorAll('[data-open-contract]').forEach((btn) => btn.addEventListener('click', () => { if (!state.busy && !state.publicReadOnly) switchTab('contract'); }));
   $('artifactToastClose')?.addEventListener('click', hideArtifactToast);
   $('artifactToast')?.addEventListener('keydown', keepArtifactDialogFocus);
   $('contractTemplates').addEventListener('click', (event) => { const b = event.target.closest('button[data-template-id]'); if (b && !state.busy && !state.publicReadOnly) applyTemplate(b.dataset.templateId); });

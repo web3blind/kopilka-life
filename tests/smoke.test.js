@@ -82,6 +82,7 @@ function testStaticAccessibility() {
   assert(html.includes('tab-support'), 'support actions panel exists');
   assert(html.includes('supportNewCount'), 'support tab exposes new action indicator');
   assert(html.includes('supportActionsList'), 'support actions list exists');
+  assert(html.includes('todayContractReminder'), 'today tab can show last-day contract reminder');
   assert(!html.includes('supportActionsPreview'), 'support actions are not shown on the main screen');
   assert(html.includes('aria-controls="tab-today"'), 'tabs point to panels');
   assert(html.includes('Подсказка дня'), 'daily hint section exists');
@@ -117,6 +118,7 @@ function testStaticAccessibility() {
   assert(frontendI18n.includes('Встреча случилась'), 'artifact dialog uses a clear encounter headline');
   assert(frontendI18n.includes('Полезное рядом'), 'support actions tab is localized');
   assert(frontendI18n.includes('Светлячок поддержки'), 'support badge is localized');
+  assert(frontendI18n.includes('supportTabNewShort'), 'support tab has short visual new-count copy');
   assert(frontendI18n.includes('Открыть и засчитать'), 'support action CTA is clear');
   assert(frontendI18n.includes('Встреча или звонок'), 'social contact quick action exists');
   assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
@@ -137,6 +139,9 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('function waitForTelegram'), 'frontend waits for Telegram Mini App initData');
   assert(frontendApp.includes('const earlyTelegram = await waitForTelegram(40)'), 'frontend waits briefly before site-login fallback so slow Telegram WebViews do not show login');
   assert(frontendApp.includes('renderSupportActions'), 'frontend renders support actions');
+  assert(frontendApp.includes('renderTodayContractReminder'), 'today tab renders contract last-day reminder');
+  assert(frontendApp.includes('function supportNewLabel'), 'support new-count label has Russian plural handling');
+  assert(frontendApp.includes('data-open-contract'), 'today contract reminder can jump to contract tab');
   assert(frontendApp.includes("disabled aria-disabled=\"true\"' : ''} data-support-open"), 'opened support action buttons are disabled like daily actions');
   assert(frontendApp.includes("el.getAttribute('aria-disabled') === 'true'"), 'busy reset preserves permanently disabled action buttons');
   assert(frontendApp.includes('supportDone'), 'opened support actions use completed copy');
@@ -204,6 +209,7 @@ async function main() {
   assert(supportResp.data.actions[0].createdAt >= supportResp.data.actions[supportResp.data.actions.length - 1].createdAt, 'support actions are sorted newest first');
   const vkSupport = supportResp.data.actions.find((action) => action.slug === 'vk-community');
   assert(vkSupport && vkSupport.status === 'available', 'VK community support card is available');
+  assert(vkSupport.description.includes('Ваша подписка и реакции помогут проекту стать заметнее'), 'VK community support copy explains what helps');
   assert.equal(vkSupport.rewardLabel, '+1 Светлячок', 'support action reward is not LIFE');
   const openedSupport = await request(`/api/support/actions/${vkSupport.id}/open`, { method: 'POST', headers: auth });
   assert.equal(openedSupport.res.status, 200, 'support action can be opened and credited');
@@ -224,6 +230,8 @@ async function main() {
   const aiBlogCard = supportResp.data.actions.find((action) => action.slug === 'vk-ai-agents-blog');
   assert.equal(authorCard.url, 'https://vk.com/denis_skripnik', 'VK author card points to Denis personal page');
   assert.equal(aiBlogCard.url, 'https://vk.com/blind_dev', 'VK AI agents blog points to Blind Dev');
+  assert(authorCard.description.includes('Подписка помогает автору'), 'author card copy explains how the user helps');
+  assert(aiBlogCard.description.includes('находить своих людей'), 'AI agents blog card copy explains benefit');
   supportResp = await request('/api/support/actions?source=telegram', { headers: auth });
   const tgSlugs = supportResp.data.actions.map((action) => action.slug);
   assert(tgSlugs.includes('telegram-channel'), 'Telegram surface shows Telegram card');
@@ -232,6 +240,7 @@ async function main() {
   assert(!tgSlugs.includes('vk-author-page'), 'Telegram surface hides author VK card');
   assert(!tgSlugs.includes('vk-ai-agents-blog'), 'Telegram surface hides VK AI agents blog card');
   assert.equal(supportResp.data.actions.find((action) => action.slug === 'telegram-channel').url, 'https://t.me/blind_dev', 'Telegram card points to Blind Dev channel');
+  assert(supportResp.data.actions.find((action) => action.slug === 'telegram-channel').description.includes('не потерять обновления'), 'Telegram card copy explains user benefit');
   supportResp = await request('/api/support/actions?source=vk', { headers: auth });
   assert.equal(supportResp.data.actions.find((action) => action.id === vkSupport.id).status, 'opened', 'opened card stays marked');
   // Site login end-to-end: same telegram_id as Mini App -> same account (unified).
