@@ -188,7 +188,7 @@ router.get('/public/:code', (req, res) => {
   res.json({ profile });
 });
 router.get('/artifacts', authRequired, (req, res) => res.json({ artifacts: listArtifacts(req.user.id) }));
-router.get('/support/actions', authRequired, (req, res) => res.json(listSupportActions(req.user.id)));
+router.get('/support/actions', authRequired, (req, res) => res.json(listSupportActions(req.user.id, req.query.source || 'web')));
 router.post('/support/actions/:id/open', authRequired, (req, res) => {
   try {
     res.json(openSupportAction(req.user.id, Number(req.params.id), req.body.source || 'app'));

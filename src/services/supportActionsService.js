@@ -1,6 +1,12 @@
 const { getDb } = require('../db');
 
 const BADGE_TITLE = 'Светлячок поддержки';
+const SURFACES = new Set(['vk', 'telegram', 'web']);
+
+function normalizeSurface(surface = 'web') {
+  const value = String(surface || '').toLowerCase().slice(0, 20);
+  return SURFACES.has(value) ? value : 'web';
+}
 
 function isActiveWhere(now = new Date()) {
   const iso = now.toISOString().replace('T', ' ').slice(0, 19);
@@ -54,16 +60,18 @@ function projectAction(row) {
   };
 }
 
-function listSupportActions(userId) {
+function listSupportActions(userId, surface = 'web') {
   const db = getDb();
   const active = isActiveWhere();
+  const targetSurface = normalizeSurface(surface);
   const rows = db.prepare(`
     SELECT a.*, ua.status, ua.opened_at, ua.credited_at
     FROM support_actions a
     LEFT JOIN user_support_actions ua ON ua.action_id = a.id AND ua.user_id = ?
     WHERE ${active.sql}
+      AND a.platform IN ('common', ?)
     ORDER BY a.created_at DESC, a.sort_order DESC, a.id DESC
-  `).all(userId, ...active.params);
+  `).all(userId, ...active.params, targetSurface);
   const actions = rows.map(projectAction);
   return {
     badge: badgeForUser(userId),
@@ -71,6 +79,7 @@ function listSupportActions(userId) {
       availableCount: actions.length,
       newCount: actions.filter((action) => action.status === 'available').length
     },
+    surface: targetSurface,
     actions
   };
 }
@@ -112,7 +121,7 @@ function openSupportAction(userId, actionId, source = '') {
     LEFT JOIN user_support_actions ua ON ua.action_id = a.id AND ua.user_id = ?
     WHERE a.id = ?
   `).get(userId, action.id);
-  return { openUrl: action.url, action: projectAction(row), badge: badgeForUser(userId), summary: listSupportActions(userId).summary };
+  return { openUrl: action.url, action: projectAction(row), badge: badgeForUser(userId), summary: listSupportActions(userId, source).summary };
 }
 
-module.exports = { listSupportActions, openSupportAction, badgeForUser };
+module.exports = { listSupportActions, openSupportAction, badgeForUser, normalizeSurface };

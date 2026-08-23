@@ -83,6 +83,11 @@ function referralLikeCode(value) {
   return /^[A-Z0-9]{4,24}$/.test(code) ? code : '';
 }
 function isVkMiniApp() { return Boolean(vkLaunchParams()); }
+function supportSurface() {
+  if (isVkMiniApp()) return 'vk';
+  if (window.Telegram?.WebApp?.initData) return 'telegram';
+  return 'web';
+}
 async function initVkBridge() {
   fireVkBridgeInit();
   try {
@@ -357,7 +362,7 @@ function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.scr
 async function loadData() {
   state.publicStatus = '';
   const goal = $('practiceGoal')?.value || 'calm';
-  const [summary, week, current, me, product, profile, artifacts, support] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts'), api('/api/support/actions')]);
+  const [summary, week, current, me, product, profile, artifacts, support] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts'), api(`/api/support/actions?source=${encodeURIComponent(supportSurface())}`)]);
   state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || []; state.support = support;
   storage.set('kopilkaLocale', me.user.locale || 'ru');
   renderAll();
@@ -497,8 +502,8 @@ async function authenticate() {
 async function refreshProduct() { state.product = await api(`/api/product?goal=${encodeURIComponent($('practiceGoal')?.value || 'calm')}`); }
 async function openSupportAction(actionId) {
   return withBusy(L('supportOpening'), async () => {
-    const data = await api(`/api/support/actions/${encodeURIComponent(actionId)}/open`, { method: 'POST', body: JSON.stringify({ source: isVkMiniApp() ? 'vk' : (window.Telegram?.WebApp?.initData ? 'telegram' : 'web') }) });
-    state.support = await api('/api/support/actions');
+    const data = await api(`/api/support/actions/${encodeURIComponent(actionId)}/open`, { method: 'POST', body: JSON.stringify({ source: supportSurface() }) });
+    state.support = await api(`/api/support/actions?source=${encodeURIComponent(supportSurface())}`);
     renderSupportActions();
     setStatus(L('supportCredited'));
     const url = data.openUrl;

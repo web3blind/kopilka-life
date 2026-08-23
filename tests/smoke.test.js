@@ -186,7 +186,7 @@ async function main() {
   const token = response.data.token;
   const userId = response.data.user.id;
   const auth = { authorization: `Bearer ${token}` };
-  let supportResp = await request('/api/support/actions', { headers: auth });
+  let supportResp = await request('/api/support/actions?source=vk', { headers: auth });
   assert.equal(supportResp.res.status, 200, 'support actions endpoint works');
   assert.equal(supportResp.data.badge.title, 'Светлячок поддержки', 'support badge is separate from LIFE');
   assert.equal(supportResp.data.badge.points, 0, 'support badge starts at zero');
@@ -204,7 +204,19 @@ async function main() {
   const openedAgain = await request(`/api/support/actions/${vkSupport.id}/open`, { method: 'POST', headers: auth });
   assert.equal(openedAgain.res.status, 200, 'support action repeated open is idempotent');
   assert.equal(openedAgain.data.badge.points, 1, 'support badge does not double count repeated opens');
-  supportResp = await request('/api/support/actions', { headers: auth });
+  supportResp = await request('/api/support/actions?source=vk', { headers: auth });
+  const vkSlugs = supportResp.data.actions.map((action) => action.slug);
+  assert(vkSlugs.includes('vk-community'), 'VK surface shows VK community card');
+  assert(vkSlugs.includes('vk-author-page'), 'VK surface shows author page card');
+  assert(vkSlugs.includes('share-kopilka'), 'VK surface shows common share card');
+  assert(!vkSlugs.includes('telegram-channel'), 'VK surface hides Telegram-only card');
+  supportResp = await request('/api/support/actions?source=telegram', { headers: auth });
+  const tgSlugs = supportResp.data.actions.map((action) => action.slug);
+  assert(tgSlugs.includes('telegram-channel'), 'Telegram surface shows Telegram card');
+  assert(tgSlugs.includes('share-kopilka'), 'Telegram surface shows common share card');
+  assert(!tgSlugs.includes('vk-community'), 'Telegram surface hides VK community card');
+  assert(!tgSlugs.includes('vk-author-page'), 'Telegram surface hides author VK card');
+  supportResp = await request('/api/support/actions?source=vk', { headers: auth });
   assert.equal(supportResp.data.actions.find((action) => action.id === vkSupport.id).status, 'opened', 'opened card stays marked');
   // Site login end-to-end: same telegram_id as Mini App -> same account (unified).
   // 1) Mini App login creates/returns the Telegram user (id 123).
