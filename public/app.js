@@ -730,13 +730,13 @@ async function start() {
 // The Telegram WebApp SDK may not be ready when app.js first runs; retry the
 // in-Telegram check until initData appears (or a longer timeout). A Mini App
 // opening inside Telegram must never be misread as a plain site.
-function waitForTelegram() {
+function waitForTelegram(maxTries = 200) {
   return new Promise((resolve) => {
     if (window.Telegram?.WebApp?.initData) return resolve(true);
     let tries = 0;
     const timer = setInterval(() => {
       if (window.Telegram?.WebApp?.initData) { clearInterval(timer); return resolve(true); }
-      if (++tries >= 200) { clearInterval(timer); return resolve(false); } // ~10s
+      if (++tries >= maxTries) { clearInterval(timer); return resolve(false); }
     }, 50);
   });
 }
@@ -809,8 +809,9 @@ async function renderPublicProfile(code, options = {}) {
   }
   const hasTelegramInitData = Boolean(window.Telegram?.WebApp?.initData);
   const looksLikeTelegramLaunch = hasTelegramInitData || Boolean(new URLSearchParams(window.location.search || '').get('tgWebAppData'));
-  if (!looksLikeTelegramLaunch) { await showLoginScreen(); return; }
-  const hasWebApp = await waitForTelegram();
+  const earlyTelegram = await waitForTelegram(40); // ~2s grace for slower Telegram WebViews before showing site login.
+  if (!looksLikeTelegramLaunch && !earlyTelegram) { await showLoginScreen(); return; }
+  const hasWebApp = earlyTelegram || await waitForTelegram();
   // Inside Telegram Mini App we must have signed initData. The SDK object alone
   // is also present on the plain website because we load telegram-web-app.js.
   const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp?.initData);

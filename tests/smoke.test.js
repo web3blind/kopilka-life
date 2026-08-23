@@ -130,6 +130,8 @@ function testStaticAccessibility() {
   assert(frontendApp.includes("event.key === 'Escape'"), 'artifact dialog closes with Escape');
   assert(frontendApp.includes('preventScroll: true'), 'artifact dialog focus changes avoid jumpy scroll');
   assert(frontendApp.includes('/api/support/actions'), 'frontend loads support actions');
+  assert(frontendApp.includes('function waitForTelegram'), 'frontend waits for Telegram Mini App initData');
+  assert(frontendApp.includes('const earlyTelegram = await waitForTelegram(40)'), 'frontend waits briefly before site-login fallback so slow Telegram WebViews do not show login');
   assert(frontendApp.includes('renderSupportActions'), 'frontend renders support actions');
   assert(frontendApp.includes("disabled aria-disabled=\"true\"' : ''} data-support-open"), 'opened support action buttons are disabled like daily actions');
   assert(frontendApp.includes("el.getAttribute('aria-disabled') === 'true'"), 'busy reset preserves permanently disabled action buttons');
