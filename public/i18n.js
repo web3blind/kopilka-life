@@ -107,7 +107,7 @@
     loginFailed: { ru: 'Не удалось войти через Telegram. Попробуйте ещё раз.', en: 'Could not sign in with Telegram. Try again.' },
     connecting: { ru: 'Подключаемся мягко и без спешки…', en: 'Connecting gently, no rush…' },
     tabToday: { ru: 'Сегодня', en: 'Today' },
-    todayIntro: { ru: 'Что сегодня пополнило жизнь? Можно отметить одну маленькую конкретную вещь.', en: 'What supported your life today? You can note one small concrete thing.' },
+    todayIntro: { ru: 'Здравствуй, человек. Выбери, что сегодня было в твоей жизни.', en: 'Hello, human. Choose what was present in your life today.' },
     todayAdded: { ru: 'Сегодня добавлено: ', en: 'Added today: ' },
     todayAddedNote: { ru: '. Это видимый след жизни и заботы, не оценка тебя.', en: '. This is a visible trace of life and care, not a judgment of you.' },
     dailyHintHeading: { ru: 'Подсказка дня', en: 'Daily hint' },

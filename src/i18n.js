@@ -123,7 +123,7 @@ const STRINGS = {
   'bot.start': { ru: 'Это Копилка жизни. Здесь можно за 10 секунд отметить маленькие вещи, которые поддержали день.', en: 'This is your Life Harbor. Here you can note small things that supported your day in 10 seconds.' },
   'bot.reminder': { ru: 'Если есть силы, можно за 10 секунд пополнить Копилку жизни.', en: 'If you have the energy, you can top up your Life Harbor in 10 seconds.' },
   'vk.reminder': { ru: 'Вечер. Можно за 10 секунд отметить, что сегодня поддержало жизнь.', en: 'Evening. You can take 10 seconds to note what supported life today.' },
-  'reminder.contractLastDay': { ru: 'Если есть недельный договор, сегодня стоит выбрать итог: выполнен он или нет.', en: 'If you have a weekly contract, today is the day to choose whether it was completed or not.' },
+  'reminder.contractLastDay': { ru: 'Недельный договор ждёт итога: выполнен он или нет.', en: 'Your weekly contract is waiting for its result: completed or not.' },
   'inline.shareTitle': { ru: 'Копилка жизни', en: 'Life Harbor' },
 };
 
