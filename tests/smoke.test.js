@@ -131,6 +131,9 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('preventScroll: true'), 'artifact dialog focus changes avoid jumpy scroll');
   assert(frontendApp.includes('/api/support/actions'), 'frontend loads support actions');
   assert(frontendApp.includes('renderSupportActions'), 'frontend renders support actions');
+  assert(frontendApp.includes("disabled aria-disabled=\"true\"' : ''} data-support-open"), 'opened support action buttons are disabled like daily actions');
+  assert(frontendApp.includes("el.getAttribute('aria-disabled') === 'true'"), 'busy reset preserves permanently disabled action buttons');
+  assert(frontendApp.includes('supportDone'), 'opened support actions use completed copy');
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
@@ -208,14 +211,21 @@ async function main() {
   const vkSlugs = supportResp.data.actions.map((action) => action.slug);
   assert(vkSlugs.includes('vk-community'), 'VK surface shows VK community card');
   assert(vkSlugs.includes('vk-author-page'), 'VK surface shows author page card');
+  assert(vkSlugs.includes('vk-ai-agents-blog'), 'VK surface shows AI agents blog card');
   assert(vkSlugs.includes('share-kopilka'), 'VK surface shows common share card');
   assert(!vkSlugs.includes('telegram-channel'), 'VK surface hides Telegram-only card');
+  const authorCard = supportResp.data.actions.find((action) => action.slug === 'vk-author-page');
+  const aiBlogCard = supportResp.data.actions.find((action) => action.slug === 'vk-ai-agents-blog');
+  assert.equal(authorCard.url, 'https://vk.com/denis_skripnik', 'VK author card points to Denis personal page');
+  assert.equal(aiBlogCard.url, 'https://vk.com/blind_dev', 'VK AI agents blog points to Blind Dev');
   supportResp = await request('/api/support/actions?source=telegram', { headers: auth });
   const tgSlugs = supportResp.data.actions.map((action) => action.slug);
   assert(tgSlugs.includes('telegram-channel'), 'Telegram surface shows Telegram card');
   assert(tgSlugs.includes('share-kopilka'), 'Telegram surface shows common share card');
   assert(!tgSlugs.includes('vk-community'), 'Telegram surface hides VK community card');
   assert(!tgSlugs.includes('vk-author-page'), 'Telegram surface hides author VK card');
+  assert(!tgSlugs.includes('vk-ai-agents-blog'), 'Telegram surface hides VK AI agents blog card');
+  assert.equal(supportResp.data.actions.find((action) => action.slug === 'telegram-channel').url, 'https://t.me/blind_dev', 'Telegram card points to Blind Dev channel');
   supportResp = await request('/api/support/actions?source=vk', { headers: auth });
   assert.equal(supportResp.data.actions.find((action) => action.id === vkSupport.id).status, 'opened', 'opened card stays marked');
   // Site login end-to-end: same telegram_id as Mini App -> same account (unified).

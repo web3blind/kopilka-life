@@ -134,7 +134,16 @@ function setPublicReadOnlyMode(enabled) {
 }
 function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text; region.classList.toggle('error', type === 'error'); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
-function setBusy(isBusy, message = '') { state.busy = isBusy; document.querySelectorAll('button,input,textarea,select').forEach((el) => { if (el.id === 'cleanupDemo' && state.user && !state.user.isDemo) return; el.disabled = isBusy; }); document.body.setAttribute('aria-busy', isBusy ? 'true' : 'false'); if (message) setStatus(message); }
+function setBusy(isBusy, message = '') {
+  state.busy = isBusy;
+  document.querySelectorAll('button,input,textarea,select').forEach((el) => {
+    if (el.id === 'cleanupDemo' && state.user && !state.user.isDemo) return;
+    if (!isBusy && el.getAttribute('aria-disabled') === 'true') return;
+    el.disabled = isBusy;
+  });
+  document.body.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+  if (message) setStatus(message);
+}
 async function withBusy(message, fn) { setBusy(true, message); try { return await fn(); } finally { setBusy(false); } }
 async function api(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.token) headers.authorization = `Bearer ${state.token}`; const res = await fetch(path, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { const error = new Error(data.error || L('actionFailed')); error.data = data; error.status = res.status; throw error; } return data; }
 let publicConfigCache = null;
@@ -322,7 +331,7 @@ function renderSupportActions() {
     const disclosure = action.disclosureText ? `<p class="field-hint">${escapeHtml(action.disclosureText)}</p>` : '';
     const ad = action.isAd || action.isPartner ? `<span class="support-pill">${escapeHtml(action.isAd ? L('supportAd') : L('supportPartner'))}</span>` : '';
     const statePill = opened ? `<span class="support-pill done">${escapeHtml(L('supportDone'))}</span>` : `<span class="support-pill">${escapeHtml(action.rewardLabel || L('supportReward'))}</span>`;
-    return `<article class="support-action-card${opened ? ' is-opened' : ''}" data-support-action-id="${action.id}" aria-label="${escapeHtml(action.title)}"><h3>${escapeHtml(action.title)}</h3><p>${escapeHtml(action.description)}</p>${disclosure}<div class="support-action-meta">${statePill}${ad}</div><button type="button" ${opened ? 'class="secondary"' : ''} data-support-open="${action.id}">${escapeHtml(opened ? L('supportOpenAgain') : (action.buttonLabel || L('supportOpen')))}</button></article>`;
+    return `<article class="support-action-card${opened ? ' is-opened' : ''}" data-support-action-id="${action.id}" aria-label="${escapeHtml(action.title)}"><h3>${escapeHtml(action.title)}</h3><p>${escapeHtml(action.description)}</p>${disclosure}<div class="support-action-meta">${statePill}${ad}</div><button type="button" ${opened ? 'class="secondary" disabled aria-disabled="true"' : ''} data-support-open="${action.id}">${escapeHtml(opened ? L('supportDone') : (action.buttonLabel || L('supportOpen')))}</button></article>`;
   }).join('');
 }
 function showArtifactToast(artifacts = []) {
