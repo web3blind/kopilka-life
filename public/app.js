@@ -216,6 +216,14 @@ function renderGratitudePractice() {
   const used = new Set(state.summary?.todayEntryTypes || []).has('gratitude');
   const note = $('gratitudeNote');
   const btn = box.querySelector('[data-gratitude-submit]');
+  const hintKeys = ['gratitudeHintParents', 'gratitudeHintDay', 'gratitudeHintPerson', 'gratitudeHintBody', 'gratitudeHintSelf'];
+  const hintBox = box.querySelector('.hint-button-row');
+  if (hintBox) {
+    hintBox.innerHTML = hintKeys.map((key) => {
+      const text = L(key);
+      return `<button type="button" class="secondary" data-gratitude-hint="${escapeHtml(text)}">${escapeHtml(text)}</button>`;
+    }).join('');
+  }
   if (note) {
     note.placeholder = L('gratitudeNotePlaceholder');
     note.disabled = used;
@@ -226,6 +234,15 @@ function renderGratitudePractice() {
     btn.disabled = used;
     btn.setAttribute('aria-disabled', String(used));
   }
+}
+function appendGratitudeHint(text) {
+  const note = $('gratitudeNote');
+  const value = String(text || '').trim();
+  if (!note || !value || note.disabled) return;
+  const parts = note.value.split(',').map((part) => part.trim()).filter(Boolean);
+  if (!parts.includes(value)) parts.push(value);
+  note.value = parts.join(', ');
+  note.focus();
 }
 function renderWeek() {
   const w = state.week || { weekLife: 0, activeDays: 0, days: [], topCategories: [] };
@@ -635,7 +652,7 @@ function cancelAccountMerge() {
 function bindEvents() {
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
   $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
-  $('gratitudePractice')?.addEventListener('click', async (event) => { const b = event.target.closest('[data-gratitude-submit]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry('gratitude', $('gratitudeNote')?.value.trim() || ''); } catch (e) { setStatus(e.message, 'error'); } });
+  $('gratitudePractice')?.addEventListener('click', async (event) => { const hint = event.target.closest('[data-gratitude-hint]'); if (hint && !state.busy && !state.publicReadOnly) { appendGratitudeHint(hint.dataset.gratitudeHint); return; } const b = event.target.closest('[data-gratitude-submit]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry('gratitude', $('gratitudeNote')?.value.trim() || ''); } catch (e) { setStatus(e.message, 'error'); } });
   $('supportActionsList')?.addEventListener('click', async (event) => { const b = event.target.closest('button[data-support-open]'); if (!b || state.busy || state.publicReadOnly) return; try { await openSupportAction(b.dataset.supportOpen); } catch (e) { setStatus(e.message, 'error'); } });
   document.querySelectorAll('[data-open-contract]').forEach((btn) => btn.addEventListener('click', () => { if (!state.busy && !state.publicReadOnly) switchTab('contract'); }));
   $('artifactToastClose')?.addEventListener('click', hideArtifactToast);

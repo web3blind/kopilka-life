@@ -86,6 +86,8 @@ function testStaticAccessibility() {
   assert(html.includes('gratitudePractice'), 'today tab has a separate gratitude practice block');
   assert(html.includes('gratitudeNote'), 'gratitude practice has its own note field');
   assert(html.includes('data-gratitude-submit'), 'gratitude practice has a dedicated submit button');
+  assert(html.includes('<details') && html.includes('gratitudeHints'), 'gratitude hints are hidden behind a details spoiler');
+  assert(html.includes('data-gratitude-hint'), 'gratitude hints are clickable buttons');
   assert(!html.includes('supportActionsPreview'), 'support actions are not shown on the main screen');
   assert(html.includes('aria-controls="tab-today"'), 'tabs point to panels');
   assert(html.includes('Подсказка дня'), 'daily hint section exists');
@@ -129,6 +131,8 @@ function testStaticAccessibility() {
   assert(frontendI18n.includes('Подарил радость'), 'gifted joy quick action exists');
   assert(frontendI18n.includes('Кому или чему ты сегодня благодарен?'), 'gratitude practice asks who or what the user is grateful to');
   assert(frontendI18n.includes('человеку, дню, телу, случаю, месту или себе'), 'gratitude practice gives concrete gratitude targets');
+  assert(frontendI18n.includes('Подсказки'), 'gratitude hint spoiler has a short summary');
+  assert(frontendI18n.includes('родителям — за жизнь'), 'gratitude hints include concrete examples');
   assert(frontendI18n.includes("kind_trace: { points: 2"), 'kind deed quick action adds 2 LIFE');
   assert(frontendI18n.includes('поддержал человека'), 'kind deed hint includes emotional support');
   assert(frontendI18n.includes('не к мечте, а к порядку'), 'honest step is distinguished from dream step');
@@ -147,6 +151,8 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('renderTodayContractReminder'), 'today tab renders contract last-day reminder');
   assert(frontendApp.includes('renderGratitudePractice'), 'frontend renders gratitude practice separately from quick actions');
   assert(frontendApp.includes('data-gratitude-submit'), 'frontend binds dedicated gratitude submit');
+  assert(frontendApp.includes('appendGratitudeHint'), 'frontend appends gratitude hints to the note field');
+  assert(frontendApp.includes("join(', ')"), 'gratitude hint values are inserted through comma-separated text');
   assert(frontendApp.includes("createEntry('gratitude'"), 'gratitude practice saves the gratitude entry type');
   assert(frontendApp.includes("note.setAttribute('aria-disabled', String(used))"), 'completed gratitude textarea stays disabled after busy reset');
   assert(frontendApp.includes('function supportNewLabel'), 'support new-count label has Russian plural handling');
