@@ -207,8 +207,26 @@ function renderSummary() {
   $('todayLife').textContent = s.todayLife;
   $('todayEntries').innerHTML = s.todayEntries.length ? s.todayEntries.map((e) => `<li>${escapeHtml(e.title)}: +${Number(e.life_points) || 0}. ${escapeHtml(e.note || '')}</li>`).join('') : `<li>${escapeHtml(L('noEntriesToday'))}</li>`;
   renderDailyHint();
+  renderGratitudePractice();
 }
 function renderDailyHint() { const hint = state.product?.dailyHint; if (!hint) return; $('dailyHintTitle').textContent = hint.title; $('dailyHintText').textContent = hint.text; $('dailyHintAction').textContent = hint.action; }
+function renderGratitudePractice() {
+  const box = $('gratitudePractice');
+  if (!box) return;
+  const used = new Set(state.summary?.todayEntryTypes || []).has('gratitude');
+  const note = $('gratitudeNote');
+  const btn = box.querySelector('[data-gratitude-submit]');
+  if (note) {
+    note.placeholder = L('gratitudeNotePlaceholder');
+    note.disabled = used;
+    note.setAttribute('aria-disabled', String(used));
+  }
+  if (btn) {
+    btn.textContent = used ? L('gratitudeSavedToday') : L('gratitudeSubmit');
+    btn.disabled = used;
+    btn.setAttribute('aria-disabled', String(used));
+  }
+}
 function renderWeek() {
   const w = state.week || { weekLife: 0, activeDays: 0, days: [], topCategories: [] };
   $('weekLife').textContent = w.weekLife;
@@ -537,7 +555,7 @@ async function openSupportAction(actionId) {
     }
   });
 }
-async function createEntry(type) { return withBusy(L('saving'), async () => { const data = await api('/api/entries', { method: 'POST', body: JSON.stringify({ type, note: $('entryNote').value.trim() }) }); state.summary = data.summary; state.week = data.week; if (data.awardedArtifacts?.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts; await refreshProduct(); $('entryNote').value = ''; renderAll(); if (data.awardedArtifacts?.length) showArtifactToast(data.awardedArtifacts); else setStatus(L('entrySaved')); }); }
+async function createEntry(type, note = $('entryNote').value.trim()) { return withBusy(L('saving'), async () => { const data = await api('/api/entries', { method: 'POST', body: JSON.stringify({ type, note }) }); state.summary = data.summary; state.week = data.week; if (data.awardedArtifacts?.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts; await refreshProduct(); $('entryNote').value = ''; if (type === 'gratitude' && $('gratitudeNote')) $('gratitudeNote').value = ''; renderAll(); if (data.awardedArtifacts?.length) showArtifactToast(data.awardedArtifacts); else setStatus(type === 'gratitude' ? L('gratitudeSavedStatus') : L('entrySaved')); }); }
 async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshProduct(); renderAll(); setStatus(L('contractCreated')); }); }
 async function closeContract(status) { return withBusy(L('closingContract'), async () => { const data = await api(`/api/contracts/${state.currentContract.id}/close`, { method: 'POST', body: JSON.stringify({ status, resultNote: '' }) }); state.currentContract = null; state.summary = data.summary; state.week = data.week; await refreshProduct(); renderAll(); setStatus(L('contractClosed')); }); }
 async function saveSettings(event) { event.preventDefault(); const payload = { timezone: $('timezone').value.trim(), remindersEnabled: $('remindersEnabled').checked, eveningReminderTime: $('eveningReminderTime').value || '20:00' }; return withBusy(L('savingSettings'), async () => { const data = await api('/api/settings/reminders', { method: 'POST', body: JSON.stringify(payload) }); state.user = data.user; renderAll(); setStatus(L('settingsSaved')); }); }
@@ -617,6 +635,7 @@ function cancelAccountMerge() {
 function bindEvents() {
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
   $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
+  $('gratitudePractice')?.addEventListener('click', async (event) => { const b = event.target.closest('[data-gratitude-submit]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry('gratitude', $('gratitudeNote')?.value.trim() || ''); } catch (e) { setStatus(e.message, 'error'); } });
   $('supportActionsList')?.addEventListener('click', async (event) => { const b = event.target.closest('button[data-support-open]'); if (!b || state.busy || state.publicReadOnly) return; try { await openSupportAction(b.dataset.supportOpen); } catch (e) { setStatus(e.message, 'error'); } });
   document.querySelectorAll('[data-open-contract]').forEach((btn) => btn.addEventListener('click', () => { if (!state.busy && !state.publicReadOnly) switchTab('contract'); }));
   $('artifactToastClose')?.addEventListener('click', hideArtifactToast);

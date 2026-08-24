@@ -83,6 +83,9 @@ function testStaticAccessibility() {
   assert(html.includes('supportNewCount'), 'support tab exposes new action indicator');
   assert(html.includes('supportActionsList'), 'support actions list exists');
   assert(html.includes('todayContractReminder'), 'today tab can show last-day contract reminder');
+  assert(html.includes('gratitudePractice'), 'today tab has a separate gratitude practice block');
+  assert(html.includes('gratitudeNote'), 'gratitude practice has its own note field');
+  assert(html.includes('data-gratitude-submit'), 'gratitude practice has a dedicated submit button');
   assert(!html.includes('supportActionsPreview'), 'support actions are not shown on the main screen');
   assert(html.includes('aria-controls="tab-today"'), 'tabs point to panels');
   assert(html.includes('Подсказка дня'), 'daily hint section exists');
@@ -124,6 +127,8 @@ function testStaticAccessibility() {
   assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
   assert(frontendI18n.includes('Помечтал'), 'dreamed quick action exists');
   assert(frontendI18n.includes('Подарил радость'), 'gifted joy quick action exists');
+  assert(frontendI18n.includes('Кому или чему ты сегодня благодарен?'), 'gratitude practice asks who or what the user is grateful to');
+  assert(frontendI18n.includes('человеку, дню, телу, случаю, месту или себе'), 'gratitude practice gives concrete gratitude targets');
   assert(frontendI18n.includes("kind_trace: { points: 2"), 'kind deed quick action adds 2 LIFE');
   assert(frontendI18n.includes('поддержал человека'), 'kind deed hint includes emotional support');
   assert(frontendI18n.includes('не к мечте, а к порядку'), 'honest step is distinguished from dream step');
@@ -140,6 +145,10 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('const earlyTelegram = await waitForTelegram(40)'), 'frontend waits briefly before site-login fallback so slow Telegram WebViews do not show login');
   assert(frontendApp.includes('renderSupportActions'), 'frontend renders support actions');
   assert(frontendApp.includes('renderTodayContractReminder'), 'today tab renders contract last-day reminder');
+  assert(frontendApp.includes('renderGratitudePractice'), 'frontend renders gratitude practice separately from quick actions');
+  assert(frontendApp.includes('data-gratitude-submit'), 'frontend binds dedicated gratitude submit');
+  assert(frontendApp.includes("createEntry('gratitude'"), 'gratitude practice saves the gratitude entry type');
+  assert(frontendApp.includes("note.setAttribute('aria-disabled', String(used))"), 'completed gratitude textarea stays disabled after busy reset');
   assert(frontendApp.includes('function supportNewLabel'), 'support new-count label has Russian plural handling');
   assert(frontendApp.includes('data-open-contract'), 'today contract reminder can jump to contract tab');
   assert(frontendApp.includes("disabled aria-disabled=\"true\"' : ''} data-support-open"), 'opened support action buttons are disabled like daily actions');
@@ -152,6 +161,8 @@ function testStaticAccessibility() {
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');
   assert(html.includes('<span data-i18n="todayAdded">'), 'todayAdded label is its own i18n span');
+  const entryDefsBlock = frontendI18n.slice(frontendI18n.indexOf('const ENTRY_DEFS'), frontendI18n.indexOf('const STRINGS'));
+  assert(!entryDefsBlock.includes('gratitude:'), 'gratitude is not a regular quick-action button');
 }
 
 async function main() {

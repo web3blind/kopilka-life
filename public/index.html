@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
   <link rel="apple-touch-icon" href="/assets/icon-150.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260823-support-copy1">
+  <link rel="stylesheet" href="/styles.css?v=20260824-gratitude1">
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="skipToContent">Перейти к содержимому</a>
@@ -58,6 +58,14 @@
           <textarea id="entryNote" name="note" rows="2" placeholder="Не обязательно" aria-describedby="entryNoteHint"></textarea>
           <p id="entryNoteHint" class="field-hint" data-i18n="noteHint">Заметку можно оставить пустой. Быстрое пополнение работает одним нажатием.</p>
         </form>
+        <section id="gratitudePractice" class="summary-card gratitude-card" aria-labelledby="gratitudePracticeHeading">
+          <h2 id="gratitudePracticeHeading" data-i18n="gratitudePracticeHeading">Благодарность</h2>
+          <p data-i18n="gratitudePracticeQuestion">Кому или чему ты сегодня благодарен?</p>
+          <label for="gratitudeNote" data-i18n="gratitudeNoteLabel">Короткая благодарность</label>
+          <textarea id="gratitudeNote" name="gratitudeNote" rows="2" placeholder="Например: дню — за тишину" aria-describedby="gratitudeNoteHint"></textarea>
+          <p id="gratitudeNoteHint" class="field-hint" data-i18n="gratitudeNoteHint">Это может быть благодарность человеку, дню, телу, случаю, месту или себе.</p>
+          <button type="button" data-gratitude-submit data-i18n="gratitudeSubmit">Записать благодарность</button>
+        </section>
         <section aria-labelledby="todayEntriesHeading">
           <h2 id="todayEntriesHeading" data-i18n="todayEntries">Последние записи сегодня</h2>
           <ul id="todayEntries" class="plain-list"></ul>
