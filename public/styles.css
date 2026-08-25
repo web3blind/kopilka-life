@@ -1,5 +1,5 @@
 :root{
-  color-scheme: light;
+  color-scheme: only light;
   --bg-0:#fff8ef;
   --bg-1:#fff2df;
   --bg-2:#f7dfbe;
@@ -35,7 +35,7 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html{scroll-behavior:smooth;background:var(--bg-0)}
+html{scroll-behavior:smooth;background:var(--bg-0);color-scheme:only light}
 body{
   margin:0;
   min-width:320px;
@@ -119,6 +119,7 @@ legend{font-weight:950;margin-bottom:.72rem;font-size:1.05rem;color:#3a2416}
   position:relative;
 }
 .top-card,.summary-card,.card-form,.contract-box,.screen-panel:not(#tab-today):not([hidden]){
+  color:var(--text);
   background:linear-gradient(180deg,rgba(255,255,255,.97),rgba(255,250,243,.94));
   border:1px solid rgba(222,202,180,.86);
   border-radius:var(--radius-xl);
@@ -209,6 +210,8 @@ h3{letter-spacing:-.015em}
 #loginScreen .soft-note{text-align:center;margin:.85rem 0 0;color:#5a4434}
 #loginScreen .soft-note a{color:#7a4319;text-decoration-thickness:2px;text-underline-offset:.18em}
 #loginScreen .status-region{margin:.55rem 0;color:var(--success)}
+.summary-card h1,.summary-card h2,.summary-card h3,.card-form h1,.card-form h2,.card-form h3,.contract-box h1,.contract-box h2,.contract-box h3{color:#2a160b}
+.summary-card .soft-note,.card-form .soft-note,.contract-box .soft-note{color:var(--muted)}
 .summary-card[aria-label="Баланс ЖИЗНИ"]{
   overflow:hidden;
   background:

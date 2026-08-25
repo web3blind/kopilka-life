@@ -114,6 +114,7 @@ function testStaticAccessibility() {
   assert(html.includes('aria-modal="true"'), 'artifact unlock dialog is modal');
   assert(html.includes('aria-describedby="artifactToastText"'), 'artifact unlock dialog describes the character text');
   assert(html.includes('enableVkReminders'), 'VK reminders opt-in button exists');
+  assert(html.includes('id="servicePanel"') && html.includes('servicePanel" class="summary-card" aria-labelledby="serviceHeading" hidden'), 'service/debug panel is hidden by default');
   assert(css.includes('artifact-card'), 'artifact cards are styled');
   assert(css.includes('artifact-dialog-card'), 'artifact unlock dialog card is styled');
   assert(css.includes('place-items:center'), 'artifact unlock dialog is centered as a modal');
@@ -167,14 +168,17 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260825-recovery1'), 'frontend i18n cache bust matches recovery release');
-  assert(html.includes('/app.js?v=20260825-recovery1'), 'frontend app cache bust matches recovery release');
+  assert(html.includes('/i18n.js?v=20260825-moderation1'), 'frontend i18n cache bust matches moderation release');
+  assert(html.includes('/app.js?v=20260825-moderation1'), 'frontend app cache bust matches moderation release');
+  assert(html.includes('/styles.css?v=20260825-moderation1'), 'frontend css cache bust matches moderation release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');
   assert(html.includes('<span data-i18n="todayAdded">'), 'todayAdded label is its own i18n span');
   const entryDefsBlock = frontendI18n.slice(frontendI18n.indexOf('const ENTRY_DEFS'), frontendI18n.indexOf('const STRINGS'));
   assert(!entryDefsBlock.includes('gratitude:'), 'gratitude is not a regular quick-action button');
+  assert(css.includes('color-scheme: only light'), 'app opts out of forced dark-mode recoloring');
+  assert(css.includes('.summary-card h1,.summary-card h2,.summary-card h3'), 'cards force readable heading color in dark host shells');
 }
 
 async function main() {

@@ -291,7 +291,9 @@ function renderSettings() {
   $('timezone').value = state.user.timezone || 'Asia/Novosibirsk';
   $('remindersEnabled').checked = Boolean(state.user.remindersEnabled);
   $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00';
-  $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`;
+  const servicePanel = $('servicePanel');
+  if (servicePanel) servicePanel.hidden = !state.user.isDemo;
+  if ($('userDebug')) $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`;
   const vkStatus = $('vkLinkStatus'); const vkBtn = $('linkVkAccount');
   if (vkStatus) vkStatus.textContent = state.user.vkLinked ? L('vkLinked') : L('vkNotLinked');
   if (vkBtn) { vkBtn.hidden = Boolean(state.user.vkLinked); vkBtn.disabled = false; }
