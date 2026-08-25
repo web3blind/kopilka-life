@@ -163,6 +163,8 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
+  assert(html.includes('/i18n.js?v=20260824-gratitude2'), 'frontend i18n cache bust matches gratitude hints release');
+  assert(html.includes('/app.js?v=20260824-gratitude2'), 'frontend app cache bust matches gratitude hints release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');
