@@ -474,18 +474,3 @@ h3{letter-spacing:-.015em}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
 }
-@media (prefers-color-scheme:dark){
-  :root{color-scheme:dark;--bg-0:#1d1510;--bg-1:#261a12;--bg-2:#332115;--surface:#2b211a;--surface-strong:#33261d;--surface-warm:#35251a;--text:#fff3e4;--muted:#d7c2ad;--muted-2:#bda48d;--accent:#f1b36e;--accent-2:#d68a4d;--accent-3:#ffd296;--accent-soft:#513721;--accent-softer:#3b2a1b;--heart-soft:#55302d;--border:#5b4736;--border-strong:#7b6048;--focus:#9bd1ff;--success:#9bd8ba;--success-soft:#203b2f;--danger:#ffaaa4;--danger-soft:#4e2825}
-  body{background:radial-gradient(circle at 18% -8%, rgba(229,168,95,.18), transparent 34rem),linear-gradient(160deg,var(--bg-0),var(--bg-1) 52%,var(--bg-2))}
-  input,textarea,select,.quick-action-grid button{background:rgba(51,38,29,.86);color:var(--text)}
-  .qa-title{color:var(--text)}
-  .summary-card[aria-label="Баланс ЖИЗНИ"]{background:linear-gradient(145deg,#33261d,#3b291c)}
-  .big-number{color:var(--text)}
-  .tab-bar{background:rgba(43,33,26,.94)}
-  #tab-support h1,#tab-support h2,#tab-support > p{color:var(--text);text-shadow:none}
-  .support-badge{background:linear-gradient(180deg,var(--surface-strong),var(--accent-softer));color:var(--text)}
-  .support-badge h2,.support-badge p{color:var(--text)}
-  .support-action-card{background:linear-gradient(180deg,var(--surface-strong),var(--surface-warm));border-color:var(--border);box-shadow:none}
-  .support-action-card.is-opened{background:linear-gradient(180deg,#203b2f,#263f33);border-color:rgba(155,216,186,.45)}
-  .support-action-card h3,.support-action-card p{color:var(--text)}
-}

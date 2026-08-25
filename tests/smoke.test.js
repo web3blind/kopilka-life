@@ -178,6 +178,7 @@ function testStaticAccessibility() {
   const entryDefsBlock = frontendI18n.slice(frontendI18n.indexOf('const ENTRY_DEFS'), frontendI18n.indexOf('const STRINGS'));
   assert(!entryDefsBlock.includes('gratitude:'), 'gratitude is not a regular quick-action button');
   assert(css.includes('color-scheme: only light'), 'app opts out of forced dark-mode recoloring');
+  assert(!css.includes('prefers-color-scheme:dark'), 'app does not switch to the previously rejected dark palette');
   assert(css.includes('.summary-card h1,.summary-card h2,.summary-card h3'), 'cards force readable heading color in dark host shells');
 }
 
