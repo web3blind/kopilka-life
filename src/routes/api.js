@@ -15,6 +15,7 @@ const { getCurrentContract, createContract, closeContract } = require('../servic
 const { scheduleNextReminderForUser } = require('../services/remindersService');
 const { getProductLayer, getPractices } = require('../services/productContentService');
 const { listSupportActions, openSupportAction } = require('../services/supportActionsService');
+const { maybeGrantRecoveryBonus } = require('../services/recoveryBonusService');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { normalizeLocale, t } = require('../i18n');
 
@@ -147,7 +148,10 @@ router.delete('/dev/demo-user/:id', devLimiter, (req, res) => {
   if (!config.devAuthEnabled) return disabled(res);
   return res.json({ deleted: deleteDemoUser(Number(req.params.id)) });
 });
-router.get('/me', authRequired, (req, res) => res.json({ user: publicUser(req.user) }));
+router.get('/me', authRequired, (req, res) => {
+  const recoveryNotice = maybeGrantRecoveryBonus(req.user.id, req.user.locale || req.locale || 'ru');
+  res.json({ user: publicUser(req.user), recoveryNotice });
+});
 router.post('/account/merge-vk/preview', authRequired, (req, res) => {
   try {
     const data = verifyMergeToken(req.body.mergeToken || '');

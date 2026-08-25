@@ -171,6 +171,21 @@ legend{font-weight:950;margin-bottom:.72rem;font-size:1.05rem;color:#3a2416}
   font-size:.78rem;
 }
 #connectionStatus{position:relative;margin:.12rem 3.7rem .02rem 0;font-size:1.14rem;line-height:1.18;font-weight:850;max-width:28rem}
+.recovery-notice{
+  display:flex;
+  gap:.75rem;
+  align-items:flex-start;
+  justify-content:space-between;
+  margin:.85rem 1rem 0;
+  padding:.86rem;
+  border:1px solid rgba(57,113,90,.26);
+  border-radius:var(--radius-lg);
+  background:linear-gradient(180deg,var(--success-soft),#fffdf9);
+  box-shadow:var(--shadow-soft);
+}
+.recovery-notice h2{margin:.05rem 0 .25rem;font-size:1.05rem;color:#244838}
+.recovery-notice p{margin:0;color:#34483d}
+.recovery-notice button{flex:0 0 auto;min-height:40px;padding:.55rem .82rem}
 .main-content{padding-bottom:calc(var(--nav-height) + 38px + env(safe-area-inset-bottom))}
 .screen-panel{padding:.05rem .25rem}
 #tab-today.screen-panel{padding-top:.05rem}

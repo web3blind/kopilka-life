@@ -7,7 +7,7 @@ const storage = {
 const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, artifactReturnFocus: null };
+const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null };
 function fireVkBridgeInit() {
   try {
     if (!vkLaunchParams()) return;
@@ -380,6 +380,20 @@ function renderSupportActions() {
     return `<article class="support-action-card${opened ? ' is-opened' : ''}" data-support-action-id="${action.id}" aria-label="${escapeHtml(action.title)}"><h3>${escapeHtml(action.title)}</h3><p>${escapeHtml(action.description)}</p>${disclosure}<div class="support-action-meta">${statePill}${ad}</div><button type="button" ${opened ? 'class="secondary" disabled aria-disabled="true"' : ''} data-support-open="${action.id}">${escapeHtml(opened ? L('supportDone') : (action.buttonLabel || L('supportOpen')))}</button></article>`;
   }).join('');
 }
+function rememberRecoveryNotice(notice) {
+  if (notice?.type === 'recovery_bonus') state.recoveryNotice = notice;
+}
+function renderRecoveryNotice() {
+  const box = $('recoveryNotice');
+  if (!box) return;
+  const notice = state.recoveryNotice;
+  box.hidden = !notice;
+  if (!notice) return;
+  if ($('recoveryNoticeTitle')) $('recoveryNoticeTitle').textContent = notice.title || 'Восстановительный бонус';
+  if ($('recoveryNoticeText')) $('recoveryNoticeText').textContent = notice.message || '';
+  const close = $('recoveryNoticeClose');
+  if (close) close.textContent = L('recoveryNoticeClose');
+}
 function renderTodayContractReminder() {
   const box = $('todayContractReminder');
   if (!box) return;
@@ -417,12 +431,14 @@ function keepArtifactDialogFocus(event) {
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 }
-function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderTodayContractReminder(); renderSettings(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); }
+function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderTodayContractReminder(); renderSettings(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); renderRecoveryNotice(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
 async function loadData() {
   state.publicStatus = '';
   const goal = $('practiceGoal')?.value || 'calm';
-  const [summary, week, current, me, product, profile, artifacts, support] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api('/api/me'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts'), api(`/api/support/actions?source=${encodeURIComponent(supportSurface())}`)]);
+  const me = await api('/api/me');
+  rememberRecoveryNotice(me.recoveryNotice);
+  const [summary, week, current, product, profile, artifacts, support] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts'), api(`/api/support/actions?source=${encodeURIComponent(supportSurface())}`)]);
   state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || []; state.support = support;
   storage.set('kopilkaLocale', me.user.locale || 'ru');
   renderAll();
@@ -479,6 +495,7 @@ async function handleTelegramLogin(user) {
   try {
     if (status) { status.textContent = L('loginInProgress'); status.classList.remove('error'); }
     const data = await api('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...user, refCode: captureRefCode(), timezone: detectTimezone() }) });
+    rememberRecoveryNotice(data.recoveryNotice);
     state.token = data.token; state.user = data.user;
     storage.set('kopilkaToken', state.token); storage.set('kopilkaLocale', data.user.locale || 'ru');
     if ($('loginScreen')) $('loginScreen').hidden = true;
@@ -503,6 +520,7 @@ async function handleVkAuth({ linkOnly = false } = {}) {
   const endpoint = linkOnly ? '/api/settings/link-vk' : '/api/auth/vk';
   clientLog('post_vk_auth', endpoint);
   const data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }) });
+  rememberRecoveryNotice(data.recoveryNotice);
   if (linkOnly) {
     state.user = data.user;
     renderAll();
@@ -551,6 +569,7 @@ async function authenticate() {
   if (inTelegram) {
     const initData = window.Telegram.WebApp.initData;
     const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData, refCode, timezone: detectTimezone() }) });
+    rememberRecoveryNotice(data.recoveryNotice);
     state.token = data.token; state.user = data.user; storage.set('kopilkaToken', state.token); storage.set('kopilkaLocale', data.user.locale || 'ru');
     $('connectionStatus').textContent = L('telegramSession');
     await loadData();
@@ -656,6 +675,7 @@ function bindEvents() {
   $('supportActionsList')?.addEventListener('click', async (event) => { const b = event.target.closest('button[data-support-open]'); if (!b || state.busy || state.publicReadOnly) return; try { await openSupportAction(b.dataset.supportOpen); } catch (e) { setStatus(e.message, 'error'); } });
   document.querySelectorAll('[data-open-contract]').forEach((btn) => btn.addEventListener('click', () => { if (!state.busy && !state.publicReadOnly) switchTab('contract'); }));
   $('artifactToastClose')?.addEventListener('click', hideArtifactToast);
+  $('recoveryNoticeClose')?.addEventListener('click', () => { state.recoveryNotice = null; renderRecoveryNotice(); });
   $('artifactToast')?.addEventListener('keydown', keepArtifactDialogFocus);
   $('contractTemplates').addEventListener('click', (event) => { const b = event.target.closest('button[data-template-id]'); if (b && !state.busy && !state.publicReadOnly) applyTemplate(b.dataset.templateId); });
   $('practiceGoal').addEventListener('change', async (event) => { if (state.busy || state.publicReadOnly) return; try { state.product.practices = await api(`/api/product/practices?goal=${encodeURIComponent(event.target.value)}`); renderPractices(); setStatus(L('practicesUpdated')); } catch (e) { setStatus(e.message, 'error'); } });

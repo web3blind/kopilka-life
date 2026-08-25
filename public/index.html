@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
   <link rel="apple-touch-icon" href="/assets/icon-150.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260824-gratitude2">
+  <link rel="stylesheet" href="/styles.css?v=20260825-recovery1">
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="skipToContent">Перейти к содержимому</a>
@@ -29,6 +29,13 @@
       <p class="eyebrow" data-i18n="appName">Копилка жизни</p>
       <p id="connectionStatus">Подключаемся мягко и без спешки…</p>
     </header>
+    <section id="recoveryNotice" class="recovery-notice" role="status" aria-live="polite" hidden>
+      <div>
+        <h2 id="recoveryNoticeTitle">Восстановительный бонус</h2>
+        <p id="recoveryNoticeText"></p>
+      </div>
+      <button id="recoveryNoticeClose" type="button" class="secondary" data-i18n="recoveryNoticeClose">Закрыть</button>
+    </section>
 
     <main id="main" class="main-content" tabindex="-1">
       <section id="tab-today" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-today">
@@ -259,7 +266,7 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/i18n.js?v=20260824-gratitude2"></script>
+  <script src="/i18n.js?v=20260825-recovery1"></script>
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   <script src="/vendor/vk-bridge-3.0.2.min.js?v=20260820"></script>
   <script>
@@ -271,6 +278,6 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/app.js?v=20260824-gratitude2"></script>
+  <script src="/app.js?v=20260825-recovery1"></script>
 </body>
 </html>

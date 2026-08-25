@@ -62,6 +62,7 @@
     deletingDemo: { ru: 'Удаляю demo account…', en: 'Deleting demo account…' },
     demoDeleted: { ru: 'Demo account и связанные данные удалены. Создаю чистый demo account…', en: 'Demo account and related data deleted. Creating a fresh demo account…' },
     notDemo: { ru: 'Это не demo account, удаление недоступно.', en: 'This is not a demo account; deletion is not available.' },
+    recoveryNoticeClose: { ru: 'Закрыть', en: 'Close' },
     actionFailed: { ru: 'Не получилось выполнить действие.', en: 'Could not complete the action.' },
     closeCompleted: { ru: 'Выполнил и подарил себе', en: 'Completed and gifted myself' },
     closeNotCompletedDonated: { ru: 'Не выполнил и отправил в фонд', en: 'Did not complete and donated' },

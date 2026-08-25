@@ -17,6 +17,7 @@ process.env.SCHEDULER_ENABLED = 'false';
 process.env.RATE_LIMIT_API_MAX = '1000';
 process.env.RATE_LIMIT_AUTH_MAX = '200';
 process.env.RATE_LIMIT_DEV_MAX = '200';
+process.env.RECOVERY_BONUS_UNTIL = '2099-01-01T00:00:00.000Z';
 const { createApp } = require('../src/server');
 const { closeDb, getDb } = require('../src/db');
 const { validateTelegramInitData } = require('../src/auth/validateTelegramInitData');
@@ -83,6 +84,8 @@ function testStaticAccessibility() {
   assert(html.includes('supportNewCount'), 'support tab exposes new action indicator');
   assert(html.includes('supportActionsList'), 'support actions list exists');
   assert(html.includes('todayContractReminder'), 'today tab can show last-day contract reminder');
+  assert(html.includes('recoveryNotice'), 'recovery bonus notice exists');
+  assert(html.includes('role="status"') && html.includes('aria-live="polite"'), 'recovery notice is announced without a modal');
   assert(html.includes('gratitudePractice'), 'today tab has a separate gratitude practice block');
   assert(html.includes('gratitudeNote'), 'gratitude practice has its own note field');
   assert(html.includes('data-gratitude-submit'), 'gratitude practice has a dedicated submit button');
@@ -133,6 +136,7 @@ function testStaticAccessibility() {
   assert(frontendI18n.includes('человеку, дню, телу, случаю, месту или себе'), 'gratitude practice gives concrete gratitude targets');
   assert(frontendI18n.includes('Подсказки'), 'gratitude hint spoiler has a short summary');
   assert(frontendI18n.includes('родителям — за жизнь'), 'gratitude hints include concrete examples');
+  assert(frontendI18n.includes('recoveryNoticeClose'), 'recovery notice close button is localized');
   assert(frontendI18n.includes("kind_trace: { points: 2"), 'kind deed quick action adds 2 LIFE');
   assert(frontendI18n.includes('поддержал человека'), 'kind deed hint includes emotional support');
   assert(frontendI18n.includes('не к мечте, а к порядку'), 'honest step is distinguished from dream step');
@@ -163,8 +167,8 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260824-gratitude2'), 'frontend i18n cache bust matches gratitude hints release');
-  assert(html.includes('/app.js?v=20260824-gratitude2'), 'frontend app cache bust matches gratitude hints release');
+  assert(html.includes('/i18n.js?v=20260825-recovery1'), 'frontend i18n cache bust matches recovery release');
+  assert(html.includes('/app.js?v=20260825-recovery1'), 'frontend app cache bust matches recovery release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');
@@ -287,6 +291,22 @@ async function main() {
   assert.equal(verifyState(new URL(oauthStart.data.authUrl).searchParams.get('state')).action, 'link', 'VK OAuth link state stores link action');
   let meResp = await request('/api/me', { headers: siteAuth });
   assert.equal(meResp.data.user.id, miniUserId, 'site session token is valid');
+  assert.equal(meResp.data.recoveryNotice.type, 'recovery_bonus', 'empty Telegram user receives recovery bonus on app load');
+
+  const recoveryResp = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 126, first_name: 'Recovery', username: 'recovery_user' }, 'test-bot-token') }) });
+  assert.equal(recoveryResp.res.status, 200, 'recovery test user can sign in');
+  const recoveryAuth = { authorization: `Bearer ${recoveryResp.data.token}` };
+  const recoveryMe = await request('/api/me', { headers: recoveryAuth });
+  assert.equal(recoveryMe.res.status, 200, 'recovery me endpoint works');
+  assert.equal(recoveryMe.data.recoveryNotice.type, 'recovery_bonus', 'empty user receives recovery notice');
+  const recoverySummary = await request('/api/summary/today', { headers: recoveryAuth });
+  assert.equal(recoverySummary.data.totalLife, 20, 'recovery bonus grants exactly 20 LIFE total');
+  assert.equal(getDb().prepare("SELECT COUNT(*) AS count FROM entries WHERE user_id = ? AND type = 'food_water'").get(recoveryResp.data.user.id).count, 4, 'recovery bonus adds 4 food/water marks');
+  assert.equal(getDb().prepare("SELECT life_points AS points FROM entries WHERE user_id = ? AND type = 'recovery_bonus'").get(recoveryResp.data.user.id).points, 16, 'recovery bonus entry tops up the four marks to 20 LIFE');
+  const recoveryMeAgain = await request('/api/me', { headers: recoveryAuth });
+  assert.equal(recoveryMeAgain.data.recoveryNotice, null, 'recovery bonus is granted once');
+  assert.equal(getDb().prepare('SELECT COALESCE(SUM(life_points), 0) AS total FROM entries WHERE user_id = ?').get(recoveryResp.data.user.id).total, 20, 'repeat /me does not double-count recovery');
+
   const vkOnlyResp = await request('/api/auth/vk', { method: 'POST', body: JSON.stringify({ launchParams: makeVkLaunchParams(9001, 'test-vk-secure-key'), timezone: 'Europe/Moscow' }) });
   assert.equal(vkOnlyResp.res.status, 200, 'VK Mini App auth accepted');
   assert.equal(vkOnlyResp.data.user.vkLinked, true, 'VK user is marked linked');
