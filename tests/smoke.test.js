@@ -167,10 +167,13 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('supportDone'), 'opened support actions use completed copy');
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
+  assert(frontendApp.includes('function userSafeErrorMessage'), 'frontend sanitizes user-facing error messages');
+  assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
+  assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260825-moderation1'), 'frontend i18n cache bust matches moderation release');
-  assert(html.includes('/app.js?v=20260825-moderation1'), 'frontend app cache bust matches moderation release');
-  assert(html.includes('/styles.css?v=20260825-moderation1'), 'frontend css cache bust matches moderation release');
+  assert(html.includes('/i18n.js?v=20260825-vkerror1'), 'frontend i18n cache bust matches VK error sanitization release');
+  assert(html.includes('/app.js?v=20260825-vkerror1'), 'frontend app cache bust matches VK error sanitization release');
+  assert(html.includes('/styles.css?v=20260825-vkerror1'), 'frontend css cache bust matches VK error sanitization release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');

@@ -134,6 +134,12 @@ function setPublicReadOnlyMode(enabled) {
 }
 function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text; region.classList.toggle('error', type === 'error'); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
+function userSafeErrorMessage(error, fallbackKey = 'actionFailed') {
+  const raw = error?.message || String(error || '');
+  const firstLine = String(raw || '').split(/\n|\s+at\s+/)[0].trim();
+  const cleaned = firstLine.replace(/^(Error|TypeError|ReferenceError|SyntaxError):\s*/i, '').trim();
+  return (cleaned || L(fallbackKey)).slice(0, 180);
+}
 function setBusy(isBusy, message = '') {
   state.busy = isBusy;
   document.querySelectorAll('button,input,textarea,select').forEach((el) => {
@@ -695,7 +701,7 @@ function bindEvents() {
   if (vkBtn) vkBtn.addEventListener('click', async () => {
     vkBtn.disabled = true;
     vkBtn.textContent = L('loginVkSoon');
-    try { await handleVkAuth(); } catch (e) { setLoginStatus(e.message || L('actionFailed'), 'error'); vkBtn.disabled = false; vkBtn.textContent = L('loginVkButton'); }
+    try { await handleVkAuth(); } catch (e) { setLoginStatus(userSafeErrorMessage(e), 'error'); vkBtn.disabled = false; vkBtn.textContent = L('loginVkButton'); }
   });
   const linkVkBtn = $('linkVkAccount');
   if (linkVkBtn) linkVkBtn.addEventListener('click', async () => {
@@ -720,7 +726,7 @@ function bindEvents() {
         setStatus(L('mergeNeedsConfirmation'));
         return;
       }
-      const message = e.message || L('actionFailed');
+      const message = userSafeErrorMessage(e);
       if (vkStatus) vkStatus.textContent = message;
       setStatus(message, 'error');
       linkVkBtn.disabled = false;
@@ -800,7 +806,7 @@ async function start() {
   const inVk = isVkMiniApp();
   if (inTelegram || inVk) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
   renderQuickActions(); applyStaticI18n();
-  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); await loadPendingMerge(); setStatus(state.pendingMerge ? L('mergeNeedsConfirmation') : L('ready')); } catch (e) { const detail = (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('openFromTelegram'), 'error'); }
+  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); await loadPendingMerge(); setStatus(state.pendingMerge ? L('mergeNeedsConfirmation') : L('ready')); } catch (e) { const detail = userSafeErrorMessage(e, inVk ? 'vkOpenFromVk' : 'openFromTelegram'); clientLog('start_error', detail); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('connectFailed'), 'error'); }
 }
 // The Telegram WebApp SDK may not be ready when app.js first runs; retry the
 // in-Telegram check until initData appears (or a longer timeout). A Mini App
@@ -894,7 +900,7 @@ async function renderPublicProfile(code, options = {}) {
   if (!inTelegram) { await showLoginScreen(); return; }
   await start();
 })().catch((error) => {
-  const msg = error?.message || String(error || 'bootstrap failed');
+  const msg = userSafeErrorMessage(error, 'connectFailed');
   clientLog('bootstrap_error', msg);
   try {
     if ($('appShell')) $('appShell').hidden = false;
@@ -906,11 +912,11 @@ async function renderPublicProfile(code, options = {}) {
 // Surface any runtime JS error into the status region so it is visible/audible
 // (helps a11y users and makes client-side failures diagnosable).
 window.addEventListener('error', (event) => {
-  const msg = event.error ? `${event.error.name || ''}: ${event.error.message || ''}` : (event.message || 'JS error');
+  const msg = userSafeErrorMessage(event.error || event.message, 'connectFailed');
   try { if ($('connectionStatus')) $('connectionStatus').textContent = msg; if (window.__kopilkaSetDiag) window.__kopilkaSetDiag(msg); } catch (_) {}
 });
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason || {};
-  const msg = reason.message || String(reason || 'Unhandled promise rejection');
+  const msg = userSafeErrorMessage(reason, 'connectFailed');
   try { if ($('connectionStatus')) $('connectionStatus').textContent = msg; setStatus(msg, 'error'); if (window.__kopilkaSetDiag) window.__kopilkaSetDiag(msg); } catch (_) {}
 });
