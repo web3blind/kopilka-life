@@ -14,17 +14,19 @@ fi
 echo "=== DEPLOY BEGIN $(date) ==="
 cd "$SITE"
 
-# Сохраняем нужные aaPanel-файлы, остальное уберём (для чистого git-клона)
+# Сохраняем нужные aaPanel/runtime-файлы, остальное уберём (для чистого git-клона)
 mkdir -p /root/kopilka-panel-preserve
-for f in .well-known .htaccess .user.ini; do
+for f in .well-known .htaccess .user.ini .env data; do
   [ -e "$SITE/$f" ] && cp -a "$SITE/$f" /root/kopilka-panel-preserve/ 2>/dev/null || true
 done
 
 # Очищаем default-файлы aaPanel (кроме preserved)
-find "$SITE" -mindepth 1 -maxdepth 1 ! -name '.well-known' ! -name '.htaccess' ! -name '.user.ini' -exec rm -rf {} + 2>/dev/null || true
+find "$SITE" -mindepth 1 -maxdepth 1 ! -name '.well-known' ! -name '.htaccess' ! -name '.user.ini' ! -name '.env' ! -name 'data' -exec rm -rf {} + 2>/dev/null || true
 cp -a /root/kopilka-panel-preserve/.well-known "$SITE/" 2>/dev/null || true
 [ -e /root/kopilka-panel-preserve/.htaccess ] && cp -a /root/kopilka-panel-preserve/.htaccess "$SITE/" || true
 [ -e /root/kopilka-panel-preserve/.user.ini ] && cp -a /root/kopilka-panel-preserve/.user.ini "$SITE/" || true
+[ -e /root/kopilka-panel-preserve/.env ] && cp -a /root/kopilka-panel-preserve/.env "$SITE/" || true
+[ -d /root/kopilka-panel-preserve/data ] && cp -a /root/kopilka-panel-preserve/data "$SITE/" || true
 
 # Клонируем репозиторий (в непустую папку сайта: git init + remote вместо git clone)
 if [ ! -d "$SITE/.git" ]; then
