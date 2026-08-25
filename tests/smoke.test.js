@@ -434,7 +434,11 @@ async function main() {
   assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'bee_good_deed_honey'), 'third kind deed unlocks bee artifact');
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date, created_at) VALUES (?, 'hard_day', 'Сложный день', '', 1, '2026-08-04', '2026-08-04 10:00:00')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'gratitude' }) });
-  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'bear_warm_shelter'), 'entry after hard day unlocks bear artifact');
+  assert(!response.data.awardedArtifacts.some((artifact) => artifact.id === 'bear_warm_shelter'), 'one hard day does not unlock bear artifact');
+  dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date, created_at) VALUES (?, 'hard_day', 'Сложный день', '', 1, '2026-08-05', '2026-08-05 10:00:00')").run(userId);
+  dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date, created_at) VALUES (?, 'hard_day', 'Сложный день', '', 1, '2026-08-06', '2026-08-06 10:00:00')").run(userId);
+  response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'dreamed' }) });
+  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'bear_warm_shelter'), 'third hard day plus a later entry unlocks bear artifact');
   response = await request('/api/summary/today', { headers: auth });
   assert(response.data.totalLife >= 14, 'SQLite persistence visible after artifact scenario');
 

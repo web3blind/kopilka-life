@@ -84,13 +84,13 @@ const ARTIFACTS = [
     id: 'bear_warm_shelter',
     title: 'Медведь Тёплого Укрытия',
     shortTitle: 'После трудного дня',
-    triggerText: 'появляется, когда после трудного дня ты снова сделал любую запись',
+    triggerText: 'появляется после трёх сложных дней и нового шага после них',
     unlockedText: 'Медведь Тёплого Укрытия сел рядом. Он ничего не требует. Просто держит место, где можно переждать холод.',
-    lockedText: 'Он приходит не за идеальный день, а за возвращение после сложного.',
+    lockedText: 'Он приходит не за идеальный день, а за возвращение после нескольких сложных дней.',
     image: '/assets/artifacts/bear_warm_shelter.webp',
     alt: 'Большой добрый медведь сидит с тёплым пледом и маленьким фонарём; в пледе видны сердечные узоры.',
     sortOrder: 50,
-    condition: ({ hasEntryAfterHardDay }) => hasEntryAfterHardDay
+    condition: ({ hasEntryAfterThirdHardDay }) => hasEntryAfterThirdHardDay
   },
   {
     id: 'dragon_life_mother',
@@ -150,9 +150,9 @@ function artifactState(userId) {
   const distinctDaysByType = Object.fromEntries(dayRows.map((row) => [row.type, row.count]));
   const recentCountsRows = db.prepare('SELECT type, COUNT(*) AS count FROM entries WHERE user_id = ? AND entry_date BETWEEN ? AND ? GROUP BY type').all(userId, since, today);
   const recentCounts = Object.fromEntries(recentCountsRows.map((row) => [row.type, row.count]));
-  const hard = db.prepare("SELECT id, created_at FROM entries WHERE user_id = ? AND type = 'hard_day' ORDER BY created_at ASC, id ASC LIMIT 1").get(userId);
-  const afterHard = hard ? db.prepare('SELECT id FROM entries WHERE user_id = ? AND (created_at > ? OR (created_at = ? AND id > ?)) AND id <> ? LIMIT 1').get(userId, hard.created_at, hard.created_at, hard.id, hard.id) : null;
-  return { totalLife, counts, distinctDaysByType, recentCounts, hasEntryAfterHardDay: Boolean(afterHard) };
+  const thirdHard = db.prepare("SELECT id, created_at FROM entries WHERE user_id = ? AND type = 'hard_day' ORDER BY created_at ASC, id ASC LIMIT 1 OFFSET 2").get(userId);
+  const afterThirdHard = thirdHard ? db.prepare('SELECT id FROM entries WHERE user_id = ? AND (created_at > ? OR (created_at = ? AND id > ?)) AND id <> ? LIMIT 1').get(userId, thirdHard.created_at, thirdHard.created_at, thirdHard.id, thirdHard.id) : null;
+  return { totalLife, counts, distinctDaysByType, recentCounts, hasEntryAfterThirdHardDay: Boolean(afterThirdHard) };
 }
 
 function listArtifacts(userId) {
