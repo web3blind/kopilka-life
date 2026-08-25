@@ -66,6 +66,36 @@ function vkLaunchParams() {
   if (raw.startsWith('#') && raw.includes('?')) return raw.slice(raw.indexOf('?'));
   return raw;
 }
+function normalizeVkLaunchParams(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.includes('vk_app_id') && value.includes('sign=') ? value : '';
+  const nested = value.launchParams || value.launch_params || value.params || value.data;
+  if (nested && nested !== value) {
+    const normalized = normalizeVkLaunchParams(nested);
+    if (normalized) return normalized;
+  }
+  try {
+    const params = new URLSearchParams();
+    Object.entries(value).forEach(([key, val]) => {
+      if (val == null) return;
+      if (key === 'sign' || key.startsWith('vk_')) params.set(key, String(val));
+    });
+    const text = params.toString();
+    return text.includes('vk_app_id') && text.includes('sign=') ? `?${text}` : '';
+  } catch (_) { return ''; }
+}
+async function freshVkBridgeLaunchParams() {
+  if (!window.vkBridge?.send) return '';
+  try {
+    const result = await withTimeout(window.vkBridge.send('VKWebAppGetLaunchParams'), 2500, 'VK launch params timeout');
+    const normalized = normalizeVkLaunchParams(result);
+    clientLog('vk_bridge_launch_params', `ok=${Boolean(normalized)} len=${normalized.length}`);
+    return normalized;
+  } catch (error) {
+    clientLog('vk_bridge_launch_params_error', userSafeErrorMessage(error));
+    return '';
+  }
+}
 function vkLaunchHash() {
   try {
     const raw = vkLaunchParams();
@@ -520,14 +550,35 @@ window.__kopilkaOnTelegramAuth = handleTelegramLogin;
 async function handleVkAuth({ linkOnly = false } = {}) {
   clientLog('before_vk_auth', `linkOnly=${linkOnly}`);
   await initVkBridge();
-  const launchParams = vkLaunchParams();
+  let launchParams = vkLaunchParams();
   clientLog('after_vk_init', `hasLaunch=${Boolean(launchParams)} len=${launchParams.length}`);
   if (!launchParams) {
     return startVkOAuth(linkOnly ? 'link' : 'auth');
   }
   const endpoint = linkOnly ? '/api/settings/link-vk' : '/api/auth/vk';
   clientLog('post_vk_auth', endpoint);
-  const data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }) });
+  let data;
+  try {
+    data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }) });
+  } catch (error) {
+    if (error.status !== 401) throw error;
+    const bridgeLaunchParams = await freshVkBridgeLaunchParams();
+    if (!bridgeLaunchParams || bridgeLaunchParams === launchParams) {
+      clientLog('vk_auth_bridge_fallback_unavailable', `hasBridgeLaunch=${Boolean(bridgeLaunchParams)}`);
+      setStatus(L('loginVkSoon'));
+      return startVkOAuth(linkOnly ? 'link' : 'auth');
+    }
+    clientLog('post_vk_auth_bridge_retry', `${endpoint} len=${bridgeLaunchParams.length}`);
+    launchParams = bridgeLaunchParams;
+    try {
+      data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }) });
+    } catch (retryError) {
+      if (retryError.status !== 401) throw retryError;
+      clientLog('vk_auth_bridge_retry_failed', userSafeErrorMessage(retryError));
+      setStatus(L('loginVkSoon'));
+      return startVkOAuth(linkOnly ? 'link' : 'auth');
+    }
+  }
   rememberRecoveryNotice(data.recoveryNotice);
   if (linkOnly) {
     state.user = data.user;

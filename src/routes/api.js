@@ -2,7 +2,7 @@ const express = require('express');
 const config = require('../config');
 const { validateTelegramInitData } = require('../auth/validateTelegramInitData');
 const { validateTelegramLogin } = require('../auth/validateTelegramLogin');
-const { validateVkLaunchParams } = require('../auth/validateVkLaunchParams');
+const { validateVkLaunchParams, parseLaunchParams } = require('../auth/validateVkLaunchParams');
 const { buildAuthorizeUrl, exchangeCode, verifyState } = require('../auth/vkOAuth');
 const { createToken, verifyToken } = require('../auth/session');
 const { buildVkMergeOffer, buildMergePreview, applyMergeByToken } = require('../services/accountMergeService');
@@ -48,6 +48,23 @@ function disabled(res) { return res.status(404).json({ error: 'disabled' }); }
 function compactClientLog(value) {
   return String(value || '').replace(/[\r\n\t]+/g, ' ').replace(/(sign=)[^&\s]+/g, '$1[REDACTED]').replace(/(token=)[^&\s]+/gi, '$1[REDACTED]').slice(0, 240);
 }
+function vkLaunchDiag(input) {
+  try {
+    const params = parseLaunchParams(input || '');
+    const ts = Number(params.get('vk_ts') || 0);
+    const age = ts ? Math.floor(Date.now() / 1000) - ts : null;
+    return JSON.stringify({
+      len: String(input || '').length,
+      appId: params.get('vk_app_id') || '',
+      hasSign: Boolean(params.get('sign')),
+      signLen: String(params.get('sign') || '').length,
+      hasUser: Boolean(params.get('vk_user_id')),
+      tsAgeSeconds: age
+    });
+  } catch (error) {
+    return JSON.stringify({ len: String(input || '').length, parseError: error && error.message ? error.message : String(error) });
+  }
+}
 
 router.post('/client-log', (req, res) => {
   const event = compactClientLog(req.body.event);
@@ -83,7 +100,7 @@ router.post('/auth/vk', authLimiter, (req, res) => {
     const user = upsertVkUser(validated.vkId, req.body.refCode, req.body.timezone, validated.language || req.body.locale || 'ru');
     res.json({ token: createToken(user.id), user: publicUser(user) });
   } catch (error) {
-    console.error('[auth/vk] reject:', error && error.message ? error.message : String(error));
+    console.error('[auth/vk] reject:', error && error.message ? error.message : String(error), vkLaunchDiag(req.body.launchParams));
     res.status(401).json({ error: 'Не удалось подтвердить VK-сессию. Открой приложение из VK ещё раз.' });
   }
 });

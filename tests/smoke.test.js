@@ -169,12 +169,16 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(frontendApp.includes('function userSafeErrorMessage'), 'frontend sanitizes user-facing error messages');
   assert(frontendApp.includes("'x-kopilka-surface': supportSurface()"), 'frontend sends current surface with API requests');
+  assert(frontendApp.includes('function freshVkBridgeLaunchParams'), 'VK Mini App auth can refresh launch params from VK Bridge');
+  assert(frontendApp.includes("VKWebAppGetLaunchParams"), 'VK auth fallback asks VK Bridge for fresh launch params');
+  assert(frontendApp.includes('post_vk_auth_bridge_retry'), 'VK auth retries backend verification with bridge launch params');
+  assert(frontendApp.includes('startVkOAuth(linkOnly ? \'link\' : \'auth\')'), 'VK auth falls back to VK ID OAuth when launch params stay invalid');
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260825-vksession1'), 'frontend i18n cache bust matches VK session message release');
-  assert(html.includes('/app.js?v=20260825-vksession1'), 'frontend app cache bust matches VK session message release');
-  assert(html.includes('/styles.css?v=20260825-vksession1'), 'frontend css cache bust matches VK session message release');
+  assert(html.includes('/i18n.js?v=20260825-vkauthfallback1'), 'frontend i18n cache bust matches VK auth fallback release');
+  assert(html.includes('/app.js?v=20260825-vkauthfallback1'), 'frontend app cache bust matches VK auth fallback release');
+  assert(html.includes('/styles.css?v=20260825-vkauthfallback1'), 'frontend css cache bust matches VK auth fallback release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');
