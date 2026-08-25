@@ -25,6 +25,7 @@ const { validateTelegramLogin } = require('../src/auth/validateTelegramLogin');
 const { validateVkLaunchParams } = require('../src/auth/validateVkLaunchParams');
 const { verifyState } = require('../src/auth/vkOAuth');
 const { sendDueReminders, nextDueAt } = require('../src/services/remindersService');
+const { detectVkTokenGroupMismatch } = require('../src/vkMessages');
 const { createRateLimiter } = require('../src/middleware/rateLimit');
 
 function makeInitData(user, botToken, authDate = Math.floor(Date.now() / 1000)) {
@@ -71,6 +72,14 @@ function testRateLimiterUnit() {
   limiter(req, res, () => {});
   limiter(req, res, () => {});
   assert.equal(statusCode, 429, 'rate limiter blocks after max requests');
+}
+
+function testVkTokenOwnerMismatchDetector() {
+  const wrongTokenConversations = { response: { items: [{ last_message: { from_id: -240237574 } }] } };
+  const rightTokenConversations = { response: { items: [{ last_message: { from_id: -240966481 } }] } };
+  assert.equal(detectVkTokenGroupMismatch('240966481', wrongTokenConversations).ok, false, 'VK token owner mismatch is detected');
+  assert.equal(detectVkTokenGroupMismatch('240966481', rightTokenConversations).ok, true, 'matching VK token owner is accepted');
+  assert.equal(detectVkTokenGroupMismatch('240966481', { response: { items: [{ last_message: { from_id: 103088086 } }] } }).ok, true, 'empty outgoing owner evidence does not produce a false mismatch');
 }
 
 function testStaticAccessibility() {
@@ -192,6 +201,7 @@ function testStaticAccessibility() {
 
 async function main() {
   testRateLimiterUnit();
+  testVkTokenOwnerMismatchDetector();
   testStaticAccessibility();
   assert.equal(nextDueAt('20:00', 'Asia/Novosibirsk', new Date('2026-01-01T12:00:00.000Z')), '2026-01-01T13:00:00.000Z', 'timezone due today works');
   assert.equal(nextDueAt('20:00', 'Asia/Novosibirsk', new Date('2026-01-01T14:00:00.000Z')), '2026-01-02T13:00:00.000Z', 'timezone due tomorrow works');

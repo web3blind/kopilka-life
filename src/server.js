@@ -5,6 +5,7 @@ const { initDatabase } = require('./db');
 const apiRoutes = require('./routes/api');
 const webhookRoutes = require('./routes/webhook');
 const { startRemindersScheduler } = require('./scheduler/remindersScheduler');
+const { ensureVkGroupTokenMatchesConfig } = require('./vkMessages');
 const { createRateLimiter } = require('./middleware/rateLimit');
 
 function createApp() {
@@ -39,6 +40,7 @@ function createApp() {
 if (require.main === module) {
   const app = createApp();
   app.listen(config.port, () => console.log(`Kopilka Life listening on http://localhost:${config.port}`));
+  ensureVkGroupTokenMatchesConfig({ force: true }).catch((error) => console.error('VK group token startup check failed:', error.message));
   if (config.schedulerEnabled) startRemindersScheduler();
 }
 module.exports = { createApp };

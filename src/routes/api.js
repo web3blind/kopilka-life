@@ -16,6 +16,7 @@ const { scheduleNextReminderForUser } = require('../services/remindersService');
 const { getProductLayer, getPractices } = require('../services/productContentService');
 const { listSupportActions, openSupportAction } = require('../services/supportActionsService');
 const { maybeGrantRecoveryBonus } = require('../services/recoveryBonusService');
+const { vkMessagesConfigured } = require('../vkMessages');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { normalizeLocale, t } = require('../i18n');
 
@@ -159,7 +160,7 @@ router.get('/auth/vk-oauth/callback', authLimiter, async (req, res) => {
   }
 });
 // Public, non-sensitive config the site needs to render sign-in options.
-router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl, telegramLoginWidgetEnabled: config.telegramLoginWidgetEnabled, vkAppId: config.vkAppId, vkGroupId: config.vkGroupId, vkOAuthEnabled: Boolean(config.vkOAuthClientId), vkMessagesEnabled: Boolean(config.vkGroupId && config.vkGroupToken) }));
+router.get('/config', (req, res) => res.json({ botUsername: config.botUsername, webappUrl: config.webappUrl, telegramLoginWidgetEnabled: config.telegramLoginWidgetEnabled, vkAppId: config.vkAppId, vkGroupId: config.vkGroupId, vkOAuthEnabled: Boolean(config.vkOAuthClientId), vkMessagesEnabled: vkMessagesConfigured() }));
 router.post('/auth/dev', devLimiter, (req, res) => {
   if (!config.devAuthEnabled) return disabled(res);
   const user = createDemoUser(req.body.firstName || 'Demo', req.body.locale, req.body.refCode, req.body.timezone);
