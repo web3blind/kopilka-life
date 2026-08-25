@@ -362,6 +362,22 @@ async function main() {
   assert(deliveryLogs.some((line) => line.includes('Недельный договор ждёт итога') && line.includes('выполнен он или нет')), 'last-day contract reminder is included in evening notifications');
   assert(deliveryLogs.some((line) => line.includes('keyboard') && line.includes('open_link') && line.includes('Открыть Копилку жизни') && line.includes('https://vk.com/app')), 'VK reminder includes an open-app keyboard button');
   assert(!deliveryLogs.some((line) => line.includes('keyboard') && line.includes('open_link') && line.includes('color')), 'VK open-link keyboard button does not use color, which VK rejects for open_link');
+  getDb().prepare('UPDATE users SET vk_messages_allowed = 1, vk_messages_allowed_at = CURRENT_TIMESTAMP WHERE id = ?').run(miniUserId);
+  getDb().prepare("INSERT INTO reminders (user_id, type, due_at, status) VALUES (?, 'evening', '2000-01-02T00:00:00.000Z', 'scheduled')").run(miniUserId);
+  const vkMessagesPath = require.resolve('../src/vkMessages');
+  const remindersPath = require.resolve('../src/services/remindersService');
+  const originalVkSend = require.cache[vkMessagesPath].exports.sendVkReminder;
+  require.cache[vkMessagesPath].exports.sendVkReminder = async () => { const error = new Error('VK API error: 901'); error.code = 901; throw error; };
+  delete require.cache[remindersPath];
+  const { sendDueReminders: sendDueRemindersWithVkFailure } = require('../src/services/remindersService');
+  try {
+    assert.equal(await sendDueRemindersWithVkFailure(), 1, 'Telegram delivery still completes when VK permission is stale');
+  } finally {
+    require.cache[vkMessagesPath].exports.sendVkReminder = originalVkSend;
+    delete require.cache[remindersPath];
+    require('../src/services/remindersService');
+  }
+  assert.equal(getDb().prepare('SELECT vk_messages_allowed FROM users WHERE id = ?').get(miniUserId).vk_messages_allowed, 0, 'VK 901 disables stale VK message permission flag');
   const mergeTarget = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: makeInitData({ id: 124, first_name: 'Merge Target', username: 'merge_target' }, 'test-bot-token') }) });
   const mergeTargetAuth = { authorization: `Bearer ${mergeTarget.data.token}` };
   const disposableVk = await request('/api/auth/vk', { method: 'POST', body: JSON.stringify({ launchParams: makeVkLaunchParams(9003, 'test-vk-secure-key'), timezone: 'Europe/Moscow' }) });

@@ -4,6 +4,17 @@ const { sendVkReminder } = require('../vkMessages');
 const { nextDueAt: computeNextDueAt, normalizeHHMM, normalizeTimezone, localDateString } = require('../time');
 const { normalizeLocale, t } = require('../i18n');
 
+function isVkPermissionError(error) {
+  const code = Number(error && error.code);
+  const message = error && error.message ? String(error.message) : String(error || '');
+  return [901, 917].includes(code) || /VK API error:\s*(901|917)\b/.test(message);
+}
+
+function markVkMessagesDenied(userId, reason) {
+  getDb().prepare('UPDATE users SET vk_messages_allowed = 0, vk_messages_allowed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
+  console.error('VK reminder permission revoked:', reason || 'messages.send permission error');
+}
+
 function nextDueAt(timeHHMM, timezone = 'UTC', now = new Date()) {
   return computeNextDueAt(timeHHMM, timezone, now);
 }
@@ -70,6 +81,9 @@ async function sendDueReminders(limit = 20) {
           await channel.send();
           delivered += 1;
         } catch (channelError) {
+          if (channel.name === 'vk' && isVkPermissionError(channelError)) {
+            markVkMessagesDenied(reminder.user_id, channelError.message);
+          }
           errors.push(`${channel.name}: ${channelError.message}`);
         }
       }
@@ -86,4 +100,4 @@ async function sendDueReminders(limit = 20) {
   return sent;
 }
 
-module.exports = { nextDueAt, scheduleNextReminderForUser, scheduleRemindersForEnabledUsers, sendDueReminders, clearScheduledRemindersForUser, contractReminderText };
+module.exports = { nextDueAt, scheduleNextReminderForUser, scheduleRemindersForEnabledUsers, sendDueReminders, clearScheduledRemindersForUser, contractReminderText, isVkPermissionError, markVkMessagesDenied };
