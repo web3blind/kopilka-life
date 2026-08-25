@@ -151,7 +151,7 @@ function setBusy(isBusy, message = '') {
   if (message) setStatus(message);
 }
 async function withBusy(message, fn) { setBusy(true, message); try { return await fn(); } finally { setBusy(false); } }
-async function api(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.token) headers.authorization = `Bearer ${state.token}`; const res = await fetch(path, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { const error = new Error(data.error || L('actionFailed')); error.data = data; error.status = res.status; throw error; } return data; }
+async function api(path, options = {}) { const headers = { 'content-type': 'application/json', 'x-kopilka-surface': supportSurface(), ...(options.headers || {}) }; if (state.token) headers.authorization = `Bearer ${state.token}`; const res = await fetch(path, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { const error = new Error(data.error || L('actionFailed')); error.data = data; error.status = res.status; throw error; } return data; }
 let publicConfigCache = null;
 async function getPublicConfig() { if (!publicConfigCache) publicConfigCache = await api('/api/config'); return publicConfigCache; }
 function consumeVkOAuthResult() {

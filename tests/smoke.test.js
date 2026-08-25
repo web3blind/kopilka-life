@@ -168,12 +168,13 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(frontendApp.includes('function userSafeErrorMessage'), 'frontend sanitizes user-facing error messages');
+  assert(frontendApp.includes("'x-kopilka-surface': supportSurface()"), 'frontend sends current surface with API requests');
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260825-vkerror1'), 'frontend i18n cache bust matches VK error sanitization release');
-  assert(html.includes('/app.js?v=20260825-vkerror1'), 'frontend app cache bust matches VK error sanitization release');
-  assert(html.includes('/styles.css?v=20260825-vkerror1'), 'frontend css cache bust matches VK error sanitization release');
+  assert(html.includes('/i18n.js?v=20260825-vksession1'), 'frontend i18n cache bust matches VK session message release');
+  assert(html.includes('/app.js?v=20260825-vksession1'), 'frontend app cache bust matches VK session message release');
+  assert(html.includes('/styles.css?v=20260825-vksession1'), 'frontend css cache bust matches VK session message release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');
@@ -212,6 +213,13 @@ async function main() {
   assert.equal(validateVkLaunchParams(vkLaunch, 'test-vk-secure-key', { appId: '54723764' }).vkId, '424242', 'valid VK launch params pass');
   assert.equal(validateVkLaunchParams(`#/settings${vkLaunch}`, 'test-vk-secure-key', { appId: '54723764' }).vkId, '424242', 'VK launch params pass through hash-router URLs');
   assert.throws(() => validateVkLaunchParams(vkLaunch.replace('424242', '424243'), 'test-vk-secure-key', { appId: '54723764' }), /invalid|sign/i, 'tampered VK launch params fail');
+  const vk401 = await request('/api/me', { headers: { 'x-kopilka-surface': 'vk' } });
+  assert.equal(vk401.res.status, 401, 'missing VK token returns 401');
+  assert(vk401.data.error.includes('VK-сессию'), 'VK surface gets VK-specific session copy');
+  assert(!vk401.data.error.includes('Telegram'), 'VK surface never gets Telegram session copy');
+  const web401 = await request('/api/me');
+  assert.equal(web401.res.status, 401, 'missing web token returns 401');
+  assert(!web401.data.error.includes('Telegram'), 'generic session copy is neutral, not Telegram-specific');
   const cfgResp = await request('/api/config');
   assert.equal(cfgResp.res.status, 200, 'public config endpoint available');
   assert(typeof cfgResp.data.botUsername === 'string', 'public config exposes botUsername');

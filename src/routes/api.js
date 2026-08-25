@@ -33,7 +33,11 @@ function userError(locale, message) {
 
 function authRequired(req, res, next) {
   const userId = verifyToken((req.get('authorization') || '').replace(/^Bearer\s+/i, ''));
-  if (!userId) return res.status(401).json({ error: t(req.locale || 'ru', 'error.session') });
+  if (!userId) {
+    const surface = String(req.get('x-kopilka-surface') || '').toLowerCase();
+    const key = surface === 'vk' ? 'error.vkSession' : (surface === 'telegram' ? 'error.telegramSession' : 'error.session');
+    return res.status(401).json({ error: t(req.locale || 'ru', key) });
+  }
   const user = getUserById(userId);
   if (!user) return res.status(401).json({ error: t(req.locale || 'ru', 'error.userNotFound') });
   req.user = user;

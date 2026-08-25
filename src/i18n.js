@@ -84,9 +84,10 @@ const STRINGS = {
 
   // ---- errors ----
   'error.unknownType': { ru: 'Неизвестный тип записи', en: 'Unknown entry type' },
-  'error.session': { ru: 'Не удалось подтвердить сессию. Открой приложение из Telegram ещё раз.', en: 'Could not confirm the session. Open the app from Telegram again.' },
+  'error.session': { ru: 'Не удалось подтвердить сессию. Открой приложение ещё раз.', en: 'Could not confirm the session. Open the app again.' },
   'error.userNotFound': { ru: 'Пользователь не найден.', en: 'User not found.' },
   'error.telegramSession': { ru: 'Не удалось подтвердить Telegram-сессию. Открой приложение из Telegram ещё раз.', en: 'Could not confirm the Telegram session. Open the app from Telegram again.' },
+  'error.vkSession': { ru: 'Не удалось подтвердить VK-сессию. Открой приложение из VK ещё раз.', en: 'Could not confirm the VK session. Open the app from VK again.' },
   'error.contractExists': { ru: 'Уже есть активный договор заботы', en: 'There is already an active care contract' },
   'error.contractFields': { ru: 'Заполни название и критерий договора', en: 'Fill in the contract name and criteria' },
   'error.contractStatus': { ru: 'Неизвестный итог договора', en: 'Unknown contract result' },
