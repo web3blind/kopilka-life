@@ -169,7 +169,8 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('async function showLoginScreen(options = {})'), 'site login screen can hide landing for Mini App fallback');
   assert(frontendApp.includes('landingBlock.hidden = !landing'), 'landing block visibility is controlled explicitly');
   assert(frontendApp.includes('showLoginScreen({ landing: !looksLikeTelegramLaunch })'), 'Telegram-like fallback shows login without marketing landing');
-  assert(frontendApp.includes('if (inVk || inTelegram) setBusy(true'), 'Mini App auth failures disable interactive app controls');
+  assert(frontendApp.includes('showLoginScreen({ landing: false })'), 'Mini App auth failures show login without marketing landing');
+  assert(frontendApp.includes("loginStatus.textContent = detail || L('connectFailed')"), 'Mini App auth failures surface the sanitized error on the login screen');
   assert(frontendApp.includes('function waitForTelegram'), 'frontend waits for Telegram Mini App initData');
   assert(frontendApp.includes('const earlyTelegram = await waitForTelegram(40)'), 'frontend waits briefly before site-login fallback so slow Telegram WebViews do not show login');
   assert(frontendApp.includes('renderSupportActions'), 'frontend renders support actions');
@@ -196,9 +197,9 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260825-weblanding1'), 'frontend i18n cache bust matches VK auth fallback release');
-  assert(html.includes('/app.js?v=20260825-weblanding1'), 'frontend app cache bust matches VK auth fallback release');
-  assert(html.includes('/styles.css?v=20260825-weblanding1'), 'frontend css cache bust matches VK auth fallback release');
+  assert(html.includes('/i18n.js?v=20260825-weblanding2'), 'frontend i18n cache bust matches VK auth fallback release');
+  assert(html.includes('/app.js?v=20260825-weblanding2'), 'frontend app cache bust matches VK auth fallback release');
+  assert(html.includes('/styles.css?v=20260825-weblanding2'), 'frontend css cache bust matches VK auth fallback release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');

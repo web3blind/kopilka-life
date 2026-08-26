@@ -860,7 +860,23 @@ async function start() {
   const inVk = isVkMiniApp();
   if (inTelegram || inVk) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
   renderQuickActions(); applyStaticI18n();
-  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); await loadPendingMerge(); setStatus(state.pendingMerge ? L('mergeNeedsConfirmation') : L('ready')); } catch (e) { const detail = userSafeErrorMessage(e, inVk ? 'vkOpenFromVk' : 'openFromTelegram'); clientLog('start_error', detail); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('connectFailed'), 'error'); if (inVk || inTelegram) setBusy(true, detail || L('connectFailed')); }
+  try {
+    window.Telegram?.WebApp?.ready?.();
+    await authenticate();
+    await loadPendingMerge();
+    setStatus(state.pendingMerge ? L('mergeNeedsConfirmation') : L('ready'));
+  } catch (e) {
+    const detail = userSafeErrorMessage(e, inVk ? 'vkOpenFromVk' : 'openFromTelegram');
+    clientLog('start_error', detail);
+    if (inVk || inTelegram) {
+      await showLoginScreen({ landing: false });
+      const loginStatus = $('loginStatus');
+      if (loginStatus) { loginStatus.textContent = detail || L('connectFailed'); loginStatus.classList.add('error'); }
+      return;
+    }
+    $('connectionStatus').textContent = detail || L('connectFailed');
+    setStatus(detail || L('connectFailed'), 'error');
+  }
 }
 // The Telegram WebApp SDK may not be ready when app.js first runs; retry the
 // in-Telegram check until initData appears (or a longer timeout). A Mini App
