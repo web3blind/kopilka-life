@@ -8,18 +8,28 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
   <link rel="apple-touch-icon" href="/assets/icon-150.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260825-vkauthfallback1">
+  <link rel="stylesheet" href="/styles.css?v=20260825-weblanding1">
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="skipToContent">Перейти к содержимому</a>
   <section id="loginScreen" class="screen-panel" aria-labelledby="loginHeading" hidden>
-    <h1 id="loginHeading" data-i18n="loginHeading">Вход</h1>
-    <p data-i18n="loginIntro">Чтобы открыть Копилку жизни, войдите через Telegram или VK ID. Данные связываются с одним аккаунтом.</p>
-    <section class="summary-card" aria-labelledby="loginMethodsHeading">
-      <h2 id="loginMethodsHeading" data-i18n="loginMethodsHeading">Выберите способ входа</h2>
+    <div id="loginLanding" class="login-landing" aria-labelledby="loginHeading">
+      <p class="eyebrow" data-i18n="landingEyebrow">Копилка жизни</p>
+      <h1 id="loginHeading" data-i18n="loginHeading">Записывай маленькие вещи, которые поддержали день</h1>
+      <p class="landing-lead" data-i18n="landingLead">Сон, еда, движение, отдых, благодарность, доброе дело или честный шаг — всё это не мелочи. Это след жизни, который можно заметить за 10 секунд.</p>
+      <ul class="landing-benefits" aria-label="Чем помогает Копилка жизни">
+        <li><strong data-i18n="landingBenefitFastTitle">Быстрые отметки</strong><span data-i18n="landingBenefitFastText">Один клик вместо длинного дневника.</span></li>
+        <li><strong data-i18n="landingBenefitSoftTitle">Без оценки себя</strong><span data-i18n="landingBenefitSoftText">Тихий день не считается провалом.</span></li>
+        <li><strong data-i18n="landingBenefitWeekTitle">Недельный взгляд</strong><span data-i18n="landingBenefitWeekText">Видно, что реально поддерживало тебя.</span></li>
+        <li><strong data-i18n="landingBenefitArtifactsTitle">Тёплые персонажи</strong><span data-i18n="landingBenefitArtifactsText">Иногда за живые действия открываются маленькие артефакты пути.</span></li>
+      </ul>
+    </div>
+    <section class="summary-card login-methods-card" aria-labelledby="loginMethodsHeading">
+      <h2 id="loginMethodsHeading" data-i18n="loginMethodsHeading">Войти и начать</h2>
+      <p data-i18n="loginIntro">Вход через Telegram или VK ID связывает сайт, бота и Mini App с одним аккаунтом.</p>
       <div id="telegramLoginButton" class="login-button"></div>
       <p id="loginTelegramHint" class="field-hint" data-i18n="loginTelegramHint">Кнопка входа через Telegram появится здесь.</p>
-      <div id="vkLoginButton" class="login-button" data-i18n="loginVkButton">Войти через VK ID (скоро)</div>
+      <div id="vkLoginButton" class="login-button" data-i18n="loginVkButton">Войти через VK ID</div>
     </section>
     <p id="loginStatus" class="status-region" role="status" aria-live="polite"></p>
     <p class="soft-note"><a href="/privacy.html">Политика конфиденциальности</a> · <a href="/terms.html">Условия использования</a></p>
@@ -266,7 +276,7 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/i18n.js?v=20260825-vkauthfallback1"></script>
+  <script src="/i18n.js?v=20260825-weblanding1"></script>
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   <script src="/vendor/vk-bridge-3.0.2.min.js?v=20260820"></script>
   <script>
@@ -278,6 +288,6 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/app.js?v=20260825-vkauthfallback1"></script>
+  <script src="/app.js?v=20260825-weblanding1"></script>
 </body>
 </html>

@@ -483,12 +483,15 @@ async function loadData() {
 }
 
 // ---------- Site login (outside Telegram Mini App) ----------
-async function showLoginScreen() {
+async function showLoginScreen(options = {}) {
+  const { landing = true } = options;
   const shell = $('appShell');
   const screen = $('loginScreen');
+  const landingBlock = $('loginLanding');
   applyStaticI18n();
   if (shell) shell.hidden = true;
   if (screen) screen.hidden = false;
+  if (landingBlock) landingBlock.hidden = !landing;
   await initTelegramLogin();
 }
 
@@ -857,7 +860,7 @@ async function start() {
   const inVk = isVkMiniApp();
   if (inTelegram || inVk) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
   renderQuickActions(); applyStaticI18n();
-  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); await loadPendingMerge(); setStatus(state.pendingMerge ? L('mergeNeedsConfirmation') : L('ready')); } catch (e) { const detail = userSafeErrorMessage(e, inVk ? 'vkOpenFromVk' : 'openFromTelegram'); clientLog('start_error', detail); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('connectFailed'), 'error'); }
+  try { window.Telegram?.WebApp?.ready?.(); await authenticate(); await loadPendingMerge(); setStatus(state.pendingMerge ? L('mergeNeedsConfirmation') : L('ready')); } catch (e) { const detail = userSafeErrorMessage(e, inVk ? 'vkOpenFromVk' : 'openFromTelegram'); clientLog('start_error', detail); $('connectionStatus').textContent = detail || L('connectFailed'); setStatus(detail || L('connectFailed'), 'error'); if (inVk || inTelegram) setBusy(true, detail || L('connectFailed')); }
 }
 // The Telegram WebApp SDK may not be ready when app.js first runs; retry the
 // in-Telegram check until initData appears (or a longer timeout). A Mini App
@@ -948,7 +951,7 @@ async function renderPublicProfile(code, options = {}) {
   // is also present on the plain website because we load telegram-web-app.js.
   const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp?.initData);
   if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
-  if (!inTelegram) { await showLoginScreen(); return; }
+  if (!inTelegram) { await showLoginScreen({ landing: !looksLikeTelegramLaunch }); return; }
   await start();
 })().catch((error) => {
   const msg = userSafeErrorMessage(error, 'connectFailed');

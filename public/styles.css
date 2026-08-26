@@ -196,8 +196,8 @@ h2{font-size:1.22rem;line-height:1.2;letter-spacing:-.02em}
 h3{letter-spacing:-.015em}
 .screen-panel>p,.field-hint,.soft-note{color:var(--muted)}
 #loginScreen.screen-panel:not([hidden]){
-  width:min(calc(100% - 1.25rem),520px);
-  margin:clamp(1.2rem,6vh,3.4rem) auto 1rem;
+  width:min(calc(100% - 1.25rem),720px);
+  margin:clamp(1.2rem,5vh,3.1rem) auto 1rem;
   padding:1.15rem;
   color:var(--text);
   background:linear-gradient(180deg,rgba(255,255,255,.985),rgba(255,247,235,.97));
@@ -210,6 +210,51 @@ h3{letter-spacing:-.015em}
 #loginScreen .soft-note{text-align:center;margin:.85rem 0 0;color:#5a4434}
 #loginScreen .soft-note a{color:#7a4319;text-decoration-thickness:2px;text-underline-offset:.18em}
 #loginScreen .status-region{margin:.55rem 0;color:var(--success)}
+.login-landing{
+  padding:.35rem .1rem .15rem;
+}
+.login-landing .eyebrow{
+  margin:0 0 .42rem;
+  color:var(--accent);
+  letter-spacing:.12em;
+}
+.login-landing h1{
+  margin:.1rem 0 .72rem;
+  max-width:13em;
+}
+.landing-lead{
+  margin:.2rem 0 1rem;
+  max-width:42rem;
+  color:#4d3a2b;
+  font-size:1.05rem;
+}
+.landing-benefits{
+  list-style:none;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:.72rem;
+  padding:0;
+  margin:1rem 0 .25rem;
+}
+.landing-benefits li{
+  display:flex;
+  flex-direction:column;
+  gap:.2rem;
+  min-height:6rem;
+  padding:.86rem;
+  border:1px solid rgba(222,202,180,.9);
+  border-radius:var(--radius-lg);
+  background:linear-gradient(180deg,#fffdf9,var(--accent-softer));
+  box-shadow:0 8px 20px rgba(92,56,22,.07);
+}
+.landing-benefits strong{color:#2a160b;font-size:1.02rem}
+.landing-benefits span{color:var(--muted);line-height:1.38}
+.login-methods-card h2{margin-top:.1rem}
+.login-methods-card>p{color:#4d3a2b}
+@media (max-width:620px){
+  .landing-benefits{grid-template-columns:1fr}
+  .landing-benefits li{min-height:auto}
+}
 .summary-card h1,.summary-card h2,.summary-card h3,.card-form h1,.card-form h2,.card-form h3,.contract-box h1,.contract-box h2,.contract-box h3{color:#2a160b}
 .summary-card .soft-note,.card-form .soft-note,.contract-box .soft-note{color:var(--muted)}
 .summary-card[aria-label="Баланс ЖИЗНИ"]{
