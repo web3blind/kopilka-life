@@ -15,9 +15,29 @@ function fireVkBridgeInit() {
     window.vkBridge?.send?.('VKWebAppInit').catch?.(() => {});
   } catch (_) { /* best-effort VK wrapper initialization */ }
 }
+function clientLogDetails(details = '') {
+  try {
+    if (details == null) return '';
+    if (typeof details === 'string') return details.slice(0, 240);
+    if (details instanceof Error) return JSON.stringify({ name: details.name, message: details.message }).slice(0, 240);
+    const seen = new WeakSet();
+    const safe = JSON.stringify(details, (key, value) => {
+      if (/token|secret|sign|hash|auth|key/i.test(key)) return '[REDACTED]';
+      if (typeof value === 'string') return value.slice(0, 120);
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+      }
+      return value;
+    });
+    return (safe || String(details)).slice(0, 240);
+  } catch (_) {
+    return String(details || '').slice(0, 240);
+  }
+}
 function clientLog(event, details = '') {
   try {
-    const payload = JSON.stringify({ event, details: String(details || '').slice(0, 240), platform: new URLSearchParams(window.location.search || '').get('vk_platform') || '' });
+    const payload = JSON.stringify({ event, details: clientLogDetails(details), platform: new URLSearchParams(window.location.search || '').get('vk_platform') || '' });
     if (navigator.sendBeacon) {
       const ok = navigator.sendBeacon('/api/client-log', new Blob([payload], { type: 'application/json' }));
       if (ok) return;
@@ -677,9 +697,9 @@ async function enableVkReminders() {
   let result;
   try {
     result = await withTimeout(window.vkBridge.send('VKWebAppAllowMessagesFromGroup', { group_id: Number(cfg.vkGroupId), key: 'evening_reminders' }), 8000, 'VK permission dialog timeout');
-    clientLog('vk_reminder_bridge_result', JSON.stringify(result || {}).slice(0, 180));
+    clientLog('vk_reminder_bridge_result', result || {});
   } catch (error) {
-    clientLog('vk_reminder_bridge_error', error?.message || String(error));
+    clientLog('vk_reminder_bridge_error', error || {});
     throw new Error(L('vkReminderDenied'));
   }
   const allowed = result?.result === true || result?.result === 1 || result?.result === '1';
