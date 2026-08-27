@@ -1,4 +1,5 @@
 const I18N = window.KopilkaI18n;
+const CLIENT_VERSION = '20260827-vkreminderlog2';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -16,6 +17,8 @@ function fireVkBridgeInit() {
   } catch (_) { /* best-effort VK wrapper initialization */ }
 }
 function clientLogDetails(details = '') {
+  const redact = (key, value) => (/token|secret|sign|hash|auth|key/i.test(key) ? '[REDACTED]' : value);
+  const clip = (value, limit = 120) => String(value == null ? '' : value).slice(0, limit);
   try {
     if (details == null) return '';
     if (typeof details === 'string') return details.slice(0, 240);
@@ -23,6 +26,8 @@ function clientLogDetails(details = '') {
     const seen = new WeakSet();
     const safe = JSON.stringify(details, (key, value) => {
       if (/token|secret|sign|hash|auth|key/i.test(key)) return '[REDACTED]';
+      if (typeof value === 'bigint') return String(value);
+      if (typeof value === 'function') return '[Function]';
       if (typeof value === 'string') return value.slice(0, 120);
       if (typeof value === 'object' && value !== null) {
         if (seen.has(value)) return '[Circular]';
@@ -32,12 +37,24 @@ function clientLogDetails(details = '') {
     });
     return (safe || String(details)).slice(0, 240);
   } catch (_) {
-    return String(details || '').slice(0, 240);
+    try {
+      const out = {};
+      ['name', 'message', 'type', 'code', 'error_type', 'error_data', 'error_reason', 'detail', 'description'].forEach((key) => {
+        if (details && details[key] != null) out[key] = redact(key, clip(details[key]));
+      });
+      if (!Object.keys(out).length && details && typeof details === 'object') {
+        Object.keys(details).slice(0, 8).forEach((key) => { out[key] = redact(key, clip(details[key])); });
+      }
+      out.objectType = Object.prototype.toString.call(details);
+      return JSON.stringify(out).slice(0, 240);
+    } catch (__) {
+      return String(details || '').slice(0, 240);
+    }
   }
 }
 function clientLog(event, details = '') {
   try {
-    const payload = JSON.stringify({ event, details: clientLogDetails(details), platform: new URLSearchParams(window.location.search || '').get('vk_platform') || '' });
+    const payload = JSON.stringify({ event, details: clientLogDetails(details), platform: new URLSearchParams(window.location.search || '').get('vk_platform') || '', version: CLIENT_VERSION });
     if (navigator.sendBeacon) {
       const ok = navigator.sendBeacon('/api/client-log', new Blob([payload], { type: 'application/json' }));
       if (ok) return;

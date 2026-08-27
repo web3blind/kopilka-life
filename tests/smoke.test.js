@@ -189,6 +189,8 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(frontendApp.includes('function clientLogDetails'), 'VK reminder bridge diagnostics serialize object errors');
+  assert(frontendApp.includes('version: CLIENT_VERSION'), 'client logs include frontend version for cache diagnostics');
+  assert(frontendApp.includes("typeof value === 'bigint'"), 'client log diagnostics handle non-JSON bridge objects');
   assert(frontendApp.includes('vk_reminder_bridge_error'), 'VK reminder permission errors are logged at the bridge boundary');
   assert(frontendApp.includes('function userSafeErrorMessage'), 'frontend sanitizes user-facing error messages');
   assert(frontendApp.includes("'x-kopilka-surface': supportSurface()"), 'frontend sends current surface with API requests');
@@ -199,9 +201,9 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260827-vkreminderlog1'), 'frontend i18n cache bust matches VK auth fallback release');
-  assert(html.includes('/app.js?v=20260827-vkreminderlog1'), 'frontend app cache bust matches VK auth fallback release');
-  assert(html.includes('/styles.css?v=20260827-vkreminderlog1'), 'frontend css cache bust matches VK auth fallback release');
+  assert(html.includes('/i18n.js?v=20260827-vkreminderlog2'), 'frontend i18n cache bust matches VK auth fallback release');
+  assert(html.includes('/app.js?v=20260827-vkreminderlog2'), 'frontend app cache bust matches VK auth fallback release');
+  assert(html.includes('/styles.css?v=20260827-vkreminderlog2'), 'frontend css cache bust matches VK auth fallback release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');

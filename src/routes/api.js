@@ -71,7 +71,8 @@ router.post('/client-log', (req, res) => {
   const event = compactClientLog(req.body.event);
   const details = compactClientLog(req.body.details);
   const platform = compactClientLog(req.body.platform);
-  if (event) console.log(`[client-log] ${event} platform=${platform} details=${details}`);
+  const version = compactClientLog(req.body.version);
+  if (event) console.log(`[client-log] ${event} platform=${platform} version=${version} details=${details}`);
   res.json({ ok: true });
 });
 
