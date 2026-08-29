@@ -81,6 +81,18 @@ const ARTIFACTS = [
     condition: ({ counts }) => (counts.kind_trace || 0) >= 3
   },
   {
+    id: 'gratitude_helper',
+    title: 'Благодарчик',
+    shortTitle: 'Тепло благодарности',
+    triggerText: 'появляется после восьми отправленных благодарностей дня',
+    unlockedText: 'Благодарчик тихо появился рядом и принёс вам тепло. «Будьте счастливы», — сказал он.',
+    lockedText: 'Он приходит к тем, кто несколько раз отправлял благодарность дня текстом.',
+    image: '/assets/artifacts/gratitude_helper.webp',
+    alt: 'Маленький пушистый золотистый Благодарчик в зелёном шарфике держит светящуюся искру тепла.',
+    sortOrder: 48,
+    condition: ({ counts }) => (counts.gratitude || 0) >= 8
+  },
+  {
     id: 'bear_warm_shelter',
     title: 'Медведь Тёплого Укрытия',
     shortTitle: 'После трудного дня',
@@ -112,7 +124,7 @@ function publicArtifact(artifact, awarded = null) {
       id: `mystery_${artifact.sortOrder}`,
       title: 'Неизвестная встреча',
       shortTitle: 'Пока скрыто',
-      triggerText: 'Пользуйся Копилкой жизни, отмечай через быстрые кнопки то, что происходит в твоей жизни — и однажды здесь появится персонаж.',
+      triggerText: 'Пользуйся Копилкой жизни, отмечай то, что происходит, и отправляй благодарности — однажды здесь появится персонаж.',
       unlockedText: '',
       lockedText: 'Здесь пока тёмное место. Кто появится — станет понятно только после встречи.',
       image: '',

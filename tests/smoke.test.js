@@ -139,8 +139,10 @@ function testStaticAccessibility() {
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'nightingale_close_voices.webp')), 'nightingale artifact image exists');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'hedgehog_small_joy.webp')), 'hedgehog artifact image exists');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'bee_good_deed_honey.webp')), 'bee artifact image exists');
+  assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'gratitude_helper.webp')), 'gratitude helper artifact image exists');
   const frontendI18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
   assert(frontendI18n.includes('Встреча случилась'), 'artifact dialog uses a clear encounter headline');
+  assert(frontendI18n.includes('отправляй благодарности дня'), 'artifact intro mentions daily gratitudes, not only quick buttons');
   assert(frontendI18n.includes('Полезное рядом'), 'support actions tab is localized');
   assert(frontendI18n.includes('Светлячок поддержки'), 'support badge is localized');
   assert(frontendI18n.includes('supportTabNewShort'), 'support tab has short visual new-count copy');
@@ -464,7 +466,8 @@ async function main() {
   assert.equal(response.res.status, 201, 'family time entry created');
   assert.equal(response.data.summary.todayLife, 9, 'family time adds life');
   assert(!response.data.awardedArtifacts.some((artifact) => artifact.id === 'nightingale_close_voices'), 'one social contact plus one family time does not unlock nightingale too early');
-  getDb().prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'social_contact', 'Встреча или звонок', '', 2, '2026-08-21')").run(userId);
+  const recentSocialDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  getDb().prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'social_contact', 'Встреча или звонок', '', 2, ?)").run(userId, recentSocialDate);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'movement', note: 'короткая прогулка' }) });
   assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'nightingale_close_voices'), 'several close-people traces in the week unlock nightingale artifact');
   assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'cat_life_warmer'), '12 LIFE unlocks cat artifact when the threshold is crossed');
@@ -472,10 +475,10 @@ async function main() {
   assert.equal(response.res.status, 400, 'family time is still limited to once per local day');
   let artifactsResp = await request('/api/artifacts', { headers: auth });
   assert.equal(artifactsResp.res.status, 200, 'artifacts endpoint works');
-  assert.equal(artifactsResp.data.artifacts.length, 8, 'artifact catalog returned');
+  assert.equal(artifactsResp.data.artifacts.length, 9, 'artifact catalog returned');
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id === 'nightingale_close_voices' && artifact.unlocked), 'unlocked artifact appears in collection');
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id.startsWith('mystery_') && !artifact.unlocked), 'locked artifacts are returned as mystery slots');
-  assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && /Пёс|Ленивец|Ёжик|Пчела|Медведь|Дракон/.test(artifact.title)), 'locked artifact titles are not revealed');
+  assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && /Пёс|Ленивец|Ёжик|Пчела|Медведь|Дракон|Благодарчик/.test(artifact.title)), 'locked artifact titles are not revealed');
   assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && artifact.image), 'locked artifact images are not revealed');
   const dbForArtifacts = getDb();
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'important_task', 'Важное дело', '', 3, '2026-08-01')").run(userId);
@@ -497,6 +500,18 @@ async function main() {
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date, created_at) VALUES (?, 'hard_day', 'Сложный день', '', 1, '2026-08-04', '2026-08-04 10:00:00')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'gratitude' }) });
   assert(!response.data.awardedArtifacts.some((artifact) => artifact.id === 'bear_warm_shelter'), 'one hard day does not unlock bear artifact');
+  assert(!response.data.awardedArtifacts.some((artifact) => artifact.id === 'gratitude_helper'), 'first gratitude does not unlock gratitude helper');
+  const gratitudeUser = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'Gratitude Helper QA' }) });
+  const gratitudeAuth = { authorization: `Bearer ${gratitudeUser.data.token}` };
+  const gratitudeUserId = gratitudeUser.data.user.id;
+  for (let day = 10; day <= 16; day += 1) {
+    dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'gratitude', 'Благодарность', 'ручная благодарность', 1, ?)").run(gratitudeUserId, `2026-08-${String(day).padStart(2, '0')}`);
+  }
+  response = await request('/api/entries', { method: 'POST', headers: gratitudeAuth, body: JSON.stringify({ type: 'gratitude', note: 'восьмая благодарность' }) });
+  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'gratitude_helper'), 'eighth gratitude entry unlocks gratitude helper');
+  const gratitudeHelper = response.data.awardedArtifacts.find((artifact) => artifact.id === 'gratitude_helper');
+  assert(gratitudeHelper.unlockedText.includes('Благодарчик тихо появился рядом и принёс вам тепло'), 'gratitude helper uses the approved encounter text');
+  assert(gratitudeHelper.unlockedText.includes('Будьте счастливы'), 'gratitude helper says the approved wish');
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date, created_at) VALUES (?, 'hard_day', 'Сложный день', '', 1, '2026-08-05', '2026-08-05 10:00:00')").run(userId);
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date, created_at) VALUES (?, 'hard_day', 'Сложный день', '', 1, '2026-08-06', '2026-08-06 10:00:00')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'dreamed' }) });

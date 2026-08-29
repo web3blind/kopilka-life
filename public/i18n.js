@@ -195,7 +195,7 @@
     partnerInvited: { ru: 'Приглашено всего:', en: 'Total invited:' },
     partnerActive: { ru: 'активных:', en: 'active:' },
     artifactsHeading: { ru: 'Артефакты пути', en: 'Path artifacts' },
-    artifactsIntro: { ru: 'Пользуйся приложением и отмечай через быстрые кнопки то, что происходит в твоей жизни. Иногда после таких отметок можно встретить разных персонажей. Когда встреча случится, персонаж попадёт сюда.', en: 'Use the app and mark what happens in your life through quick top-up buttons. Sometimes those marks can lead to meeting different characters. When an encounter happens, the character appears here.' },
+    artifactsIntro: { ru: 'Пользуйся приложением: отмечай то, что происходит в твоей жизни, и отправляй благодарности дня. Иногда после таких действий можно встретить разных персонажей. Когда встреча случится, персонаж попадёт сюда.', en: 'Use the app: mark what happens in your life and send daily gratitudes. Sometimes those actions can lead to meeting different characters. When an encounter happens, the character appears here.' },
     artifactsUnlocked: { ru: 'Открыто:', en: 'Unlocked:' },
     artifactsLoading: { ru: 'Артефакты загрузятся после подключения.', en: 'Artifacts will load after connecting.' },
     artifactAwardedAt: { ru: 'Встреча', en: 'Met' },
