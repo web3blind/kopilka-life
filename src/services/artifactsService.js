@@ -69,6 +69,18 @@ const ARTIFACTS = [
     condition: ({ distinctDaysByType }) => (distinctDaysByType.joy || 0) >= 4
   },
   {
+    id: 'savoring_beaver',
+    title: 'Бобр Наслаждения',
+    shortTitle: 'Пять тёплых моментов',
+    triggerText: 'появляется после пяти отметок «Наслаждение»',
+    unlockedText: 'Бобр Наслаждения выбрался к тёплой воде и поднял чашку. Вокруг него зажглись пять тёплых капель — за вкус, тепло, запах, звук и красивый момент, которые вы успели заметить.',
+    lockedText: 'Он приходит к тем, кто несколько раз остановился и заметил вкус, тепло, запах, звук или красивый момент.',
+    image: '/assets/artifacts/savoring_beaver.webp',
+    alt: 'Милый бобр у тёплой воды держит маленькую чашку; вокруг светятся пять золотых капель наслаждения моментом.',
+    sortOrder: 46,
+    condition: ({ counts }) => (counts.savoring || 0) >= 5
+  },
+  {
     id: 'bee_good_deed_honey',
     title: 'Пчела Доброделка',
     shortTitle: 'Мёд за добрые дела',

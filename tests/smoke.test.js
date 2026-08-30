@@ -141,6 +141,7 @@ function testStaticAccessibility() {
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'bee_good_deed_honey.webp')), 'bee artifact image exists');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'gratitude_helper.webp')), 'gratitude helper artifact image exists');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'contract_keeper.webp')), 'contract keeper artifact image exists');
+  assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'savoring_beaver.webp')), 'savoring beaver artifact image exists');
   const frontendI18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
   assert(frontendI18n.includes('Встреча случилась'), 'artifact dialog uses a clear encounter headline');
   assert(frontendI18n.includes('отправляй благодарности дня'), 'artifact intro mentions daily gratitudes, not only quick buttons');
@@ -484,10 +485,10 @@ async function main() {
   assert.equal(response.res.status, 400, 'family time is still limited to once per local day');
   let artifactsResp = await request('/api/artifacts', { headers: auth });
   assert.equal(artifactsResp.res.status, 200, 'artifacts endpoint works');
-  assert.equal(artifactsResp.data.artifacts.length, 10, 'artifact catalog returned');
+  assert.equal(artifactsResp.data.artifacts.length, 11, 'artifact catalog returned');
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id === 'nightingale_close_voices' && artifact.unlocked), 'unlocked artifact appears in collection');
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id.startsWith('mystery_') && !artifact.unlocked), 'locked artifacts are returned as mystery slots');
-  assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && /Пёс|Ленивец|Ёжик|Пчела|Медведь|Дракон|Благодарчик/.test(artifact.title)), 'locked artifact titles are not revealed');
+  assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && /Пёс|Ленивец|Ёжик|Бобр|Пчела|Медведь|Дракон|Благодарчик|Черепаха/.test(artifact.title)), 'locked artifact titles are not revealed');
   assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && artifact.image), 'locked artifact images are not revealed');
   const dbForArtifacts = getDb();
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'important_task', 'Важное дело', '', 3, '2026-08-01')").run(userId);
@@ -521,6 +522,20 @@ async function main() {
   const gratitudeHelper = response.data.awardedArtifacts.find((artifact) => artifact.id === 'gratitude_helper');
   assert(gratitudeHelper.unlockedText.includes('Благодарчик тихо появился рядом и принёс вам тепло'), 'gratitude helper uses the approved encounter text');
   assert(gratitudeHelper.unlockedText.includes('Будьте счастливы'), 'gratitude helper says the approved wish');
+
+  const savoringUser = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'Savoring Beaver QA' }) });
+  const savoringAuth = { authorization: `Bearer ${savoringUser.data.token}` };
+  const savoringUserId = savoringUser.data.user.id;
+  for (let day = 1; day <= 4; day += 1) {
+    dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'savoring', 'Наслаждение', 'прошлое наслаждение', 1, ?)").run(savoringUserId, `2026-08-${String(day).padStart(2, '0')}`);
+  }
+  let savoringArtifactsResp = await request('/api/artifacts', { headers: savoringAuth });
+  assert(!savoringArtifactsResp.data.artifacts.some((artifact) => artifact.id === 'savoring_beaver' && artifact.unlocked), 'four savoring entries do not unlock beaver');
+  response = await request('/api/entries', { method: 'POST', headers: savoringAuth, body: JSON.stringify({ type: 'savoring' }) });
+  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'savoring_beaver'), 'fifth savoring entry unlocks beaver');
+  const savoringBeaver = response.data.awardedArtifacts.find((artifact) => artifact.id === 'savoring_beaver');
+  assert.equal(savoringBeaver.title, 'Бобр Наслаждения', 'savoring beaver uses approved title');
+  assert(savoringBeaver.unlockedText.includes('пять тёплых капель'), 'savoring beaver encounter mentions five savoring marks');
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date, created_at) VALUES (?, 'hard_day', 'Сложный день', '', 1, '2026-08-05', '2026-08-05 10:00:00')").run(userId);
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date, created_at) VALUES (?, 'hard_day', 'Сложный день', '', 1, '2026-08-06', '2026-08-06 10:00:00')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'dreamed' }) });
