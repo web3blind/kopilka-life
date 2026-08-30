@@ -596,7 +596,8 @@ async function main() {
   response = await request(`/api/contracts/${createdContract.data.contract.id}/close`, { method: 'POST', headers: contractArtifactAuth, body: JSON.stringify({ status: 'completed' }) });
   assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'contract_keeper'), 'fourth completed contract unlocks contract keeper');
   const contractKeeper = response.data.awardedArtifacts.find((artifact) => artifact.id === 'contract_keeper');
-  assert(contractKeeper.unlockedText.includes('договор'), 'contract keeper encounter text mentions the contract');
+  assert.equal(contractKeeper.title, 'Черепаха Тихого Договора', 'contract keeper uses the turtle character');
+  assert(contractKeeper.unlockedText.includes('панцире'), 'contract keeper encounter text mentions the turtle shell');
 
   response = await request('/api/settings/reminders', { method: 'POST', headers: auth, body: JSON.stringify({ remindersEnabled: true, eveningReminderTime: '20:00', timezone: 'Asia/Novosibirsk' }) });
   assert.equal(response.res.status, 200, 'settings saved');
