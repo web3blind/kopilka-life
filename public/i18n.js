@@ -12,6 +12,7 @@
     movement: { points: 2, icon: '🌿', title: { ru: 'Движение', en: 'Movement' }, hint: { ru: 'прогулка, разминка, спорт', en: 'walk, stretch, sport' } },
     food_water: { points: 1, icon: '💧', title: { ru: 'Еда или вода', en: 'Food or water' }, hint: { ru: 'поел или попил воды', en: 'ate or drank water' } },
     joy: { points: 1, icon: '✨', title: { ru: 'Радость', en: 'Joy' }, hint: { ru: 'что-то приятное, без KPI; посмеялся, смешное видео', en: 'something pleasant, no KPI; laughed, a funny video' } },
+    savoring: { points: 1, icon: '🍯', title: { ru: 'Наслаждение', en: 'Savoring' }, hint: { ru: 'вкус, тепло, запах, звук или красивый момент', en: 'a taste, warmth, scent, sound, or beautiful moment' } },
     important_task: { points: 2, icon: '✓', title: { ru: 'Важное дело', en: 'Important task' }, hint: { ru: 'довёл одно дело до конца', en: 'finished one task' } },
     dream_step: { points: 2, icon: '⭐', title: { ru: 'Шаг к мечте', en: 'Step to a dream' }, hint: { ru: 'маленькое действие к мечте или важной цели', en: 'small step toward a dream or important goal' } },
     dreamed: { points: 1, icon: '☁', title: { ru: 'Помечтал', en: 'Dreamed' }, hint: { ru: 'представил, какой жизни хочется', en: 'imagined the life you want' } },

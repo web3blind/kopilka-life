@@ -250,7 +250,8 @@ router.post('/contracts', authRequired, (req, res) => {
 router.post('/contracts/:id/close', authRequired, (req, res) => {
   try {
     const contract = closeContract(req.user.id, Number(req.params.id), req.body.status, req.body.resultNote || '');
-    res.json({ contract, summary: getSummary(req.user.id), week: getWeekSummary(req.user.id) });
+    const awardedArtifacts = awardArtifactsForUser(req.user.id, null);
+    res.json({ contract, summary: getSummary(req.user.id), week: getWeekSummary(req.user.id), awardedArtifacts });
   } catch (error) { res.status(400).json({ error: userError(req.locale, error.message) }); }
 });
 router.post('/settings/reminders', authRequired, (req, res) => {

@@ -20,6 +20,8 @@ const STRINGS = {
   'entry.food_water.hint': { ru: 'поел или попил воды', en: 'ate or drank water' },
   'entry.joy.title': { ru: 'Радость', en: 'Joy' },
   'entry.joy.hint': { ru: 'что-то приятное, без KPI; посмеялся, смешное видео', en: 'something pleasant, no KPI; laughed, a funny video' },
+  'entry.savoring.title': { ru: 'Наслаждение', en: 'Savoring' },
+  'entry.savoring.hint': { ru: 'вкус, тепло, запах, звук или красивый момент', en: 'a taste, warmth, scent, sound, or beautiful moment' },
   'entry.gratitude.title': { ru: 'Благодарность', en: 'Gratitude' },
   'entry.gratitude.hint': { ru: 'кому или чему благодарен сегодня', en: 'who or what you are grateful to today' },
   'entry.important_task.title': { ru: 'Важное дело', en: 'Important task' },

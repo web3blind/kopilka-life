@@ -93,6 +93,18 @@ const ARTIFACTS = [
     condition: ({ counts }) => (counts.gratitude || 0) >= 8
   },
   {
+    id: 'contract_keeper',
+    title: 'Договорёнок',
+    shortTitle: 'Обещание держится',
+    triggerText: 'появляется после четырёх выполненных недельных договоров',
+    unlockedText: 'Договорёнок тихо вышел навстречу и завязал мягкую ленточку. Он напомнил: договор с собой может быть не наказанием, а поддержкой.',
+    lockedText: 'Он приходит к тем, кто несколько недель подряд возвращался к договору с собой и доводил его до результата.',
+    image: '/assets/artifacts/contract_keeper.webp',
+    alt: 'Маленький пушистый Договорёнок с добрыми глазами держит мягкий зелёный бант как знак выполненного обещания.',
+    sortOrder: 49,
+    condition: ({ completedContracts }) => completedContracts >= 4
+  },
+  {
     id: 'bear_warm_shelter',
     title: 'Медведь Тёплого Укрытия',
     shortTitle: 'После трудного дня',
@@ -162,9 +174,10 @@ function artifactState(userId) {
   const distinctDaysByType = Object.fromEntries(dayRows.map((row) => [row.type, row.count]));
   const recentCountsRows = db.prepare('SELECT type, COUNT(*) AS count FROM entries WHERE user_id = ? AND entry_date BETWEEN ? AND ? GROUP BY type').all(userId, since, today);
   const recentCounts = Object.fromEntries(recentCountsRows.map((row) => [row.type, row.count]));
+  const completedContracts = db.prepare("SELECT COUNT(*) AS count FROM weekly_contracts WHERE user_id = ? AND status = 'completed'").get(userId).count;
   const thirdHard = db.prepare("SELECT id, created_at FROM entries WHERE user_id = ? AND type = 'hard_day' ORDER BY created_at ASC, id ASC LIMIT 1 OFFSET 2").get(userId);
   const afterThirdHard = thirdHard ? db.prepare('SELECT id FROM entries WHERE user_id = ? AND (created_at > ? OR (created_at = ? AND id > ?)) AND id <> ? LIMIT 1').get(userId, thirdHard.created_at, thirdHard.created_at, thirdHard.id, thirdHard.id) : null;
-  return { totalLife, counts, distinctDaysByType, recentCounts, hasEntryAfterThirdHardDay: Boolean(afterThirdHard) };
+  return { totalLife, counts, distinctDaysByType, recentCounts, completedContracts, hasEntryAfterThirdHardDay: Boolean(afterThirdHard) };
 }
 
 function listArtifacts(userId) {

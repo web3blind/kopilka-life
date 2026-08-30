@@ -1,5 +1,5 @@
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20260827-vkreminderlog2';
+const CLIENT_VERSION = '20260830-focus-contract-savoring';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -8,7 +8,7 @@ const storage = {
 const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null };
+const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null, quickActionReturnType: '' };
 function fireVkBridgeInit() {
   try {
     if (!vkLaunchParams()) return;
@@ -271,7 +271,7 @@ function renderQuickActions() {
   $('quickActions').innerHTML = types.map((it) => {
     const used = usedToday.has(it.type);
     const aria = used ? `${it.title}, ${L('alreadyAddedToday')}` : `${it.title}, ${it.hint}, ${L('addLife', { points: it.points })}`;
-    return `<button type="button" data-entry-type="${it.type}" ${used ? 'disabled aria-disabled="true"' : ''} aria-label="${escapeHtml(aria)}"><span class="qa-head"><span class="qa-icon" aria-hidden="true">${escapeHtml(it.icon || '✦')}</span><span class="qa-title">${escapeHtml(it.title)}</span></span><span class="qa-hint">${escapeHtml(used ? L('alreadyAddedToday') : it.hint)}</span><span class="qa-points">${used ? escapeHtml(L('availableTomorrow')) : `+${it.points} ЖИЗНЬ`}</span></button>`;
+    return `<button type="button" data-entry-type="${it.type}" data-last-quick-entry-type="${it.type}" data-used-today="${used ? 'true' : 'false'}" ${used ? 'aria-disabled="true"' : ''} aria-label="${escapeHtml(aria)}"><span class="qa-head"><span class="qa-icon" aria-hidden="true">${escapeHtml(it.icon || '✦')}</span><span class="qa-title">${escapeHtml(it.title)}</span></span><span class="qa-hint">${escapeHtml(used ? L('alreadyAddedToday') : it.hint)}</span><span class="qa-points">${used ? escapeHtml(L('availableTomorrow')) : `+${it.points} ЖИЗНЬ`}</span></button>`;
   }).join('');
 }
 function renderSummary() {
@@ -506,7 +506,20 @@ function keepArtifactDialogFocus(event) {
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 }
-function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderTodayContractReminder(); renderSettings(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); renderRecoveryNotice(); }
+function restoreQuickActionFocus() {
+  const type = state.quickActionReturnType;
+  if (!type) return;
+  state.quickActionReturnType = '';
+  const run = () => {
+    const btn = Array.from(document.querySelectorAll('#quickActions [data-last-quick-entry-type]')).find((item) => item.dataset.lastQuickEntryType === type);
+    if (!btn) return;
+    btn.focus({ preventScroll: true });
+    btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  };
+  if (window.requestAnimationFrame) window.requestAnimationFrame(run);
+  else window.setTimeout(run, 0);
+}
+function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderTodayContractReminder(); renderSettings(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); renderRecoveryNotice(); restoreQuickActionFocus(); }
 function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
 async function loadData() {
   state.publicStatus = '';
@@ -769,7 +782,7 @@ function cancelAccountMerge() {
 }
 function bindEvents() {
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
-  $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry(b.dataset.entryType); } catch (e) { setStatus(e.message, 'error'); } });
+  $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; if (b.dataset.usedToday === 'true') { b.focus({ preventScroll: true }); return; } state.quickActionReturnType = b.dataset.entryType || ''; try { await createEntry(b.dataset.entryType); } catch (e) { state.quickActionReturnType = ''; setStatus(e.message, 'error'); } });
   $('gratitudePractice')?.addEventListener('click', async (event) => { const hint = event.target.closest('[data-gratitude-hint]'); if (hint && !state.busy && !state.publicReadOnly) { appendGratitudeHint(hint.dataset.gratitudeHint); return; } const b = event.target.closest('[data-gratitude-submit]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry('gratitude', $('gratitudeNote')?.value.trim() || ''); } catch (e) { setStatus(e.message, 'error'); } });
   $('supportActionsList')?.addEventListener('click', async (event) => { const b = event.target.closest('button[data-support-open]'); if (!b || state.busy || state.publicReadOnly) return; try { await openSupportAction(b.dataset.supportOpen); } catch (e) { setStatus(e.message, 'error'); } });
   document.querySelectorAll('[data-open-contract]').forEach((btn) => btn.addEventListener('click', () => { if (!state.busy && !state.publicReadOnly) switchTab('contract'); }));

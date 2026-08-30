@@ -140,6 +140,7 @@ function testStaticAccessibility() {
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'hedgehog_small_joy.webp')), 'hedgehog artifact image exists');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'bee_good_deed_honey.webp')), 'bee artifact image exists');
   assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'gratitude_helper.webp')), 'gratitude helper artifact image exists');
+  assert(fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'artifacts', 'contract_keeper.webp')), 'contract keeper artifact image exists');
   const frontendI18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
   assert(frontendI18n.includes('Встреча случилась'), 'artifact dialog uses a clear encounter headline');
   assert(frontendI18n.includes('отправляй благодарности дня'), 'artifact intro mentions daily gratitudes, not only quick buttons');
@@ -151,6 +152,8 @@ function testStaticAccessibility() {
   assert(frontendI18n.includes('Время с родными'), 'family time quick action exists');
   assert(frontendI18n.includes('Помечтал'), 'dreamed quick action exists');
   assert(frontendI18n.includes('Подарил радость'), 'gifted joy quick action exists');
+  assert(frontendI18n.includes('Наслаждение'), 'savoring quick action exists');
+  assert(frontendI18n.includes('вкус, тепло, запах, звук или красивый момент'), 'savoring hint names day and senses');
   assert(frontendI18n.includes('Кому или чему ты сегодня благодарен?'), 'gratitude practice asks who or what the user is grateful to');
   assert(frontendI18n.includes('человеку, дню, телу, случаю, месту или себе'), 'gratitude practice gives concrete gratitude targets');
   assert(frontendI18n.includes('Подсказки'), 'gratitude hint spoiler has a short summary');
@@ -164,6 +167,12 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('qa-icon') && frontendApp.includes('aria-hidden="true"'), 'quick action icons are decorative for screen readers');
   assert(frontendApp.includes('contractLastDayReminder'), 'contract last-day reminder is rendered near close actions');
   assert(frontendApp.includes('artifactReturnFocus'), 'artifact dialog remembers and restores focus');
+  assert(frontendApp.includes('restoreQuickActionFocus'), 'quick actions restore focus after mobile re-render');
+  assert(frontendApp.includes('data-last-quick-entry-type'), 'quick-action buttons expose stable focus anchors');
+  assert(frontendApp.includes('data-used-today'), 'used quick-action buttons stay focusable through aria-disabled');
+  assert(frontendApp.includes('b.dataset.usedToday'), 'used quick-action clicks are ignored client-side');
+  assert(frontendApp.includes('preventScroll: true'), 'focus restoration avoids jumpy scroll');
+  assert(frontendApp.includes('scrollIntoView({ block: \'nearest\', inline: \'nearest\' })'), 'quick-action restoration keeps mobile viewport near the pressed button');
   assert(frontendApp.includes('keepArtifactDialogFocus'), 'artifact dialog traps keyboard focus');
   assert(frontendApp.includes("event.key === 'Escape'"), 'artifact dialog closes with Escape');
   assert(frontendApp.includes('preventScroll: true'), 'artifact dialog focus changes avoid jumpy scroll');
@@ -203,9 +212,9 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260827-vkreminderlog2'), 'frontend i18n cache bust matches VK auth fallback release');
-  assert(html.includes('/app.js?v=20260827-vkreminderlog2'), 'frontend app cache bust matches VK auth fallback release');
-  assert(html.includes('/styles.css?v=20260827-vkreminderlog2'), 'frontend css cache bust matches VK auth fallback release');
+  assert(html.includes('/i18n.js?v=20260830-focus-contract-savoring'), 'frontend i18n cache bust matches VK auth fallback release');
+  assert(html.includes('/app.js?v=20260830-focus-contract-savoring'), 'frontend app cache bust matches VK auth fallback release');
+  assert(html.includes('/styles.css?v=20260830-focus-contract-savoring'), 'frontend css cache bust matches VK auth fallback release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');
@@ -475,7 +484,7 @@ async function main() {
   assert.equal(response.res.status, 400, 'family time is still limited to once per local day');
   let artifactsResp = await request('/api/artifacts', { headers: auth });
   assert.equal(artifactsResp.res.status, 200, 'artifacts endpoint works');
-  assert.equal(artifactsResp.data.artifacts.length, 9, 'artifact catalog returned');
+  assert.equal(artifactsResp.data.artifacts.length, 10, 'artifact catalog returned');
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id === 'nightingale_close_voices' && artifact.unlocked), 'unlocked artifact appears in collection');
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id.startsWith('mystery_') && !artifact.unlocked), 'locked artifacts are returned as mystery slots');
   assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && /Пёс|Ленивец|Ёжик|Пчела|Медведь|Дракон|Благодарчик/.test(artifact.title)), 'locked artifact titles are not revealed');
@@ -528,6 +537,10 @@ async function main() {
   newActionResp = await request('/api/entries', { method: 'POST', headers: newActionAuth, body: JSON.stringify({ type: 'gifted_joy' }) });
   assert.equal(newActionResp.res.status, 201, 'gifted joy quick action can be created');
   assert.equal(newActionResp.data.entry.life_points, 2, 'gifted joy grants 2 LIFE');
+  newActionResp = await request('/api/entries', { method: 'POST', headers: newActionAuth, body: JSON.stringify({ type: 'savoring' }) });
+  assert.equal(newActionResp.res.status, 201, 'savoring quick action can be created');
+  assert.equal(newActionResp.data.entry.title, 'Наслаждение', 'savoring quick action title is localized');
+  assert.equal(newActionResp.data.entry.life_points, 1, 'savoring grants 1 LIFE');
 
   response = await request('/api/product?goal=sleep', { headers: auth });
   assert(response.data.dailyHint?.title, 'daily hint returned');
@@ -568,6 +581,23 @@ async function main() {
   response = await request(`/api/contracts/${contractId}/close`, { method: 'POST', headers: auth, body: JSON.stringify({ status: 'completed' }) });
   assert.equal(response.res.status, 200, 'contract closed');
   assert(response.data.summary.totalLife > beforeContractCloseLife, 'contract points added after artifact smoke entries');
+
+  const contractArtifactUser = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'Contract Keeper QA' }) });
+  const contractArtifactAuth = { authorization: `Bearer ${contractArtifactUser.data.token}` };
+  const contractArtifactUserId = contractArtifactUser.data.user.id;
+  const contractDb = getDb();
+  for (let i = 1; i <= 3; i += 1) {
+    contractDb.prepare("INSERT INTO weekly_contracts (user_id, title, target_value, week_start, week_end, status, closed_at) VALUES (?, ?, '4 недели', ?, ?, 'completed', CURRENT_TIMESTAMP)").run(contractArtifactUserId, `done contract ${i}`, `2026-07-0${i}`, `2026-07-0${i + 1}`);
+  }
+  let contractArtifactsResp = await request('/api/artifacts', { headers: contractArtifactAuth });
+  assert(!contractArtifactsResp.data.artifacts.some((artifact) => artifact.id === 'contract_keeper' && artifact.unlocked), 'three completed contracts do not unlock contract keeper');
+  const createdContract = await request('/api/contracts', { method: 'POST', headers: contractArtifactAuth, body: JSON.stringify({ title: 'Четвёртый договор', targetValue: 'держу неделю' }) });
+  contractDb.prepare("UPDATE weekly_contracts SET week_end = '2000-01-01' WHERE id = ?").run(createdContract.data.contract.id);
+  response = await request(`/api/contracts/${createdContract.data.contract.id}/close`, { method: 'POST', headers: contractArtifactAuth, body: JSON.stringify({ status: 'completed' }) });
+  assert(response.data.awardedArtifacts.some((artifact) => artifact.id === 'contract_keeper'), 'fourth completed contract unlocks contract keeper');
+  const contractKeeper = response.data.awardedArtifacts.find((artifact) => artifact.id === 'contract_keeper');
+  assert(contractKeeper.unlockedText.includes('договор'), 'contract keeper encounter text mentions the contract');
+
   response = await request('/api/settings/reminders', { method: 'POST', headers: auth, body: JSON.stringify({ remindersEnabled: true, eveningReminderTime: '20:00', timezone: 'Asia/Novosibirsk' }) });
   assert.equal(response.res.status, 200, 'settings saved');
   const db = getDb();
