@@ -614,6 +614,32 @@ async function main() {
   assert.equal(contractKeeper.title, 'Черепаха Тихого Договора', 'contract keeper uses the turtle character');
   assert(contractKeeper.unlockedText.includes('панцире'), 'contract keeper encounter text mentions the turtle shell');
 
+  const realDate = global.Date;
+  const frozenSunday = new realDate('2026-08-30T09:00:00.000Z');
+  global.Date = class extends realDate {
+    constructor(...args) { return args.length ? new realDate(...args) : new realDate(frozenSunday); }
+    static now() { return frozenSunday.getTime(); }
+    static parse(value) { return realDate.parse(value); }
+    static UTC(...args) { return realDate.UTC(...args); }
+  };
+  try {
+    const sundayUser = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'Sunday Contract QA', timezone: 'Europe/Moscow' }) });
+    const sundayAuth = { authorization: `Bearer ${sundayUser.data.token}` };
+    const sundayUserId = sundayUser.data.user.id;
+    const sundayDb = getDb();
+    const oldContract = sundayDb.prepare("INSERT INTO weekly_contracts (user_id, title, target_value, week_start, week_end, status) VALUES (?, 'Прошлый договор', 'закрыть неделю', '2026-08-24', '2026-08-30', 'active')").run(sundayUserId);
+    response = await request(`/api/contracts/${oldContract.lastInsertRowid}/close`, { method: 'POST', headers: sundayAuth, body: JSON.stringify({ status: 'completed' }) });
+    assert.equal(response.res.status, 200, 'sunday contract can be closed');
+    response = await request('/api/contracts', { method: 'POST', headers: sundayAuth, body: JSON.stringify({ title: 'Новый договор', targetValue: 'на следующую неделю' }) });
+    assert.equal(response.res.status, 201, 'new contract can be created after closing on Sunday');
+    const sundayCurrent = await request('/api/contracts/current', { headers: sundayAuth });
+    assert.equal(sundayCurrent.data.contract.week_start, '2026-08-31', 'Sunday replacement contract starts next week');
+    assert.equal(sundayCurrent.data.contract.week_end, '2026-09-06', 'Sunday replacement contract ends next Sunday');
+    assert.equal(sundayCurrent.data.contract.isLastDay, false, 'Sunday replacement contract is not immediately waiting for result');
+  } finally {
+    global.Date = realDate;
+  }
+
   response = await request('/api/settings/reminders', { method: 'POST', headers: auth, body: JSON.stringify({ remindersEnabled: true, eveningReminderTime: '20:00', timezone: 'Asia/Novosibirsk' }) });
   assert.equal(response.res.status, 200, 'settings saved');
   const db = getDb();

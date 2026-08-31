@@ -15,7 +15,13 @@ function getLatestContract(userId) { return getDb().prepare('SELECT * FROM weekl
 function createContract(userId, input) {
   if (getCurrentContract(userId)) throw new Error('error.contractExists');
   if (!input.title || !input.targetValue) throw new Error('error.contractFields');
-  const { weekStart, weekEnd } = weekRangeForTimeZone(userTimeZone(userId));
+  const timeZone = userTimeZone(userId);
+  const now = new Date();
+  const today = localDateInTimeZone(now, timeZone);
+  let { weekStart, weekEnd } = weekRangeForTimeZone(timeZone, now);
+  if (today >= weekEnd) {
+    ({ weekStart, weekEnd } = weekRangeForTimeZone(timeZone, new Date(now.getTime() + 24 * 60 * 60 * 1000)));
+  }
   const cleanTitle = sanitizeText(input.title, { maxLength: 120 });
   const cleanTarget = sanitizeText(input.targetValue, { maxLength: 300 });
   const cleanStake = sanitizeText(String(input.stakeAmount || ''), { maxLength: 40 });
