@@ -501,6 +501,7 @@ h3{letter-spacing:-.015em}
 .button-like{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 .screen-panel[aria-label="Публичный профиль"] .tab-bar{display:none}
 @media (max-width:560px){
+  :root{--nav-height:128px}
   body{font-size:15.5px}
   .app-shell{width:100%}
   .top-card,.summary-card,.card-form,.contract-box,.screen-panel:not(#tab-today):not([hidden]){margin:.72rem;border-radius:24px;padding:.92rem}
@@ -508,8 +509,9 @@ h3{letter-spacing:-.015em}
   .quick-action-grid{grid-template-columns:1fr;gap:.62rem}
   .quick-action-grid button{min-height:5.7rem}
   .template-grid{grid-template-columns:1fr}
-  .tab-bar{width:calc(100% - .72rem);border-radius:24px;gap:.18rem;padding:.42rem}
-  .tab-bar button{font-size:.74rem;min-height:3.55rem}
+  .tab-bar{width:calc(100% - .72rem);grid-template-columns:repeat(3,1fr);border-radius:24px;gap:.24rem;padding:.42rem}
+  .tab-bar button{font-size:.76rem;min-height:3.15rem;padding:.3rem .24rem}
+  .tab-count{right:.22rem;top:.12rem}
   .top-card::before{right:.8rem}.eyebrow,#connectionStatus{margin-right:3.6rem}
   .artifact-card{grid-template-columns:4.8rem 1fr}.artifact-card img{width:4.8rem;height:4.8rem;border-radius:18px}.artifact-dialog-card{max-height:calc(100vh - 2rem);overflow:auto;padding:1rem .95rem}.artifact-dialog-card img{width:min(10rem,54vw);height:min(10rem,54vw);border-radius:24px}.artifact-toast h2{font-size:1.34rem}.artifact-toast p{max-width:100%}
 }

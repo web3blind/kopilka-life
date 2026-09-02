@@ -98,6 +98,8 @@ function testStaticAccessibility() {
   assert(html.includes('tab-button-support'), 'support actions tab exists');
   assert(html.includes('tab-support'), 'support actions panel exists');
   assert(html.includes('supportNewCount'), 'support tab exposes new action indicator');
+  assert(css.includes('repeat(3,1fr)'), 'narrow mobile bottom navigation wraps to 3 columns so all six tabs fit');
+  assert(css.includes('--nav-height:128px'), 'narrow mobile bottom navigation reserves enough safe-area space for two rows');
   assert(html.includes('supportActionsList'), 'support actions list exists');
   assert(html.includes('todayContractReminder'), 'today tab can show last-day contract reminder');
   assert(html.includes('recoveryNotice'), 'recovery bonus notice exists');
@@ -213,9 +215,9 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260830-focus-contract-savoring'), 'frontend i18n cache bust matches VK auth fallback release');
-  assert(html.includes('/app.js?v=20260830-focus-contract-savoring'), 'frontend app cache bust matches VK auth fallback release');
-  assert(html.includes('/styles.css?v=20260830-focus-contract-savoring'), 'frontend css cache bust matches VK auth fallback release');
+  assert(html.includes('/i18n.js?v=20260902-mobile-nav-artifact-images'), 'frontend i18n cache bust matches release');
+  assert(html.includes('/app.js?v=20260902-mobile-nav-artifact-images'), 'frontend app cache bust matches release');
+  assert(html.includes('/styles.css?v=20260902-mobile-nav-artifact-images'), 'frontend css cache bust matches release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');
@@ -490,6 +492,11 @@ async function main() {
   assert(artifactsResp.data.artifacts.some((artifact) => artifact.id.startsWith('mystery_') && !artifact.unlocked), 'locked artifacts are returned as mystery slots');
   assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && /Пёс|Ленивец|Ёжик|Бобр|Пчела|Медведь|Дракон|Благодарчик|Черепаха/.test(artifact.title)), 'locked artifact titles are not revealed');
   assert(!artifactsResp.data.artifacts.some((artifact) => !artifact.unlocked && artifact.image), 'locked artifact images are not revealed');
+  for (const artifact of artifactsResp.data.artifacts.filter((item) => item.unlocked && item.image)) {
+    const imageResp = await fetch(`${baseUrl}${artifact.image}`);
+    assert.equal(imageResp.status, 200, `${artifact.id} image is served over HTTP`);
+    assert.equal(imageResp.headers.get('content-type'), 'image/webp', `${artifact.id} image is served as WebP`);
+  }
   const dbForArtifacts = getDb();
   dbForArtifacts.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'important_task', 'Важное дело', '', 3, '2026-08-01')").run(userId);
   response = await request('/api/entries', { method: 'POST', headers: auth, body: JSON.stringify({ type: 'food_water' }) });

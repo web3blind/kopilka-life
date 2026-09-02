@@ -1,5 +1,5 @@
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20260830-focus-contract-savoring';
+const CLIENT_VERSION = '20260902-mobile-nav-artifact-images';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -479,11 +479,15 @@ function showArtifactToast(artifacts = []) {
   const toast = $('artifactToast');
   if (!toast || !first) return;
   const img = $('artifactToastImage');
-  if (img) { img.src = first.image; img.alt = first.alt; }
   if ($('artifactToastTitle')) $('artifactToastTitle').textContent = first.title;
   if ($('artifactToastText')) $('artifactToastText').textContent = first.unlockedText;
   state.artifactReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   toast.hidden = false;
+  if (img) {
+    img.loading = 'eager';
+    img.alt = first.alt;
+    img.src = first.image;
+  }
   toast.focus({ preventScroll: true });
   setStatus(L('artifactUnlockedStatus', { title: first.title }));
 }
