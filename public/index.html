@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
   <link rel="apple-touch-icon" href="/assets/icon-150.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260902-mobile-nav-artifact-images">
+  <link rel="stylesheet" href="/styles.css?v=20260905-platform-auth-link-proof">
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="skipToContent">Перейти к содержимому</a>
@@ -16,23 +16,24 @@
     <div id="loginLanding" class="login-landing" aria-labelledby="loginHeading">
       <p class="eyebrow" data-i18n="landingEyebrow">Копилка жизни</p>
       <h1 id="loginHeading" data-i18n="loginHeading">Записывай маленькие вещи, которые поддержали день</h1>
-      <p class="landing-lead" data-i18n="landingLead">Сон, еда, движение, отдых, благодарность, доброе дело или честный шаг — всё это не мелочи. Это след жизни, который можно заметить за 10 секунд.</p>
-      <ul class="landing-benefits" aria-label="Чем помогает Копилка жизни">
+      <p class="landing-lead" data-login-landing-only data-i18n="landingLead">Сон, еда, движение, отдых, благодарность, доброе дело или честный шаг — всё это не мелочи. Это след жизни, который можно заметить за 10 секунд.</p>
+      <p id="loginRecoveryHint" class="recovery-notice" data-i18n="sessionRecoveryHint" hidden>Сессия закончилась. Записи в форме сохранены на экране. Войди через VK ID или снова открой приложение в Telegram.</p>
+      <section class="summary-card login-methods-card" aria-labelledby="loginMethodsHeading">
+        <h2 id="loginMethodsHeading" data-i18n="loginMethodsHeading">Войти и начать</h2>
+        <p data-i18n="loginIntro">Вход через Telegram или VK ID связывает сайт, бота и Mini App с одним аккаунтом.</p>
+        <div id="telegramLoginButton" class="login-button"></div>
+        <p id="loginTelegramHint" class="field-hint" data-i18n="loginTelegramHint">Кнопка входа через Telegram появится здесь.</p>
+        <button id="vkLoginButton" type="button" class="login-button secondary" data-i18n="loginVkButton">Войти через VK ID</button>
+      </section>
+      <ul class="landing-benefits" data-login-landing-only aria-label="Чем помогает Копилка жизни">
         <li><strong data-i18n="landingBenefitFastTitle">Быстрые отметки</strong><span data-i18n="landingBenefitFastText">Один клик вместо длинного дневника.</span></li>
         <li><strong data-i18n="landingBenefitSoftTitle">Без оценки себя</strong><span data-i18n="landingBenefitSoftText">Тихий день не считается провалом.</span></li>
         <li><strong data-i18n="landingBenefitWeekTitle">Недельный взгляд</strong><span data-i18n="landingBenefitWeekText">Видно, что реально поддерживало тебя.</span></li>
         <li><strong data-i18n="landingBenefitArtifactsTitle">Тёплые персонажи</strong><span data-i18n="landingBenefitArtifactsText">Иногда за живые действия открываются маленькие артефакты пути.</span></li>
       </ul>
     </div>
-    <section class="summary-card login-methods-card" aria-labelledby="loginMethodsHeading">
-      <h2 id="loginMethodsHeading" data-i18n="loginMethodsHeading">Войти и начать</h2>
-      <p data-i18n="loginIntro">Вход через Telegram или VK ID связывает сайт, бота и Mini App с одним аккаунтом.</p>
-      <div id="telegramLoginButton" class="login-button"></div>
-      <p id="loginTelegramHint" class="field-hint" data-i18n="loginTelegramHint">Кнопка входа через Telegram появится здесь.</p>
-      <div id="vkLoginButton" class="login-button" data-i18n="loginVkButton">Войти через VK ID</div>
-    </section>
     <p id="loginStatus" class="status-region" role="status" aria-live="polite"></p>
-    <p class="soft-note"><a href="/privacy.html">Политика конфиденциальности</a> · <a href="/terms.html">Условия использования</a></p>
+    <p class="soft-note"><a href="/privacy.html">Политика конфиденциальности</a> · <a href="/terms.html">Условия использования</a> · <a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме</a></p>
   </section>
   <div class="app-shell" id="appShell" hidden>
     <header class="top-card" aria-label="Статус подключения">
@@ -60,26 +61,34 @@
           <p class="big-number"><span id="totalLife">0</span> ЖИЗНЬ</p>
           <p><span data-i18n="todayAdded">Сегодня добавлено: </span><strong id="todayLife">0</strong><span data-i18n="todayAddedNote">. Это видимый след жизни и заботы, не оценка тебя.</span></p>
         </section>
-        <section class="summary-card" aria-labelledby="dailyHintHeading">
-          <h2 id="dailyHintHeading" data-i18n="dailyHintHeading">Подсказка дня</h2>
-          <p id="dailyHintTitle" class="hint-title" data-i18n="loadingHint">Загружаю мягкую подсказку…</p>
-          <p id="dailyHintText"></p>
-          <p id="dailyHintAction" class="soft-note"></p>
-        </section>
         <form id="entryForm" class="entry-form">
           <fieldset>
             <legend data-i18n="quickTopup">Быстро пополнить</legend>
             <div id="quickActions" class="quick-action-grid"></div>
           </fieldset>
           <label for="entryNote" data-i18n="noteLabel">Заметка к записи, если хочется</label>
-          <textarea id="entryNote" name="note" rows="2" placeholder="Не обязательно" aria-describedby="entryNoteHint"></textarea>
-          <p id="entryNoteHint" class="field-hint" data-i18n="noteHint">Заметку можно оставить пустой. Быстрое пополнение работает одним нажатием.</p>
+          <textarea id="entryNote" name="note" rows="2" maxlength="2000" placeholder="Не обязательно" aria-describedby="entryNoteHint"></textarea>
+          <p id="entryNoteHint" class="field-hint" data-i18n="noteHint">Заметку можно оставить пустой или написать до 2000 символов. Быстрое пополнение работает одним нажатием.</p>
         </form>
+        <section class="summary-card" aria-labelledby="dailyHintHeading">
+          <h2 id="dailyHintHeading" data-i18n="dailyHintHeading">Подсказка дня</h2>
+          <p id="dailyHintTitle" class="hint-title" data-i18n="loadingHint">Загружаю мягкую подсказку…</p>
+          <p id="dailyHintText"></p>
+          <p id="dailyHintAction" class="soft-note"></p>
+        </section>
+        <details class="summary-card first-day-guide">
+          <summary data-i18n="firstDayGuideTitle">Как начать в первый день</summary>
+          <ol>
+            <li data-i18n="firstDayGuideStep1">Выбери одну быструю отметку о том, что уже поддержало день.</li>
+            <li data-i18n="firstDayGuideStep2">Заметка не обязательна — одного нажатия достаточно.</li>
+            <li data-i18n="firstDayGuideStep3">В Истории можно поправить заметку или удалить случайную отметку.</li>
+          </ol>
+        </details>
         <section id="gratitudePractice" class="summary-card gratitude-card" aria-labelledby="gratitudePracticeHeading">
           <h2 id="gratitudePracticeHeading" data-i18n="gratitudePracticeHeading">Благодарность</h2>
           <p data-i18n="gratitudePracticeQuestion">Кому или чему ты сегодня благодарен?</p>
           <label for="gratitudeNote" data-i18n="gratitudeNoteLabel">Короткая благодарность</label>
-          <textarea id="gratitudeNote" name="gratitudeNote" rows="2" placeholder="Например: дню — за тишину" aria-describedby="gratitudeNoteHint"></textarea>
+          <textarea id="gratitudeNote" name="gratitudeNote" rows="2" maxlength="2000" placeholder="Например: дню — за тишину" aria-describedby="gratitudeNoteHint"></textarea>
           <p id="gratitudeNoteHint" class="field-hint" data-i18n="gratitudeNoteHint">Это может быть благодарность человеку, дню, телу, случаю, месту или себе.</p>
           <details id="gratitudeHints" class="hint-spoiler">
             <summary data-i18n="gratitudeHintsSummary">Подсказки</summary>
@@ -105,14 +114,33 @@
       </section>
 
       <section id="tab-week" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-week" hidden>
-        <h1 id="heading-week" tabindex="-1" data-i18n="tabWeek">Неделя</h1>
-        <section class="summary-card" aria-label="Итоги недели">
-          <p><span data-i18n="weekLifeLabel">За неделю: </span><strong id="weekLife">0</strong> ЖИЗНЬ.</p>
-          <p><span data-i18n="weekDaysLabel">Дней с записями: </span><strong id="activeDays">0</strong><span data-i18n="weekDaysNote">. Тихие дни не считаются провалом.</span></p>
+        <h1 id="heading-week" tabindex="-1" data-i18n="tabWeek">История</h1>
+        <section class="summary-card history-picker" aria-labelledby="historyPickerHeading">
+          <h2 id="historyPickerHeading" data-i18n="historyPickerHeading">Выбрать день</h2>
+          <label for="historyDate" data-i18n="historyDateLabel">Дата</label>
+          <input id="historyDate" type="date" name="historyDate">
+          <div class="history-nav" aria-label="Навигация по дням">
+            <button id="historyPrevious" type="button" class="secondary" data-i18n="historyPrevious">Предыдущий день</button>
+            <button id="historyToday" type="button" class="secondary" data-i18n="historyToday">Сегодня</button>
+            <button id="historyNext" type="button" class="secondary" data-i18n="historyNext">Следующий день</button>
+          </div>
         </section>
-        <h2 data-i18n="weekDaysHeading">Дни недели</h2>
+        <section class="summary-card" aria-labelledby="selectedDayHeading">
+          <h2 id="selectedDayHeading" tabindex="-1" data-i18n="selectedDayHeading">Записи за выбранный день</h2>
+          <p id="selectedDaySummary" class="soft-note" aria-live="polite"></p>
+          <ul id="selectedDayEntries" class="plain-list history-entry-list"></ul>
+        </section>
+        <section aria-labelledby="historyDaysHeading">
+          <h2 id="historyDaysHeading" data-i18n="historyDaysHeading">Последние семь дней до выбранной даты</h2>
+          <ul id="historyDays" class="plain-list"></ul>
+        </section>
+        <section class="summary-card" aria-label="Итоги текущей недели">
+          <p><span data-i18n="weekLifeLabel">За текущую неделю: </span><strong id="weekLife">0</strong> ЖИЗНЬ.</p>
+          <p><span data-i18n="weekDaysLabel">Дней с записями в текущей неделе: </span><strong id="activeDays">0</strong><span data-i18n="weekDaysNote">. Тихие дни не считаются провалом.</span></p>
+        </section>
+        <h2 data-i18n="weekDaysHeading">Дни текущей недели</h2>
         <ul id="weekDays" class="plain-list"></ul>
-        <h2 data-i18n="weekTopHeading">Чаще встречалось</h2>
+        <h2 data-i18n="weekTopHeading">Чаще встречалось в текущей неделе</h2>
         <ul id="topCategories" class="plain-list"></ul>
         <section class="summary-card" aria-labelledby="weeklyReviewHeading">
           <h2 id="weeklyReviewHeading" data-i18n="weeklyReviewHeading">Недельный разбор</h2>
@@ -184,6 +212,7 @@
           <p id="vkLinkStatus" class="soft-note" data-i18n="vkLinkStatusUnknown">VK не проверен.</p>
           <button id="linkVkAccount" type="button" class="secondary" data-i18n="linkVkAccount">Привязать VK</button>
         </section>
+        <p class="soft-note"><a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме в сообществе VK</a></p>
         <section id="servicePanel" class="summary-card" aria-labelledby="serviceHeading" hidden>
           <h2 id="serviceHeading" data-i18n="serviceHeading">Служебно</h2>
           <p id="userDebug" data-i18n="userDebug">Пользователь ещё не подключён.</p>
@@ -226,6 +255,11 @@
             <button type="button" id="shareRefLink" data-i18n="shareRefLink">Поделиться реферальной ссылкой</button>
             <button type="button" id="shareProfile" class="secondary" data-i18n="shareProfile">Поделиться профилем</button>
           </div>
+          <div id="shareFallback" class="share-fallback" hidden>
+            <label for="shareFallbackLink" data-i18n="shareFallbackLabel">Ссылка для ручного копирования</label>
+            <input id="shareFallbackLink" readonly>
+            <p id="shareFallbackHint" class="field-hint" data-i18n="shareFallbackHint">Выдели ссылку и скопируй её обычной командой устройства.</p>
+          </div>
         </section>
         <section id="artifactsSection" class="summary-card" aria-labelledby="artifactsHeading">
           <h2 id="artifactsHeading" data-i18n="artifactsHeading">Артефакты пути</h2>
@@ -249,10 +283,10 @@
     </section>
 
     <p id="statusRegion" class="status-region" role="status" aria-live="polite"></p>
-    <p class="soft-note legal-links"><a href="/privacy.html">Политика конфиденциальности</a> · <a href="/terms.html">Условия использования</a> · <a href="https://vk.com/life_harbor_game" target="_blank" rel="noopener">Сообщество VK</a></p>
+    <p class="soft-note legal-links"><a href="/privacy.html">Политика конфиденциальности</a> · <a href="/terms.html">Условия использования</a> · <a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме</a></p>
     <nav class="tab-bar" aria-label="Разделы Копилки жизни" role="tablist">
       <button id="tab-button-today" type="button" role="tab" data-tab="today" aria-controls="tab-today" aria-selected="true" aria-current="page" data-i18n="tabToday">Сегодня</button>
-      <button id="tab-button-week" type="button" role="tab" data-tab="week" aria-controls="tab-week" aria-selected="false" data-i18n="tabWeek">Неделя</button>
+      <button id="tab-button-week" type="button" role="tab" data-tab="week" aria-controls="tab-week" aria-selected="false" data-i18n="tabWeek">История</button>
       <button id="tab-button-contract" type="button" role="tab" data-tab="contract" aria-controls="tab-contract" aria-selected="false" data-i18n="tabContract">Договор</button>
       <button id="tab-button-settings" type="button" role="tab" data-tab="settings" aria-controls="tab-settings" aria-selected="false" data-i18n="tabSettings">Настройки</button>
       <button id="tab-button-support" type="button" role="tab" data-tab="support" aria-controls="tab-support" aria-selected="false" aria-label="Полезное рядом"><span class="tab-label" data-i18n="tabSupportShort">Полезное</span><span id="supportNewCount" class="tab-count" hidden>0</span></button>
@@ -276,7 +310,7 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/i18n.js?v=20260902-mobile-nav-artifact-images"></script>
+  <script src="/i18n.js?v=20260905-platform-auth-link-proof"></script>
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   <script src="/vendor/vk-bridge-3.0.2.min.js?v=20260820"></script>
   <script>
@@ -288,6 +322,6 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/app.js?v=20260902-mobile-nav-artifact-images"></script>
+  <script src="/app.js?v=20260905-platform-auth-link-proof"></script>
 </body>
 </html>

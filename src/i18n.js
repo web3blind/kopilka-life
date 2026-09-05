@@ -86,6 +86,7 @@ const STRINGS = {
 
   // ---- errors ----
   'error.unknownType': { ru: 'Неизвестный тип записи', en: 'Unknown entry type' },
+  'error.entryAlreadyToday': { ru: 'Этот вариант уже добавлен сегодня. Завтра он снова будет доступен.', en: 'This entry is already saved for today. It will be available again tomorrow.' },
   'error.session': { ru: 'Не удалось подтвердить сессию. Открой приложение ещё раз.', en: 'Could not confirm the session. Open the app again.' },
   'error.userNotFound': { ru: 'Пользователь не найден.', en: 'User not found.' },
   'error.telegramSession': { ru: 'Не удалось подтвердить Telegram-сессию. Открой приложение из Telegram ещё раз.', en: 'Could not confirm the Telegram session. Open the app from Telegram again.' },
@@ -94,6 +95,13 @@ const STRINGS = {
   'error.contractFields': { ru: 'Заполни название и критерий договора', en: 'Fill in the contract name and criteria' },
   'error.contractStatus': { ru: 'Неизвестный итог договора', en: 'Unknown contract result' },
   'error.contractNotFound': { ru: 'Активный договор не найден', en: 'Active contract not found' },
+  'error.historyDate': { ru: 'Укажи дату в формате ГГГГ-ММ-ДД.', en: 'Choose a valid date.' },
+  'error.historyDays': { ru: 'Можно загрузить от 1 до 31 дня истории.', en: 'You can load from 1 to 31 history days.' },
+  'error.historyFuture': { ru: 'Будущие дни пока не содержат истории.', en: 'Future days do not have history yet.' },
+  'error.entryNotFound': { ru: 'Эта запись не найдена.', en: 'This entry was not found.' },
+  'error.entryProtected': { ru: 'Системное начисление нельзя изменить или удалить.', en: 'A system award cannot be edited or deleted.' },
+  'error.entryNoteTooLong': { ru: 'Заметка может содержать не больше 2000 символов.', en: 'A note can contain no more than 2000 characters.' },
+  'error.entryDeleteConfirm': { ru: 'Подтверди удаление случайной отметки.', en: 'Confirm deletion of the accidental entry.' },
   'error.actionFailed': { ru: 'Не получилось выполнить действие.', en: 'Could not complete the action.' },
 
   // ---- contract close actions ----

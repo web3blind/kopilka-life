@@ -355,6 +355,17 @@ h3{letter-spacing:-.015em}
   background:rgba(255,250,243,.72);
 }
 .compact-list li{padding:.52rem .68rem;margin:.32rem 0}
+.history-picker input[type="date"]{max-width:19rem}
+.history-nav,.history-entry-actions{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:.75rem}
+.history-nav button,.history-entry-actions button{flex:1 1 9.5rem}
+.history-entry-list article h3{margin:.05rem 0 .2rem}
+.history-entry-list article p{margin:.22rem 0}
+.history-day-button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:.75rem;text-align:left;border-radius:16px}
+.history-day-button[aria-current="date"]{border:2px solid var(--accent);background:var(--accent-soft)}
+.share-fallback{margin-top:1rem;padding:.8rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--accent-softer)}
+.share-fallback input{background:#fff;font-weight:750}
+.first-day-guide summary{cursor:pointer;font-weight:900;color:#3a2416}
+.first-day-guide ol{margin:.8rem 0 .2rem;padding-left:1.35rem;color:var(--muted)}
 .contract-box{background:linear-gradient(180deg,#fffdf9,#fff4e5)}
 .contract-box p{margin:.48rem 0}.contract-box strong{font-size:1.08rem}
 .contract-reminder{border-left:4px solid var(--accent);padding:.55rem .7rem;background:var(--accent-softer);border-radius:14px}
@@ -494,6 +505,7 @@ h3{letter-spacing:-.015em}
 .screen-panel:not(#tab-today):not([hidden]){margin-top:.8rem;padding-top:1.05rem}
 .login-button{display:flex;justify-content:center;margin-top:.75rem;min-height:44px;align-items:center}
 #vkLoginButton{
+  width:100%;
   background:linear-gradient(180deg,var(--surface-strong),var(--accent-softer));
   color:var(--accent);border:1px solid var(--border);border-radius:999px;padding:.75rem 1rem;text-align:center;cursor:pointer;font-weight:850;
 }

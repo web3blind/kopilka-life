@@ -3,19 +3,20 @@ const express = require('express');
 const config = require('./config');
 const { initDatabase } = require('./db');
 const apiRoutes = require('./routes/api');
-const webhookRoutes = require('./routes/webhook');
+const { router: webhookRoutes, verifyWebhookSecret } = require('./routes/webhook');
 const { startRemindersScheduler } = require('./scheduler/remindersScheduler');
 const { ensureVkGroupTokenMatchesConfig } = require('./vkMessages');
 const { createRateLimiter } = require('./middleware/rateLimit');
 
 function createApp() {
+  config.validateRuntimeConfig();
   initDatabase();
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
+  app.use('/telegram', createRateLimiter({ windowMs: config.rateLimits.webhookWindowMs, max: config.rateLimits.webhookMax, keyPrefix: 'webhook' }), verifyWebhookSecret, express.json({ limit: '64kb' }), webhookRoutes);
   app.use(express.json({ limit: '64kb' }));
   app.use('/api', createRateLimiter({ windowMs: config.rateLimits.apiWindowMs, max: config.rateLimits.apiMax, keyPrefix: 'api' }));
-  app.use('/telegram', createRateLimiter({ windowMs: config.rateLimits.webhookWindowMs, max: config.rateLimits.webhookMax, keyPrefix: 'webhook' }));
   // Do not cache the HTML shell (it references versioned assets) so updates apply
   // immediately in Telegram's WebView instead of serving a stale cached app.js.
   app.use((req, res, next) => {
@@ -25,7 +26,6 @@ function createApp() {
   app.use(express.static(path.join(process.cwd(), 'public')));
   app.get('/health', (req, res) => res.json({ ok: true }));
   app.use('/api', apiRoutes);
-  app.use('/telegram', webhookRoutes);
   app.use((err, req, res, next) => {
     if (err?.type === 'entity.too.large') return res.status(413).json({ error: 'payload too large' });
     console.error('Unhandled request error:', err?.message || err);

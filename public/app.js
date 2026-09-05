@@ -1,5 +1,5 @@
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20260902-mobile-nav-artifact-images';
+const CLIENT_VERSION = '20260905-platform-auth-link-proof';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -8,7 +8,7 @@ const storage = {
 const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, currentContract: null, product: null, profile: null, artifacts: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null, quickActionReturnType: '' };
+const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, history: null, historyDate: '', historyEditingId: null, currentContract: null, product: null, profile: null, artifacts: [], artifactQueue: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null, quickActionReturnType: '', sessionRenewalPromise: null, sessionRenewalBlocked: false, vkBridgeLaunchParams: '', vkOAuthWindow: null, vkOAuthChannel: '', vkOAuthAction: '', vkOAuthMonitor: null, vkLinkRequiresOAuth: false };
 function fireVkBridgeInit() {
   try {
     if (!vkLaunchParams()) return;
@@ -99,7 +99,7 @@ function publicProfileCode() {
 function vkLaunchParams() {
   const candidates = [window.location.search || '', window.location.hash || ''];
   const raw = candidates.find((value) => value.includes('vk_app_id') && value.includes('sign=')) || '';
-  if (!raw) return '';
+  if (!raw) return state.vkBridgeLaunchParams || '';
   if (raw.startsWith('#') && raw.includes('?')) return raw.slice(raw.indexOf('?'));
   return raw;
 }
@@ -165,25 +165,80 @@ async function initVkBridge() {
     ]);
   } catch (_) { /* VK Bridge init is best-effort */ }
 }
-async function getVkOAuthUrl(action = 'auth') {
+function safeFirstPartyOAuthUrl(value) {
+  const url = new URL(String(value || ''), window.location.origin);
+  if (url.origin !== window.location.origin || url.pathname !== '/api/auth/vk-oauth/start' || url.username || url.password) throw new Error(L('vkOauthStartFailed'));
+  return url.toString();
+}
+function showVkOAuthFallbackLink(statusEl, launchUrl) {
+  if (!statusEl) return;
+  statusEl.textContent = `${L('vkOauthRedirectFallback')} `;
+  const link = document.createElement('a');
+  link.href = launchUrl;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.textContent = L('vkOauthOpenLink');
+  statusEl.appendChild(link);
+}
+function restoreVkOAuthAction(action, message = '') {
+  const button = action === 'link' ? $('linkVkAccount') : $('vkLoginButton');
+  const statusEl = action === 'link' ? $('vkLinkStatus') : $('loginStatus');
+  if (button) {
+    button.disabled = false;
+    button.textContent = action === 'link' && state.vkLinkRequiresOAuth ? L('vkOauthOpenLink') : L(action === 'link' ? 'linkVkAccount' : 'loginVkButton');
+  }
+  if (message && statusEl) {
+    statusEl.textContent = message;
+    statusEl.classList.add('error');
+  }
+}
+function clearVkOAuthPending() {
+  if (state.vkOAuthMonitor) window.clearInterval(state.vkOAuthMonitor);
+  state.vkOAuthMonitor = null;
+  state.vkOAuthWindow = null;
+  state.vkOAuthChannel = '';
+  state.vkOAuthAction = '';
+}
+async function getVkOAuthIntent(action = 'auth') {
   const cfg = await getPublicConfig();
   if (!cfg.vkOAuthEnabled) throw new Error(L('vkOauthNotConfigured'));
-  const data = await api('/api/auth/vk-oauth/start', {
+  const data = await api('/api/auth/vk-oauth/intent', {
     method: 'POST',
     body: JSON.stringify({ action, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() })
   });
-  if (!data.authUrl) throw new Error(L('vkOauthStartFailed'));
-  return data.authUrl;
-}
-function goToVkOAuth(authUrl, statusEl = null) {
-  window.location.href = authUrl;
-  window.setTimeout(() => {
-    if (statusEl) statusEl.innerHTML = `${escapeHtml(L('vkOauthRedirectFallback'))} <a href="${escapeHtml(authUrl)}">${escapeHtml(L('vkOauthOpenLink'))}</a>`;
-  }, 1200);
+  if (!data.launchUrl || !data.channel) throw new Error(L('vkOauthStartFailed'));
+  return { launchUrl: safeFirstPartyOAuthUrl(data.launchUrl), channel: String(data.channel) };
 }
 async function startVkOAuth(action = 'auth', statusEl = null) {
-  const authUrl = await getVkOAuthUrl(action);
-  goToVkOAuth(authUrl, statusEl);
+  let popup = null;
+  try { popup = window.open('/api/auth/vk-oauth/window', '_blank', 'popup,width=520,height=720'); } catch (_) { popup = null; }
+  if (popup) state.vkOAuthWindow = popup;
+  try {
+    const intent = await getVkOAuthIntent(action);
+    state.vkOAuthChannel = intent.channel;
+    state.vkOAuthAction = action === 'link' ? 'link' : 'auth';
+    if (popup && !popup.closed) {
+      popup.location.replace(intent.launchUrl);
+      if (statusEl) statusEl.textContent = L('loginVkSoon');
+      state.vkOAuthMonitor = window.setInterval(() => {
+        if (state.vkOAuthWindow !== popup) return window.clearInterval(state.vkOAuthMonitor);
+        if (!popup.closed) return;
+        const pendingAction = state.vkOAuthAction;
+        clearVkOAuthPending();
+        restoreVkOAuthAction(pendingAction, L('vkOauthCancelled'));
+      }, 500);
+    } else {
+      state.vkOAuthWindow = null;
+      showVkOAuthFallbackLink(statusEl, intent.launchUrl);
+      restoreVkOAuthAction(state.vkOAuthAction);
+    }
+  } catch (error) {
+    if (popup && !popup.closed) popup.close();
+    const pendingAction = state.vkOAuthAction || action;
+    clearVkOAuthPending();
+    restoreVkOAuthAction(pendingAction);
+    throw error;
+  }
 }
 function setPublicReadOnlyMode(enabled) {
   state.publicReadOnly = Boolean(enabled);
@@ -218,34 +273,151 @@ function setBusy(isBusy, message = '') {
   if (message) setStatus(message);
 }
 async function withBusy(message, fn) { setBusy(true, message); try { return await fn(); } finally { setBusy(false); } }
-async function api(path, options = {}) { const headers = { 'content-type': 'application/json', 'x-kopilka-surface': supportSurface(), ...(options.headers || {}) }; if (state.token) headers.authorization = `Bearer ${state.token}`; const res = await fetch(path, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { const error = new Error(data.error || L('actionFailed')); error.data = data; error.status = res.status; throw error; } return data; }
+async function requestJson(path, options = {}, token = state.token) {
+  const headers = { 'content-type': 'application/json', 'x-kopilka-surface': supportSurface(), ...(options.headers || {}) };
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await fetch(path, { ...options, headers });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+async function renewSurfaceSession() {
+  if (state.sessionRenewalBlocked) return false;
+  if (state.sessionRenewalPromise) return state.sessionRenewalPromise;
+  state.sessionRenewalPromise = (async () => {
+    storage.remove('kopilkaToken');
+    state.token = '';
+    const refCode = captureRefCode();
+    let result = null;
+    if (window.Telegram?.WebApp?.initData) {
+      result = await requestJson('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData: window.Telegram.WebApp.initData, refCode, timezone: detectTimezone() }) }, '');
+    } else if (isVkMiniApp()) {
+      let launchParams = vkLaunchParams();
+      result = await requestJson('/api/auth/vk', { method: 'POST', body: JSON.stringify({ launchParams, refCode, timezone: detectTimezone(), locale: locale() }) }, '');
+      if (!result.res.ok) {
+        const fresh = await freshVkBridgeLaunchParams();
+        if (fresh && fresh !== launchParams) {
+          launchParams = fresh;
+          result = await requestJson('/api/auth/vk', { method: 'POST', body: JSON.stringify({ launchParams, refCode, timezone: detectTimezone(), locale: locale() }) }, '');
+        }
+      }
+    }
+    if (!result?.res.ok || !result.data?.token) {
+      state.sessionRenewalBlocked = true;
+      return false;
+    }
+    state.token = result.data.token;
+    state.user = result.data.user || state.user;
+    state.sessionRenewalBlocked = false;
+    storage.set('kopilkaToken', state.token);
+    if (state.user?.locale) storage.set('kopilkaLocale', state.user.locale);
+    setStatus(L('sessionRenewed'));
+    return true;
+  })().catch((error) => {
+    state.sessionRenewalBlocked = true;
+    clientLog('session_renewal_failed', userSafeErrorMessage(error));
+    return false;
+  }).finally(() => { state.sessionRenewalPromise = null; });
+  return state.sessionRenewalPromise;
+}
+async function api(path, options = {}) {
+  const { authToken = state.token, skipSessionRenewal = false, ...requestOptions } = options;
+  let result = await requestJson(path, requestOptions, authToken);
+  const canRenew = !state.sessionRenewalBlocked && !skipSessionRenewal && !path.startsWith('/api/auth/') && result.res.status === 401 && ['SESSION_EXPIRED', 'SESSION_INVALID'].includes(result.data?.code);
+  if (canRenew) {
+    if (await renewSurfaceSession()) result = await requestJson(path, requestOptions);
+    else await showSessionRecovery();
+  }
+  if (!result.res.ok) {
+    const error = new Error(result.data.error || L('actionFailed'));
+    error.data = result.data;
+    error.status = result.res.status;
+    throw error;
+  }
+  return result.data;
+}
 let publicConfigCache = null;
 async function getPublicConfig() { if (!publicConfigCache) publicConfigCache = await api('/api/config'); return publicConfigCache; }
-function consumeVkOAuthResult() {
-  if (!window.location.hash || !window.location.hash.includes('vk_oauth_')) return false;
-  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const token = params.get('vk_oauth_token');
-  const mergeToken = params.get('vk_oauth_merge_token');
-  const error = params.get('vk_oauth_error');
-  if (mergeToken) {
-    storage.set('kopilkaVkMergeToken', mergeToken);
-    const clean = `${window.location.pathname}${window.location.search}`;
-    window.history.replaceState({}, document.title, clean || '/');
-    return true;
+function applyVkOAuthPayload(payload) {
+  if (!payload || payload.type !== 'kopilka:vk-oauth') return false;
+  if (payload.token) {
+    state.token = String(payload.token);
+    state.sessionRenewalBlocked = false;
+    storage.set('kopilkaToken', state.token);
   }
-  if (token) {
-    state.token = token;
-    storage.set('kopilkaToken', token);
-    const clean = `${window.location.pathname}${window.location.search}`;
-    window.history.replaceState({}, document.title, clean || '/');
-    return true;
+  if (payload.error) storage.set('kopilkaLastAuthError', String(payload.error).slice(0, 180));
+  return Boolean(payload.token || payload.error);
+}
+async function finalizeVkOAuthLink(proof) {
+  if (!state.token) throw new Error(L('sessionExpiredLogin'));
+  try {
+    const data = await api('/api/auth/vk-oauth/finalize-link', { method: 'POST', body: JSON.stringify({ proof: String(proof || '') }), skipSessionRenewal: true });
+    state.token = String(data.token || state.token);
+    state.user = data.user || state.user;
+    state.sessionRenewalBlocked = false;
+    storage.set('kopilkaToken', state.token);
+    return { linked: true, merge: false };
+  } catch (error) {
+    if (error.status === 409 && error.data?.mergeToken) {
+      storage.set('kopilkaVkMergeToken', String(error.data.mergeToken));
+      return { linked: false, merge: true };
+    }
+    throw error;
   }
-  if (error) {
-    const clean = `${window.location.pathname}${window.location.search}`;
-    window.history.replaceState({}, document.title, clean || '/');
-    try { storage.set('kopilkaLastAuthError', error); } catch (_) {}
+}
+async function consumeVkOAuthResult() {
+  let payload = null;
+  try {
+    payload = JSON.parse(sessionStorage.getItem('kopilkaVkOAuthHandoff') || 'null');
+    sessionStorage.removeItem('kopilkaVkOAuthHandoff');
+  } catch (_) { sessionStorage.removeItem('kopilkaVkOAuthHandoff'); }
+  if (payload?.type === 'kopilka:vk-oauth' && payload.action === 'link' && payload.linkProof) {
+    try {
+      const finalized = await finalizeVkOAuthLink(payload.linkProof);
+      if (finalized.merge) await loadPendingMerge();
+    } catch (error) {
+      storage.set('kopilkaLastAuthError', userSafeErrorMessage(error));
+      return false;
+    }
+  } else if (!applyVkOAuthPayload(payload)) return false;
+  if (new URLSearchParams(window.location.search).has('vk_oauth_return')) window.history.replaceState({}, document.title, window.location.pathname || '/');
+  return Boolean(payload.token || payload.linkProof);
+}
+async function receiveVkOAuthHandoff(event) {
+  const payload = event.data;
+  if (event.origin !== window.location.origin || event.source !== state.vkOAuthWindow || !payload || payload.type !== 'kopilka:vk-oauth' || payload.channel !== state.vkOAuthChannel) return;
+  event.source.postMessage({ type: 'kopilka:vk-oauth-ack', channel: payload.channel }, event.origin);
+  const pendingAction = state.vkOAuthAction;
+  clearVkOAuthPending();
+  if (payload.action === 'link' && payload.linkProof) {
+    try {
+      const finalized = await finalizeVkOAuthLink(payload.linkProof);
+      if (finalized.merge) {
+        await loadPendingMerge();
+        renderSettings();
+        switchTab('settings');
+        setStatus(L('mergeNeedsConfirmation'));
+        return;
+      }
+      await loadData();
+      renderSettings();
+      switchTab('settings');
+      setStatus(L('vkLinked'));
+    } catch (error) {
+      restoreVkOAuthAction(pendingAction, userSafeErrorMessage(error));
+    }
+    return;
   }
-  return false;
+  if (!applyVkOAuthPayload(payload)) return;
+  if (payload.error) {
+    restoreVkOAuthAction(pendingAction, String(payload.error));
+    return;
+  }
+  if (payload.token) {
+    if ($('loginScreen')) $('loginScreen').hidden = true;
+    if ($('appShell')) $('appShell').hidden = false;
+    await start();
+    return;
+  }
 }
 
 // Translate all [data-i18n] static nodes and set document lang.
@@ -317,12 +489,40 @@ function appendGratitudeHint(text) {
   note.value = parts.join(', ');
   note.focus();
 }
+function formatHistoryDate(value) {
+  try {
+    return new Intl.DateTimeFormat(locale() === 'en' ? 'en-US' : 'ru-RU', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00.000Z`));
+  } catch (_) { return value; }
+}
+function renderHistory() {
+  const history = state.history;
+  if (!history) return;
+  state.historyDate = history.selectedDate;
+  const dateInput = $('historyDate');
+  if (dateInput) { dateInput.value = history.selectedDate; dateInput.max = history.todayDate || history.selectedDate; }
+  if ($('historyNext')) { $('historyNext').disabled = !history.nextDate; $('historyNext').setAttribute('aria-disabled', String(!history.nextDate)); }
+  const life = history.selectedEntries.reduce((sum, entry) => sum + Number(entry.life_points || 0), 0);
+  if ($('selectedDaySummary')) $('selectedDaySummary').textContent = L('historyDaySummary', { date: formatHistoryDate(history.selectedDate), count: history.selectedEntries.length, life });
+  const list = $('selectedDayEntries');
+  if (list) {
+    list.innerHTML = history.selectedEntries.length ? history.selectedEntries.map((entry) => {
+      const note = entry.note ? `<p>${escapeHtml(entry.note)}</p>` : '';
+      if (state.historyEditingId === entry.id && entry.editable) {
+        return `<li><form data-history-edit-form="${entry.id}"><p><strong>${escapeHtml(entry.title)}</strong> · +${Number(entry.life_points) || 0} ${escapeHtml(L('life'))}</p><label for="history-note-${entry.id}">${escapeHtml(L('historyEditLabel', { title: entry.title }))}</label><textarea id="history-note-${entry.id}" name="note" rows="3" maxlength="2000">${escapeHtml(entry.note || '')}</textarea><div class="history-entry-actions"><button type="submit">${escapeHtml(L('historySave'))}</button><button type="button" class="secondary" data-history-cancel>${escapeHtml(L('historyCancel'))}</button></div></form></li>`;
+      }
+      const actions = entry.editable ? `<div class="history-entry-actions"><button type="button" class="secondary" data-history-edit="${entry.id}">${escapeHtml(L('historyEdit'))}</button><button type="button" class="secondary" data-history-delete="${entry.id}">${escapeHtml(L('historyDelete'))}</button></div>` : `<p class="field-hint">${escapeHtml(L('historyProtected'))}</p>`;
+      return `<li><article><h3>${escapeHtml(entry.title)}</h3><p>+${Number(entry.life_points) || 0} ${escapeHtml(L('life'))}</p>${note}${actions}</article></li>`;
+    }).join('') : `<li>${escapeHtml(L('historyEmptyDay'))}</li>`;
+  }
+  if ($('historyDays')) $('historyDays').innerHTML = history.days.map((day) => `<li><button type="button" class="history-day-button secondary" data-history-date="${escapeHtml(day.date)}" ${day.date === history.selectedDate ? 'aria-current="date"' : ''}><span>${escapeHtml(formatHistoryDate(day.date))}</span><span>${Number(day.life) || 0} ${escapeHtml(L('life'))} · ${Number(day.entryCount) || 0}</span></button></li>`).join('');
+}
 function renderWeek() {
   const w = state.week || { weekLife: 0, activeDays: 0, days: [], topCategories: [] };
   $('weekLife').textContent = w.weekLife;
   $('activeDays').textContent = w.activeDays;
   $('weekDays').innerHTML = w.days.length ? w.days.map((d) => `<li>${escapeHtml(d.date)}: ${Number(d.life) || 0} ${escapeHtml(L('life'))}. ${d.titles.slice(0, 3).map(escapeHtml).join(', ')}</li>`).join('') : `<li>${escapeHtml(L('noWeek'))}</li>`;
   $('topCategories').innerHTML = w.topCategories.length ? w.topCategories.map((i) => `<li>${escapeHtml(i.title)}: ${Number(i.count) || 0}</li>`).join('') : `<li>${escapeHtml(L('noCategories'))}</li>`;
+  renderHistory();
   renderWeeklyReview(); renderPractices();
 }
 function renderContract() {
@@ -475,28 +675,50 @@ function renderTodayContractReminder() {
   box.hidden = !(state.currentContract && state.currentContract.isLastDay);
 }
 function showArtifactToast(artifacts = []) {
-  const first = artifacts[0];
+  const fresh = artifacts.filter((item) => item && !state.artifactQueue.some((queued) => queued.id === item.id));
+  if (!fresh.length) return;
+  if (!state.artifactQueue.length) {
+    const active = document.activeElement;
+    state.artifactReturnFocus = active instanceof HTMLElement && active !== document.body && active !== document.documentElement ? active : null;
+  }
+  state.artifactQueue.push(...fresh);
+  renderArtifactToast();
+}
+function setArtifactBackgroundInert(inert) {
+  document.querySelectorAll('#appShell > *:not(#artifactToast)').forEach((element) => {
+    if (inert) element.setAttribute('inert', '');
+    else element.removeAttribute('inert');
+  });
+}
+function renderArtifactToast() {
+  const first = state.artifactQueue[0];
   const toast = $('artifactToast');
   if (!toast || !first) return;
   const img = $('artifactToastImage');
   if ($('artifactToastTitle')) $('artifactToastTitle').textContent = first.title;
   if ($('artifactToastText')) $('artifactToastText').textContent = first.unlockedText;
-  state.artifactReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   toast.hidden = false;
+  setArtifactBackgroundInert(true);
   if (img) {
     img.loading = 'eager';
     img.alt = first.alt;
     img.src = first.image;
   }
-  toast.focus({ preventScroll: true });
+  $('artifactToastClose')?.focus({ preventScroll: true });
   setStatus(L('artifactUnlockedStatus', { title: first.title }));
 }
 function hideArtifactToast() {
+  state.artifactQueue.shift();
+  if (state.artifactQueue.length) { renderArtifactToast(); return; }
   const toast = $('artifactToast');
   if (toast) toast.hidden = true;
+  setArtifactBackgroundInert(false);
   const target = state.artifactReturnFocus;
   state.artifactReturnFocus = null;
-  if (target && document.contains(target)) target.focus?.({ preventScroll: true });
+  const focusTarget = target && document.contains(target) ? target : (document.querySelector(`.tab-bar button[data-tab="${state.activeTab}"]`) || $(`heading-${state.activeTab}`));
+  const restore = () => focusTarget?.focus?.({ preventScroll: true });
+  restore();
+  if (document.activeElement !== focusTarget) window.requestAnimationFrame?.(restore);
 }
 function keepArtifactDialogFocus(event) {
   if (event.key === 'Escape') { hideArtifactToast(); return; }
@@ -530,8 +752,9 @@ async function loadData() {
   const goal = $('practiceGoal')?.value || 'calm';
   const me = await api('/api/me');
   rememberRecoveryNotice(me.recoveryNotice);
-  const [summary, week, current, product, profile, artifacts, support] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api('/api/contracts/current'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts'), api(`/api/support/actions?source=${encodeURIComponent(supportSurface())}`)]);
-  state.summary = summary; state.week = week; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || []; state.support = support;
+  const historyQuery = state.historyDate ? `?date=${encodeURIComponent(state.historyDate)}&days=7` : '?days=7';
+  const [summary, week, history, current, product, profile, artifacts, support] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api(`/api/history${historyQuery}`), api('/api/contracts/current'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts'), api(`/api/support/actions?source=${encodeURIComponent(supportSurface())}`)]);
+  state.summary = summary; state.week = week; state.history = history; state.historyDate = history.selectedDate; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || []; state.support = support;
   storage.set('kopilkaLocale', me.user.locale || 'ru');
   renderAll();
 }
@@ -545,8 +768,19 @@ async function showLoginScreen(options = {}) {
   applyStaticI18n();
   if (shell) shell.hidden = true;
   if (screen) screen.hidden = false;
-  if (landingBlock) landingBlock.hidden = !landing;
+  if (landingBlock) landingBlock.hidden = false;
+  document.querySelectorAll('[data-login-landing-only]').forEach((element) => { element.hidden = !landing; });
+  if ($('loginRecoveryHint')) $('loginRecoveryHint').hidden = landing;
   await initTelegramLogin();
+}
+
+async function showSessionRecovery() {
+  await showLoginScreen({ landing: false });
+  const status = $('loginStatus');
+  if (status) {
+    status.textContent = L('sessionExpiredLogin');
+    status.classList.add('error');
+  }
 }
 
 async function initTelegramLogin() {
@@ -589,9 +823,9 @@ async function handleTelegramLogin(user) {
   const status = $('loginStatus');
   try {
     if (status) { status.textContent = L('loginInProgress'); status.classList.remove('error'); }
-    const data = await api('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...user, refCode: captureRefCode(), timezone: detectTimezone() }) });
+    const data = await api('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...user, refCode: captureRefCode(), timezone: detectTimezone() }), authToken: '' });
     rememberRecoveryNotice(data.recoveryNotice);
-    state.token = data.token; state.user = data.user;
+    state.token = data.token; state.user = data.user; state.sessionRenewalBlocked = false;
     storage.set('kopilkaToken', state.token); storage.set('kopilkaLocale', data.user.locale || 'ru');
     if ($('loginScreen')) $('loginScreen').hidden = true;
     if ($('appShell')) $('appShell').hidden = false;
@@ -610,40 +844,48 @@ async function handleVkAuth({ linkOnly = false } = {}) {
   let launchParams = vkLaunchParams();
   clientLog('after_vk_init', `hasLaunch=${Boolean(launchParams)} len=${launchParams.length}`);
   if (!launchParams) {
-    return startVkOAuth(linkOnly ? 'link' : 'auth');
+    if (linkOnly) state.vkLinkRequiresOAuth = true;
+    else await showSessionRecovery();
+    setStatus(L('vkOauthExplicitRequired'), 'error');
+    return { oauthRequired: true };
   }
   const endpoint = linkOnly ? '/api/settings/link-vk' : '/api/auth/vk';
   clientLog('post_vk_auth', endpoint);
   let data;
   try {
-    data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }) });
+    data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }), ...(linkOnly ? {} : { authToken: '' }) });
   } catch (error) {
     if (error.status !== 401) throw error;
     const bridgeLaunchParams = await freshVkBridgeLaunchParams();
     if (!bridgeLaunchParams || bridgeLaunchParams === launchParams) {
       clientLog('vk_auth_bridge_fallback_unavailable', `hasBridgeLaunch=${Boolean(bridgeLaunchParams)}`);
-      setStatus(L('loginVkSoon'));
-      return startVkOAuth(linkOnly ? 'link' : 'auth');
+      if (linkOnly) state.vkLinkRequiresOAuth = true;
+      else await showSessionRecovery();
+      setStatus(L('vkOauthExplicitRequired'), 'error');
+      return { oauthRequired: true };
     }
     clientLog('post_vk_auth_bridge_retry', `${endpoint} len=${bridgeLaunchParams.length}`);
     launchParams = bridgeLaunchParams;
     try {
-      data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }) });
+      data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }), ...(linkOnly ? {} : { authToken: '' }) });
     } catch (retryError) {
       if (retryError.status !== 401) throw retryError;
       clientLog('vk_auth_bridge_retry_failed', userSafeErrorMessage(retryError));
-      setStatus(L('loginVkSoon'));
-      return startVkOAuth(linkOnly ? 'link' : 'auth');
+      if (linkOnly) state.vkLinkRequiresOAuth = true;
+      else await showSessionRecovery();
+      setStatus(L('vkOauthExplicitRequired'), 'error');
+      return { oauthRequired: true };
     }
   }
   rememberRecoveryNotice(data.recoveryNotice);
   if (linkOnly) {
+    state.vkLinkRequiresOAuth = false;
     state.user = data.user;
     renderAll();
     setStatus(L('vkLinked'));
     return data;
   }
-  state.token = data.token; state.user = data.user;
+  state.token = data.token; state.user = data.user; state.sessionRenewalBlocked = false;
   storage.set('kopilkaToken', state.token); storage.set('kopilkaLocale', data.user.locale || 'ru');
   if ($('loginScreen')) $('loginScreen').hidden = true;
   if ($('appShell')) $('appShell').hidden = false;
@@ -654,6 +896,22 @@ async function handleVkAuth({ linkOnly = false } = {}) {
 }
 
 async function authenticate() {
+  const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
+  const inVk = isVkMiniApp();
+  const refCode = captureRefCode();
+  if (inVk) {
+    await handleVkAuth();
+    return;
+  }
+  if (inTelegram) {
+    const initData = window.Telegram.WebApp.initData;
+    const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData, refCode, timezone: detectTimezone() }), authToken: '' });
+    rememberRecoveryNotice(data.recoveryNotice);
+    state.token = data.token; state.user = data.user; state.sessionRenewalBlocked = false; storage.set('kopilkaToken', state.token); storage.set('kopilkaLocale', data.user.locale || 'ru');
+    $('connectionStatus').textContent = L('telegramSession');
+    await loadData();
+    return;
+  }
   if (state.token) {
     try {
       await loadData();
@@ -675,26 +933,42 @@ async function authenticate() {
       }
     }
   }
-  const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
-  const inVk = isVkMiniApp();
-  const refCode = captureRefCode();
-  if (inVk) {
-    await handleVkAuth();
-    return;
-  }
-  if (inTelegram) {
-    const initData = window.Telegram.WebApp.initData;
-    const data = await api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData, refCode, timezone: detectTimezone() }) });
-    rememberRecoveryNotice(data.recoveryNotice);
-    state.token = data.token; state.user = data.user; storage.set('kopilkaToken', state.token); storage.set('kopilkaLocale', data.user.locale || 'ru');
-    $('connectionStatus').textContent = L('telegramSession');
-    await loadData();
-    return;
-  }
   // Outside Telegram Mini App -> show the site login screen (Telegram / VK).
   await showLoginScreen();
 }
 async function refreshProduct() { state.product = await api(`/api/product?goal=${encodeURIComponent($('practiceGoal')?.value || 'calm')}`); }
+async function loadHistory(date = state.historyDate, focusHeading = false) {
+  const query = date ? `?date=${encodeURIComponent(date)}&days=7` : '?days=7';
+  const data = await api(`/api/history${query}`);
+  state.history = data;
+  state.historyDate = data.selectedDate;
+  state.historyEditingId = null;
+  renderHistory();
+  if (focusHeading) $('selectedDayHeading')?.focus({ preventScroll: false });
+}
+async function saveHistoryEntry(form) {
+  const id = Number(form.dataset.historyEditForm);
+  const note = new FormData(form).get('note') || '';
+  return withBusy(L('saving'), async () => {
+    const data = await api(`/api/entries/${id}`, { method: 'PATCH', body: JSON.stringify({ note }) });
+    state.summary = data.summary;
+    state.week = data.week;
+    await loadHistory(state.historyDate, true);
+    renderSummary(); renderWeek();
+    setStatus(L('historySaved'));
+  });
+}
+async function deleteHistoryEntry(id) {
+  if (!window.confirm(L('historyDeleteConfirm'))) return;
+  return withBusy(L('saving'), async () => {
+    const data = await api(`/api/entries/${id}`, { method: 'DELETE', body: JSON.stringify({ confirm: true }) });
+    state.summary = data.summary;
+    state.week = data.week;
+    await loadHistory(state.historyDate, true);
+    renderSummary(); renderWeek();
+    setStatus(L('historyDeleted'));
+  });
+}
 async function openSupportAction(actionId) {
   return withBusy(L('supportOpening'), async () => {
     const data = await api(`/api/support/actions/${encodeURIComponent(actionId)}/open`, { method: 'POST', body: JSON.stringify({ source: supportSurface() }) });
@@ -707,9 +981,33 @@ async function openSupportAction(actionId) {
     }
   });
 }
-async function createEntry(type, note = $('entryNote').value.trim()) { return withBusy(L('saving'), async () => { const data = await api('/api/entries', { method: 'POST', body: JSON.stringify({ type, note }) }); state.summary = data.summary; state.week = data.week; if (data.awardedArtifacts?.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts; await refreshProduct(); $('entryNote').value = ''; if (type === 'gratitude' && $('gratitudeNote')) $('gratitudeNote').value = ''; renderAll(); if (data.awardedArtifacts?.length) showArtifactToast(data.awardedArtifacts); else setStatus(type === 'gratitude' ? L('gratitudeSavedStatus') : L('entrySaved')); }); }
+async function createEntry(type, note = $('entryNote').value.trim()) {
+  let awardedArtifacts = [];
+  await withBusy(L('saving'), async () => {
+    const data = await api('/api/entries', { method: 'POST', body: JSON.stringify({ type, note }) });
+    state.summary = data.summary; state.week = data.week; awardedArtifacts = data.awardedArtifacts || [];
+    if (awardedArtifacts.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts;
+    await Promise.all([refreshProduct(), loadHistory()]);
+    $('entryNote').value = '';
+    if (type === 'gratitude' && $('gratitudeNote')) $('gratitudeNote').value = '';
+    renderAll();
+  });
+  if (awardedArtifacts.length) showArtifactToast(awardedArtifacts);
+  else setStatus(type === 'gratitude' ? L('gratitudeSavedStatus') : L('entrySaved'));
+}
 async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshProduct(); renderAll(); setStatus(L('contractCreated')); }); }
-async function closeContract(status) { return withBusy(L('closingContract'), async () => { const data = await api(`/api/contracts/${state.currentContract.id}/close`, { method: 'POST', body: JSON.stringify({ status, resultNote: '' }) }); state.currentContract = null; state.summary = data.summary; state.week = data.week; await refreshProduct(); renderAll(); setStatus(L('contractClosed')); }); }
+async function closeContract(status) {
+  let awardedArtifacts = [];
+  await withBusy(L('closingContract'), async () => {
+    const data = await api(`/api/contracts/${state.currentContract.id}/close`, { method: 'POST', body: JSON.stringify({ status, resultNote: '' }) });
+    state.currentContract = null; state.summary = data.summary; state.week = data.week; awardedArtifacts = data.awardedArtifacts || [];
+    if (awardedArtifacts.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts;
+    await Promise.all([refreshProduct(), loadHistory()]);
+    renderAll();
+  });
+  if (awardedArtifacts.length) showArtifactToast(awardedArtifacts);
+  else setStatus(L('contractClosed'));
+}
 async function saveSettings(event) { event.preventDefault(); const payload = { timezone: $('timezone').value.trim(), remindersEnabled: $('remindersEnabled').checked, eveningReminderTime: $('eveningReminderTime').value || '20:00' }; return withBusy(L('savingSettings'), async () => { const data = await api('/api/settings/reminders', { method: 'POST', body: JSON.stringify(payload) }); state.user = data.user; renderAll(); setStatus(L('settingsSaved')); }); }
 function withTimeout(promise, ms, message) {
   return Promise.race([
@@ -785,7 +1083,21 @@ function cancelAccountMerge() {
   setStatus(L('mergeCancelled'));
 }
 function bindEvents() {
+  window.addEventListener('message', (event) => { void receiveVkOAuthHandoff(event); });
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
+  $('historyDate')?.addEventListener('change', async (event) => { if (state.busy || !event.target.value) return; try { await withBusy(L('historyLoading'), () => loadHistory(event.target.value, true)); } catch (e) { setStatus(e.message, 'error'); renderHistory(); } });
+  $('historyPrevious')?.addEventListener('click', async () => { if (state.busy || !state.history?.previousDate) return; try { await withBusy(L('historyLoading'), () => loadHistory(state.history.previousDate, true)); } catch (e) { setStatus(e.message, 'error'); } });
+  $('historyToday')?.addEventListener('click', async () => { if (state.busy) return; try { await withBusy(L('historyLoading'), () => loadHistory(state.history?.todayDate || '', true)); } catch (e) { setStatus(e.message, 'error'); } });
+  $('historyNext')?.addEventListener('click', async () => { if (state.busy || !state.history?.nextDate) return; try { await withBusy(L('historyLoading'), () => loadHistory(state.history.nextDate, true)); } catch (e) { setStatus(e.message, 'error'); } });
+  $('historyDays')?.addEventListener('click', async (event) => { const button = event.target.closest('[data-history-date]'); if (!button || state.busy) return; try { await withBusy(L('historyLoading'), () => loadHistory(button.dataset.historyDate, true)); } catch (e) { setStatus(e.message, 'error'); } });
+  $('selectedDayEntries')?.addEventListener('click', async (event) => {
+    const edit = event.target.closest('[data-history-edit]');
+    if (edit && !state.busy) { state.historyEditingId = Number(edit.dataset.historyEdit); renderHistory(); $(`history-note-${state.historyEditingId}`)?.focus(); return; }
+    if (event.target.closest('[data-history-cancel]')) { const id = state.historyEditingId; state.historyEditingId = null; renderHistory(); document.querySelector(`[data-history-edit="${id}"]`)?.focus(); return; }
+    const remove = event.target.closest('[data-history-delete]');
+    if (remove && !state.busy) { try { await deleteHistoryEntry(Number(remove.dataset.historyDelete)); } catch (e) { setStatus(e.message, 'error'); } }
+  });
+  $('selectedDayEntries')?.addEventListener('submit', async (event) => { const form = event.target.closest('[data-history-edit-form]'); if (!form || state.busy) return; event.preventDefault(); try { await saveHistoryEntry(form); } catch (e) { setStatus(e.message, 'error'); } });
   $('quickActions').addEventListener('click', async (event) => { const b = event.target.closest('button[data-entry-type]'); if (!b || state.busy || state.publicReadOnly) return; if (b.dataset.usedToday === 'true') { b.focus({ preventScroll: true }); return; } state.quickActionReturnType = b.dataset.entryType || ''; try { await createEntry(b.dataset.entryType); } catch (e) { state.quickActionReturnType = ''; setStatus(e.message, 'error'); } });
   $('gratitudePractice')?.addEventListener('click', async (event) => { const hint = event.target.closest('[data-gratitude-hint]'); if (hint && !state.busy && !state.publicReadOnly) { appendGratitudeHint(hint.dataset.gratitudeHint); return; } const b = event.target.closest('[data-gratitude-submit]'); if (!b || state.busy || state.publicReadOnly) return; try { await createEntry('gratitude', $('gratitudeNote')?.value.trim() || ''); } catch (e) { setStatus(e.message, 'error'); } });
   $('supportActionsList')?.addEventListener('click', async (event) => { const b = event.target.closest('button[data-support-open]'); if (!b || state.busy || state.publicReadOnly) return; try { await openSupportAction(b.dataset.supportOpen); } catch (e) { setStatus(e.message, 'error'); } });
@@ -809,7 +1121,7 @@ function bindEvents() {
   if (vkBtn) vkBtn.addEventListener('click', async () => {
     vkBtn.disabled = true;
     vkBtn.textContent = L('loginVkSoon');
-    try { await handleVkAuth(); } catch (e) { setLoginStatus(userSafeErrorMessage(e), 'error'); vkBtn.disabled = false; vkBtn.textContent = L('loginVkButton'); }
+    try { await startVkOAuth('auth', $('loginStatus')); } catch (e) { setLoginStatus(userSafeErrorMessage(e), 'error'); vkBtn.disabled = false; vkBtn.textContent = L('loginVkButton'); }
   });
   const linkVkBtn = $('linkVkAccount');
   if (linkVkBtn) linkVkBtn.addEventListener('click', async () => {
@@ -819,11 +1131,14 @@ function bindEvents() {
     if (vkStatus) vkStatus.textContent = L('vkLinking');
     setStatus(L('vkLinking'));
     try {
-      if (isVkMiniApp()) {
-        await withBusy(L('vkLinking'), () => handleVkAuth({ linkOnly: true }));
+      if (state.vkLinkRequiresOAuth || !isVkMiniApp()) {
+        await startVkOAuth('link', vkStatus);
       } else {
-        const authUrl = await getVkOAuthUrl('link');
-        goToVkOAuth(authUrl, vkStatus);
+        const result = await withBusy(L('vkLinking'), () => handleVkAuth({ linkOnly: true }));
+        if (result?.oauthRequired) {
+          linkVkBtn.disabled = false;
+          linkVkBtn.textContent = L('vkOauthOpenLink');
+        }
       }
     } catch (e) {
       if (e.data?.mergeRequired) {
@@ -844,69 +1159,75 @@ function bindEvents() {
   if (copyBtn) copyBtn.addEventListener('click', async () => {
     const link = $('refLink')?.value;
     if (!link) return;
-    try { await navigator.clipboard.writeText(link); } catch (_) { /* fallback */ }
-    setStatus(L('copied'));
+    if (await copyText(link)) setStatus(L('copied'));
+    else showManualShare(link, 'copyFailed');
   });
-  // Native share. Prefer the OS share sheet (navigator.share) — it works reliably
-  // in Telegram's Android WebView; fall back to the Telegram forward composer
-  // (openTelegramLink) which can silently no-op on some clients. Guaranteed result.
-  function shareUrl(url, text) {
-    const dbg = (msg) => { try { setStatus(msg); console.log('[share]', msg); } catch (_) {} };
-    const finish = () => { try { navigator.clipboard.writeText(url); dbg('Ссылка скопирована (share недоступен).'); } catch (_) { window.prompt(L('refLinkLabel'), url); } };
-    if (!url) { dbg('Share: нет ссылки (профиль не загружен)'); return; }
+  async function copyText(value) {
+    try {
+      if (!navigator.clipboard?.writeText) return false;
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (error) {
+      clientLog('clipboard_write_failed', userSafeErrorMessage(error));
+      return false;
+    }
+  }
+  function showManualShare(url, statusKey = 'copyFailed') {
+    const box = $('shareFallback');
+    const input = $('shareFallbackLink');
+    if (!box || !input || !url) { setStatus(L(statusKey), 'error'); return; }
+    box.hidden = false;
+    input.value = url;
+    input.focus();
+    input.select();
+    setStatus(L(statusKey), 'error');
+  }
+  async function shareUrl(url, text) {
+    if (!url) { setStatus(L('shareUnavailable'), 'error'); return; }
+    if ($('shareFallback')) $('shareFallback').hidden = true;
     const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
     const tg = window.Telegram?.WebApp;
-    const botInline = Boolean(tg && (tg.initDataUnsafe?.bot_inline ?? tg.botInline ?? tg.version));
-    dbg(`Share: url=${url} tg=${inTelegram} sdk=${!!tg} ver=${tg ? (tg.version || '?') : '—'} inline=${tg ? !!tg.switchInlineQuery : false} botInline=${tg ? !!(tg.initDataUnsafe && tg.initDataUnsafe.bot_inline) : '?'}`);
-    // 1) VK Mini App native share: official VK Bridge share dialog.
     if (isVkMiniApp() && window.vkBridge?.send) {
-      dbg('Share: открываю VKWebAppShare…');
       try {
-        window.vkBridge.send('VKWebAppShare', { link: url, text: text || '' })
-          .then(() => dbg(L('shareOpened')))
-          .catch((e) => { dbg('Share: VKWebAppShare ошибка: ' + (e && e.message ? e.message : String(e))); finish(); });
+        await window.vkBridge.send('VKWebAppShare', { link: url, text: text || '' });
+        setStatus(L('shareOpened'));
         return;
-      } catch (e) { dbg('Share: VKWebAppShare ошибка: ' + (e && e.message ? e.message : String(e))); }
+      } catch (error) { clientLog('vk_share_failed', userSafeErrorMessage(error)); }
     }
-    // 2) Telegram inline mode: opens the native chat picker and sends the composed
-    //    text+link to the chosen chat via answerInlineQuery. Reliable (plain list).
     if (inTelegram && tg && tg.switchInlineQuery) {
-      dbg('Share: открываю выбор чата (inline)…');
-      try { tg.switchInlineQuery(`${text} ${url}`, ['users', 'groups', 'channels']); return; } catch (e) { dbg('Share: switchInlineQuery ошибка: ' + (e && e.message ? e.message : String(e))); }
+      try { tg.switchInlineQuery(`${text} ${url}`, ['users', 'groups', 'channels']); setStatus(L('shareOpened')); return; } catch (error) { clientLog('telegram_inline_share_failed', userSafeErrorMessage(error)); }
     }
-    // 2) OS share sheet (best effort, may be unavailable in WebView).
     if (navigator.share) {
-      dbg('Share: открываю системное окно…');
-      let done = false;
-      const timer = setTimeout(() => { if (!done) { dbg('Share: окно не открылось, копирую.'); finish(); } }, 1500);
-      navigator.share({ title: 'Копилка жизни', text, url }).then(() => { clearTimeout(timer); done = true; }).catch((e) => { clearTimeout(timer); done = true; dbg('Share: системное окно: ' + (e && e.message ? e.message : String(e))); if (navigator.clipboard) finish(); });
-      return;
+      try { await navigator.share({ title: L('appName'), text, url }); setStatus(L('shareCompleted')); return; }
+      catch (error) {
+        clientLog('native_share_failed', userSafeErrorMessage(error));
+        showManualShare(url, error?.name === 'AbortError' ? 'shareCancelled' : 'copyFailed');
+        return;
+      }
     }
-    // 3) Telegram forward composer (best effort; may no-op on some clients).
     if (inTelegram && tg && tg.openTelegramLink) {
       try {
-        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
-        dbg(`Share: открываю композер Telegram (ver=${tg.version || '?'})…`);
-        tg.openTelegramLink(shareUrl, { force_request: true });
+        const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text || '')}`;
+        tg.openTelegramLink(telegramShareUrl, { force_request: true });
+        setStatus(L('shareOpened'));
         return;
-      } catch (e) { dbg('Share: openTelegramLink ошибка: ' + (e && e.message ? e.message : String(e))); }
+      } catch (error) { clientLog('telegram_link_share_failed', userSafeErrorMessage(error)); }
     }
-    // 4) Last resort: copy.
-    dbg('Share: нативный share недоступен, копирую.');
-    finish();
+    if (await copyText(url)) setStatus(L('copied'));
+    else showManualShare(url, 'copyFailed');
   }
   const shareRefBtn = $('shareRefLink');
   if (shareRefBtn) shareRefBtn.addEventListener('click', () => {
     const inBot = Boolean(window.Telegram?.WebApp?.initData);
     const inVk = isVkMiniApp();
     const url = state.profile ? (inVk ? (state.profile.vkRefLink || state.profile.refLink || '') : (inBot ? (state.profile.botLink || '') : (state.profile.refLink || ''))) : '';
-    shareUrl(url, L('shareRefText'));
+    void shareUrl(url, L('shareRefText'));
   });
   const shareBtn = $('shareProfile');
   if (shareBtn) shareBtn.addEventListener('click', () => {
     const inVk = isVkMiniApp();
     const url = state.profile ? (inVk ? (state.profile.vkProfileLink || state.profile.profileLink || '') : (state.profile.profileLink || '')) : '';
-    shareUrl(url, L('shareProfileText'));
+    void shareUrl(url, L('shareProfileText'));
   });
 }
 async function start() {
@@ -988,7 +1309,8 @@ async function renderPublicProfile(code, options = {}) {
 (async () => {
   fireVkBridgeInit();
   bindEvents(); // bind buttons in every context (site, public profile, Mini App)
-  const consumedVkOAuth = consumeVkOAuthResult();
+  const explicitVkOAuthReturn = new URLSearchParams(window.location.search || '').has('vk_oauth_return');
+  const consumedVkOAuth = explicitVkOAuthReturn && await consumeVkOAuthResult();
   if (consumedVkOAuth) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; await start(); return; }
   const inVk = isVkMiniApp();
   clientLog('bootstrap', `inVk=${inVk} hasSearch=${Boolean(window.location.search)} hasHash=${Boolean(window.location.hash)} token=${Boolean(state.token)}`);
@@ -998,6 +1320,25 @@ async function renderPublicProfile(code, options = {}) {
   // signed VK auth flow first. If we try public-profile routing before auth,
   // repeated referral opens in VK Android can stop before /api/auth/vk.
   if (inVk) { captureRefCode(); await start(); return; }
+  const hasTelegramInitData = Boolean(window.Telegram?.WebApp?.initData);
+  const looksLikeTelegramLaunch = hasTelegramInitData || Boolean(new URLSearchParams(window.location.search || '').get('tgWebAppData'));
+  const telegramReady = await waitForTelegram(looksLikeTelegramLaunch ? 200 : 40);
+  const inTelegram = Boolean(telegramReady && window.Telegram?.WebApp?.initData);
+  if (inTelegram) {
+    if ($('appShell')) $('appShell').hidden = false;
+    if ($('loginScreen')) $('loginScreen').hidden = true;
+    await start();
+    return;
+  }
+  if (looksLikeTelegramLaunch) { await showLoginScreen({ landing: false }); return; }
+  const bridgeLaunchParams = await freshVkBridgeLaunchParams();
+  if (bridgeLaunchParams) {
+    state.vkBridgeLaunchParams = bridgeLaunchParams;
+    if ($('appShell')) $('appShell').hidden = false;
+    if ($('loginScreen')) $('loginScreen').hidden = true;
+    await start();
+    return;
+  }
   const publicCode = publicProfileCode();
   if (publicCode) {
     captureRefCode();
@@ -1012,17 +1353,7 @@ async function renderPublicProfile(code, options = {}) {
     await start();
     return;
   }
-  const hasTelegramInitData = Boolean(window.Telegram?.WebApp?.initData);
-  const looksLikeTelegramLaunch = hasTelegramInitData || Boolean(new URLSearchParams(window.location.search || '').get('tgWebAppData'));
-  const earlyTelegram = await waitForTelegram(40); // ~2s grace for slower Telegram WebViews before showing site login.
-  if (!looksLikeTelegramLaunch && !earlyTelegram) { await showLoginScreen(); return; }
-  const hasWebApp = earlyTelegram || await waitForTelegram();
-  // Inside Telegram Mini App we must have signed initData. The SDK object alone
-  // is also present on the plain website because we load telegram-web-app.js.
-  const inTelegram = Boolean(hasWebApp && window.Telegram?.WebApp?.initData);
-  if (inTelegram) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
-  if (!inTelegram) { await showLoginScreen({ landing: !looksLikeTelegramLaunch }); return; }
-  await start();
+  await showLoginScreen();
 })().catch((error) => {
   const msg = userSafeErrorMessage(error, 'connectFailed');
   clientLog('bootstrap_error', msg);

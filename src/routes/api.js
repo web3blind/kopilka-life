@@ -1,16 +1,17 @@
 const express = require('express');
+const crypto = require('crypto');
 const config = require('../config');
 const { validateTelegramInitData } = require('../auth/validateTelegramInitData');
 const { validateTelegramLogin } = require('../auth/validateTelegramLogin');
 const { validateVkLaunchParams, parseLaunchParams } = require('../auth/validateVkLaunchParams');
-const { buildAuthorizeUrl, exchangeCode, verifyState } = require('../auth/vkOAuth');
-const { createToken, verifyToken } = require('../auth/session');
+const { createOAuthIntent, beginOAuthIntent, exchangeCode, consumeState, createOAuthLinkProof, consumeOAuthLinkProof, validBrowserBinding, buildOAuthHandoffDocument, appOrigin } = require('../auth/vkOAuth');
+const { createToken, verifyToken, inspectToken } = require('../auth/session');
 const { buildVkMergeOffer, buildMergePreview, applyMergeByToken } = require('../services/accountMergeService');
 const { verifyMergeToken } = require('../auth/mergeToken');
 const { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, updateVkMessagesAllowed, deleteDemoUser } = require('../services/usersService');
 const { grantReferrerBonusOnFirstEntry, profileStats, publicProfileByCode } = require('../services/referralService');
 const { listArtifacts, awardArtifactsForUser, artifactSummary } = require('../services/artifactsService');
-const { createEntry, getSummary, getWeekSummary, listEntries } = require('../services/entriesService');
+const { createEntry, getSummary, getWeekSummary, listEntries, getHistory, updateEntryNote, deleteEntry } = require('../services/entriesService');
 const { getCurrentContract, createContract, closeContract } = require('../services/contractsService');
 const { scheduleNextReminderForUser } = require('../services/remindersService');
 const { getProductLayer, getPractices } = require('../services/productContentService');
@@ -33,14 +34,15 @@ function userError(locale, message) {
 }
 
 function authRequired(req, res, next) {
-  const userId = verifyToken((req.get('authorization') || '').replace(/^Bearer\s+/i, ''));
-  if (!userId) {
+  const inspected = inspectToken((req.get('authorization') || '').replace(/^Bearer\s+/i, ''));
+  if (inspected.status !== 'valid') {
     const surface = String(req.get('x-kopilka-surface') || '').toLowerCase();
     const key = surface === 'vk' ? 'error.vkSession' : (surface === 'telegram' ? 'error.telegramSession' : 'error.session');
-    return res.status(401).json({ error: t(req.locale || 'ru', key) });
+    return res.status(401).json({ error: t(req.locale || 'ru', key), code: inspected.status === 'expired' ? 'SESSION_EXPIRED' : 'SESSION_INVALID' });
   }
+  const userId = inspected.userId;
   const user = getUserById(userId);
-  if (!user) return res.status(401).json({ error: t(req.locale || 'ru', 'error.userNotFound') });
+  if (!user) return res.status(401).json({ error: t(req.locale || 'ru', 'error.userNotFound'), code: 'SESSION_INVALID' });
   req.user = user;
   req.locale = normalizeLocale(user.locale);
   return next();
@@ -65,6 +67,50 @@ function vkLaunchDiag(input) {
   } catch (error) {
     return JSON.stringify({ len: String(input || '').length, parseError: error && error.message ? error.message : String(error) });
   }
+}
+
+const OAUTH_BROWSER_COOKIE = 'kopilka_oauth_browser';
+function readCookie(req, name) {
+  for (const value of String(req.get('cookie') || '').split(';')) {
+    const [key, ...rest] = value.trim().split('=');
+    if (key === name) return decodeURIComponent(rest.join('='));
+  }
+  return '';
+}
+function currentOAuthBrowser(req) {
+  const value = readCookie(req, OAUTH_BROWSER_COOKIE);
+  return validBrowserBinding(value) ? value : '';
+}
+function ensureOAuthBrowser(req, res) {
+  const existing = currentOAuthBrowser(req);
+  if (existing) return existing;
+  const value = crypto.randomBytes(32).toString('base64url');
+  const secure = config.isProduction ? '; Secure' : '';
+  const maxAge = Math.max(60, Number(config.vkOAuthStateMaxAgeSeconds) || 600);
+  res.append('Set-Cookie', `${OAUTH_BROWSER_COOKIE}=${encodeURIComponent(value)}; Path=/api/auth/vk-oauth; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`);
+  return value;
+}
+
+function expireOAuthBrowser(res) {
+  const secure = config.isProduction ? '; Secure' : '';
+  res.append('Set-Cookie', `${OAUTH_BROWSER_COOKIE}=; Path=/api/auth/vk-oauth; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
+}
+
+function oauthResponseHeaders(res, csp = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'") {
+  res.set({
+    'Cache-Control': 'no-store',
+    'Content-Security-Policy': csp,
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY'
+  });
+}
+
+function sendOAuthHandoff(res, payload, { expireBinding = true } = {}) {
+  const document = buildOAuthHandoffDocument(payload, appOrigin());
+  oauthResponseHeaders(res, document.csp);
+  if (expireBinding) expireOAuthBrowser(res);
+  return res.type('html').send(document.html);
 }
 
 router.post('/client-log', (req, res) => {
@@ -118,7 +164,7 @@ router.post('/settings/link-vk', authRequired, authLimiter, (req, res) => {
     res.status(400).json({ error: error.message || 'Не удалось привязать VK.' });
   }
 });
-router.post('/auth/vk-oauth/start', authLimiter, (req, res) => {
+router.post('/auth/vk-oauth/intent', authLimiter, (req, res) => {
   try {
     const action = req.body.action === 'link' ? 'link' : 'auth';
     let userId = null;
@@ -126,38 +172,63 @@ router.post('/auth/vk-oauth/start', authLimiter, (req, res) => {
       userId = verifyToken((req.get('authorization') || '').replace(/^Bearer\s+/i, ''));
       if (!userId) return res.status(401).json({ error: 'Сначала войдите в аккаунт, к которому нужно привязать VK.' });
     }
-    const authUrl = buildAuthorizeUrl({ action, userId, refCode: req.body.refCode || '', timezone: req.body.timezone || '', locale: req.body.locale || req.locale || 'ru' });
-    res.json({ authUrl });
+    const created = createOAuthIntent({ action, userId, refCode: req.body.refCode || '', timezone: req.body.timezone || '', locale: req.body.locale || req.locale || 'ru' });
+    const launchUrl = new URL('/api/auth/vk-oauth/start', appOrigin());
+    launchUrl.searchParams.set('intent', created.intent);
+    res.json({ launchUrl: launchUrl.toString(), channel: created.channel });
   } catch (error) {
-    console.error('[auth/vk-oauth/start] reject:', error && error.message ? error.message : String(error));
+    console.error('[auth/vk-oauth/intent] reject:', error && error.message ? error.message : String(error));
     res.status(400).json({ error: 'Не удалось начать вход через VK ID.' });
   }
 });
-router.get('/auth/vk-oauth/callback', authLimiter, async (req, res) => {
+router.get('/auth/vk-oauth/window', authLimiter, (req, res) => {
+  ensureOAuthBrowser(req, res);
+  oauthResponseHeaders(res);
+  res.type('html').send('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VK ID — Копилка жизни</title></head><body><main><h1>Открываем VK ID</h1><p role="status">Подготавливаем безопасный вход…</p></main></body></html>');
+});
+router.get('/auth/vk-oauth/start', authLimiter, (req, res) => {
   try {
+    const browserBinding = ensureOAuthBrowser(req, res);
+    const authUrl = beginOAuthIntent(String(req.query.intent || ''), browserBinding);
+    oauthResponseHeaders(res);
+    res.redirect(303, authUrl);
+  } catch (error) {
+    console.error('[auth/vk-oauth/start] reject:', error && error.message ? error.message : String(error));
+    oauthResponseHeaders(res);
+    res.status(400).type('html').send('<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>VK ID — Копилка жизни</title></head><body><main><h1>Не удалось начать вход</h1><p>Вернитесь в Копилку жизни и попробуйте снова.</p><p><a href="/">Вернуться в приложение</a></p></main></body></html>');
+  }
+});
+router.get('/auth/vk-oauth/callback', authLimiter, async (req, res) => {
+  let stateContext = null;
+  try {
+    stateContext = consumeState(String(req.query.state || ''), currentOAuthBrowser(req));
     if (req.query.error) throw new Error(String(req.query.error_description || req.query.error));
-    const state = verifyState(String(req.query.state || ''));
-    const tokens = await exchangeCode({ code: String(req.query.code || ''), deviceId: String(req.query.device_id || ''), state: String(req.query.state || ''), codeVerifier: state.codeVerifier });
+    const tokens = await exchangeCode({ code: String(req.query.code || ''), deviceId: String(req.query.device_id || ''), state: String(req.query.state || ''), codeVerifier: stateContext.codeVerifier });
     const vkId = String(tokens.user_id);
-    let user;
-    if (state.action === 'link') {
-      if (!state.userId) throw new Error('VK OAuth link target is missing');
-      const mergeOffer = buildVkMergeOffer(Number(state.userId), vkId);
-      if (mergeOffer) {
-        const fragment = new URLSearchParams({ vk_oauth_action: 'link', vk_oauth_merge_token: mergeOffer.mergeToken });
-        return res.redirect(303, `/#${fragment.toString()}`);
-      }
-      user = linkVkUser(Number(state.userId), vkId);
-    } else {
-      user = upsertVkUser(vkId, state.refCode || '', state.timezone || '', state.locale || 'ru');
+    if (stateContext.action === 'link') {
+      if (!stateContext.userId) throw new Error('VK OAuth link target is missing');
+      const linkProof = createOAuthLinkProof({ targetUserId: Number(stateContext.userId), vkId, channel: stateContext.channel });
+      return sendOAuthHandoff(res, { type: 'kopilka:vk-oauth', channel: stateContext.channel, action: 'link', linkProof });
     }
+    const user = upsertVkUser(vkId, stateContext.refCode || '', stateContext.timezone || '', stateContext.locale || 'ru');
     const appToken = createToken(user.id);
-    const fragment = new URLSearchParams({ vk_oauth_token: appToken, vk_oauth_action: state.action === 'link' ? 'link' : 'auth' });
-    res.redirect(303, `/#${fragment.toString()}`);
+    return sendOAuthHandoff(res, { type: 'kopilka:vk-oauth', channel: stateContext.channel, action: 'auth', token: appToken });
   } catch (error) {
     console.error('[auth/vk-oauth/callback] reject:', error && error.message ? error.message : String(error));
-    const fragment = new URLSearchParams({ vk_oauth_error: 'Не удалось завершить вход через VK ID.' });
-    res.redirect(303, `/#${fragment.toString()}`);
+    return sendOAuthHandoff(res, { type: 'kopilka:vk-oauth', channel: stateContext?.channel || '', action: stateContext?.action || 'auth', error: 'Не удалось завершить вход через VK ID.' }, { expireBinding: Boolean(stateContext) });
+  }
+});
+router.post('/auth/vk-oauth/finalize-link', authRequired, authLimiter, (req, res) => {
+  try {
+    const verified = consumeOAuthLinkProof(String(req.body.proof || ''), req.user.id);
+    const mergeOffer = buildVkMergeOffer(req.user.id, verified.vkId);
+    if (mergeOffer) return res.status(409).json(mergeOffer);
+    const user = linkVkUser(req.user.id, verified.vkId);
+    return res.json({ token: createToken(user.id), user: publicUser(user) });
+  } catch (error) {
+    console.error('[auth/vk-oauth/finalize-link] reject:', error && error.message ? error.message : String(error));
+    if (/target session does not match/i.test(error.message || '')) return res.status(403).json({ error: 'Эта VK-сессия предназначена для другого аккаунта.' });
+    return res.status(400).json({ error: 'Не удалось безопасно завершить привязку VK.' });
   }
 });
 // Public, non-sensitive config the site needs to render sign-in options.
@@ -239,6 +310,30 @@ router.post('/entries', authRequired, (req, res) => {
 router.get('/entries', authRequired, (req, res) => {
   if (req.query.range === 'week') return res.json(getWeekSummary(req.user.id));
   return res.json({ entries: listEntries(req.user.id, req.query.range || 'today') });
+});
+router.get('/history', authRequired, (req, res) => {
+  try {
+    res.json(getHistory(req.user.id, { date: req.query.date, days: req.query.days === undefined ? 7 : Number(req.query.days) }));
+  } catch (error) {
+    res.status(400).json({ error: userError(req.locale, error.message) });
+  }
+});
+router.patch('/entries/:id', authRequired, (req, res) => {
+  try {
+    const entry = updateEntryNote(req.user.id, req.params.id, req.body.note || '');
+    res.json({ entry, summary: getSummary(req.user.id), week: getWeekSummary(req.user.id) });
+  } catch (error) {
+    res.status(error.status || 400).json({ error: userError(req.locale, error.message) });
+  }
+});
+router.delete('/entries/:id', authRequired, (req, res) => {
+  if (req.body.confirm !== true) return res.status(400).json({ error: t(req.locale, 'error.entryDeleteConfirm') });
+  try {
+    const entry = deleteEntry(req.user.id, req.params.id);
+    res.json({ deleted: true, entryId: entry.id, summary: getSummary(req.user.id), week: getWeekSummary(req.user.id), artifactsRetained: true });
+  } catch (error) {
+    res.status(error.status || 400).json({ error: userError(req.locale, error.message) });
+  }
 });
 router.get('/product', authRequired, (req, res) => res.json(getProductLayer(req.user.id, req.query.goal, req.locale)));
 router.get('/product/practices', authRequired, (req, res) => res.json(getPractices(req.query.goal, req.locale)));
