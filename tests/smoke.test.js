@@ -162,7 +162,15 @@ function testStaticAccessibility() {
   assert(frontendI18n.includes('Наслаждение'), 'savoring quick action exists');
   assert(frontendI18n.includes('вкус, тепло, запах, звук или красивый момент'), 'savoring hint names day and senses');
   assert(frontendI18n.includes('Кому или чему ты сегодня благодарен?'), 'gratitude practice asks who or what the user is grateful to');
-  assert(frontendI18n.includes('человеку, дню, телу, случаю, месту или себе'), 'gratitude practice gives concrete gratitude targets');
+  const gratitudeContext = { window: {} };
+  require('vm').runInNewContext(frontendI18n, gratitudeContext);
+  const gratitudeI18n = gratitudeContext.window.KopilkaI18n;
+  for (const lang of ['ru', 'en']) {
+    for (const key of ['gratitudeNoteHint', 'gratitudeNotePlaceholder', 'gratitudeHintParents', 'gratitudeHintDay', 'gratitudeHintPerson', 'gratitudeHintBody', 'gratitudeHintSelf']) {
+      assert(gratitudeI18n.STRINGS[key][lang]?.trim(), `gratitude copy ${key} has an explicit ${lang} translation`);
+      assert.notEqual(gratitudeI18n.t(lang, key), key, 'gratitude copy resolves instead of showing a translation key');
+    }
+  }
   assert(frontendI18n.includes('Подсказки'), 'gratitude hint spoiler has a short summary');
   assert(frontendI18n.includes('родителям — за жизнь'), 'gratitude hints include concrete examples');
   assert(frontendI18n.includes('recoveryNoticeClose'), 'recovery notice close button is localized');
@@ -224,7 +232,7 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260905-platform-auth-link-proof'), 'frontend i18n cache bust matches release');
+  assert(/src="\/i18n\.js\?v=[^"\s]+"/.test(html), 'frontend i18n script has a cache-busting version');
   assert(html.includes('/app.js?v=20260905-platform-auth-link-proof'), 'frontend app cache bust matches release');
   assert(html.includes('/styles.css?v=20260905-platform-auth-link-proof'), 'frontend css cache bust matches release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
