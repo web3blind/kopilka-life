@@ -1,5 +1,5 @@
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20260906-profile-story-share-2';
+const CLIENT_VERSION = '20260906-telegram-story-confirm';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -1260,8 +1260,32 @@ function bindEvents() {
       const mediaUrl = p.telegramStoryCardUrl || '';
       if (mediaUrl.startsWith('https://')) {
         try {
-          tg.shareToStory(mediaUrl, { text: L('shareProfileText'), widget_link: { url: destination, name: L('storyWidgetName') } });
-          setStatus(L('storyEditorOpened'));
+          if (!tg.isVersionAtLeast?.('7.8') || typeof tg.showPopup !== 'function') {
+            showManualShare(destination, 'storyUnsupported', 'info');
+            return;
+          }
+          // Android records native popup button presses as user gestures; a
+          // TalkBack DOM click alone may not update its lastClickMs guard.
+          clientLog('telegram_story_confirmation', `platform=${tg.platform || 'unknown'} sdk=${tg.version || 'unknown'}`);
+          tg.showPopup({ message: L('storyConfirmMessage'), buttons: [
+            { id: 'share', type: 'default', text: L('storyConfirmButton') },
+            { id: 'cancel', type: 'cancel' }
+          ] }, (buttonId) => {
+            if (buttonId !== 'share') {
+              clientLog('telegram_story_cancelled', 'confirmation');
+              showManualShare(destination, 'storyCancelled', 'info');
+              return;
+            }
+            try {
+              // Keep synchronous with the native confirmation, without fetch/await.
+              tg.shareToStory(mediaUrl, { text: L('shareProfileText'), widget_link: { url: destination, name: L('storyWidgetName') } });
+              clientLog('telegram_story_requested', `platform=${tg.platform || 'unknown'} sdk=${tg.version || 'unknown'}`);
+              setStatus(L('storyEditorRequested'));
+            } catch (error) {
+              clientLog('telegram_story_failed', userSafeErrorMessage(error));
+              showManualShare(destination, 'storyLoadFailed');
+            }
+          });
           return;
         } catch (error) {
           clientLog('telegram_story_failed', userSafeErrorMessage(error));

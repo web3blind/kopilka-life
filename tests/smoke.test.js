@@ -239,8 +239,8 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260906-profile-story-share'), 'frontend i18n cache bust matches release');
-  assert(html.includes('/app.js?v=20260906-profile-story-share-2'), 'frontend app cache bust matches release');
+  assert(html.includes('/i18n.js?v=20260906-telegram-story-confirm'), 'frontend i18n cache bust matches release');
+  assert(html.includes('/app.js?v=20260906-telegram-story-confirm'), 'frontend app cache bust matches release');
   assert(html.includes('/styles.css?v=20260905-platform-auth-link-proof'), 'frontend css cache bust matches release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
