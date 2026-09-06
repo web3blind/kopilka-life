@@ -1,5 +1,5 @@
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20260906-profile-story-share';
+const CLIENT_VERSION = '20260906-profile-story-share-2';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -263,7 +263,7 @@ function setPublicReadOnlyMode(enabled) {
 function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text; region.classList.toggle('error', type === 'error'); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
 function userSafeErrorMessage(error, fallbackKey = 'actionFailed') {
-  const raw = error?.message || String(error || '');
+  const raw = error?.error_data?.error_reason || error?.error_reason || error?.message || error?.error_type || String(error || '');
   const firstLine = String(raw || '').split(/\n|\s+at\s+/)[0].trim();
   const cleaned = firstLine.replace(/^(Error|TypeError|ReferenceError|SyntaxError):\s*/i, '').trim();
   return (cleaned || L(fallbackKey)).slice(0, 180);

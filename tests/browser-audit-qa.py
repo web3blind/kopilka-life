@@ -475,7 +475,8 @@ def run():
             tg_story_page.locator("#shareStory").click()
             tg_story_page.wait_for_function("window.__tgStoryCall !== null")
             tg_story_call = tg_story_page.evaluate("window.__tgStoryCall")
-            require(tg_story_call["media"].startswith("https://") and tg_story_call["params"]["widget_link"]["url"] == owner_profile["telegramProfileLink"], "Telegram shareToStory payload lost the HTTPS PNG or profile widget")
+            expected_tg_destination = owner_profile.get("telegramProfileLink") or owner_profile["profileLink"]
+            require(tg_story_call["media"].startswith("https://") and tg_story_call["params"]["widget_link"]["url"] == expected_tg_destination, "Telegram shareToStory payload lost the HTTPS PNG or profile widget")
             require(tg_story_call["params"]["widget_link"]["name"], "Telegram story widget needs an accessible visible name")
             tg_story_page.close()
 
@@ -491,8 +492,13 @@ def run():
             vk_story_call = vk_story_page.evaluate("window.__vkStoryCall")
             require(vk_story_call["background_type"] == "image" and vk_story_call["blob"].startswith("data:image/png;base64,"), "VK story payload must contain an inline PNG image")
             require(vk_story_call["attachment"]["type"] == "url" and vk_story_call["attachment"]["text"] == "open" and vk_story_call["attachment"]["url"].startswith("https://vk.com/app54723764#profile="), "VK story attachment must open the exact public profile")
+            vk_story_page.evaluate("window.vkBridge.send=(method,params)=>method==='VKWebAppShowStoryBox' ? Promise.reject({error_type:'client_error',error_data:{error_reason:'User denied'}}) : Promise.resolve({})")
+            vk_story_page.locator("#shareStory").click()
+            vk_story_page.wait_for_function("document.querySelector('#statusRegion').textContent.includes('История не опубликована')")
+            require(vk_story_page.locator("#shareFallback").is_visible(), "structured VK cancellation must expose the manual profile link")
+            require(not vk_story_page.locator("#statusRegion").evaluate("el => el.classList.contains('error')"), "user-cancelled VK story must not be reported as an app error")
             vk_story_page.close()
-            evidence.append(["profile-deep-links-and-story-payloads", "VK #ref preserved", "VK #profile owner rendered", "Telegram profile start parameter rendered", "referral attribution preserved", "Telegram/VK story payloads", "passed"])
+            evidence.append(["profile-deep-links-and-story-payloads", "VK #ref preserved", "VK #profile owner rendered", "Telegram profile start parameter rendered", "referral attribution preserved", "Telegram/VK story payloads", "structured VK cancellation", "passed"])
 
             telegram_user_id = 990101
             telegram_data = telegram_init_data(telegram_user_id)
