@@ -766,7 +766,7 @@ async function main() {
   assert(refAProfile.data.profile.vkRefLink.includes('vk.com/app54723764#ref='), 'profile exposes VK Mini App ref link');
   assert(refAProfile.data.profile.vkProfileLink.includes('vk.com/app54723764#profile='), 'profile exposes VK Mini App profile link');
   assert.equal(refAProfile.data.profile.telegramProfileLink, `https://t.me/HarborLifeBot?startapp=profile-${refCodeA}`, 'profile exposes a Telegram profile deep link distinct from referral startapp');
-  assert.equal(refAProfile.data.profile.telegramStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=telegram`, 'profile exposes canonical Telegram story-card URL');
+  assert.equal(refAProfile.data.profile.telegramStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=telegram&v=2`, 'profile exposes canonical Telegram story-card URL');
   assert.equal(refAProfile.data.profile.vkStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=vk`, 'profile exposes canonical VK story-card URL');
   assert.equal(storyDestination(refCodeA, 'telegram'), refAProfile.data.profile.telegramProfileLink, 'Telegram QR destination is the distinct profile start parameter');
   assert.equal(storyDestination(refCodeA, 'vk'), refAProfile.data.profile.vkProfileLink, 'VK QR destination is the profile hash deep link');
@@ -802,6 +802,13 @@ async function main() {
     assert.equal(storyBuffer.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `${platform} story card has PNG signature`);
     assert.equal(storyBuffer.readUInt32BE(16), 1080, `${platform} story card width is 1080`);
     assert.equal(storyBuffer.readUInt32BE(20), 1920, `${platform} story card height is 1920`);
+    const sharp = require('sharp');
+    const expectedQr = await require('qrcode').toBuffer(storyDestination(refCodeA, platform), {
+      type: 'png', errorCorrectionLevel: 'H', margin: 2, width: 420,
+      color: { dark: '#25362f', light: '#fffaf0' }
+    });
+    const actualQr = await sharp(storyBuffer).extract({ left: 330, top: platform === 'telegram' ? 995 : 1290, width: 420, height: 420 }).removeAlpha().raw().toBuffer();
+    assert.deepEqual(actualQr, await sharp(expectedQr).removeAlpha().raw().toBuffer(), `${platform} complete QR stays in its safe area`);
     assert(!storyBuffer.includes(Buffer.from('PRIVATE_STORY_NOTE')), `${platform} story card does not contain private note bytes`);
     assert(!storyBuffer.includes(Buffer.from('Private category title')), `${platform} story card does not contain category/history text bytes`);
   }

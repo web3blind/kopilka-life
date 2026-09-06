@@ -47,7 +47,7 @@ function storyDestination(code, platform) {
 
 function storyCardUrl(code, platform) {
   if (!PLATFORMS.has(platform)) throw new Error('invalid story platform');
-  return `${baseUrl()}/api/story-card/${code}.png?platform=${platform}`;
+  return `${baseUrl()}/api/story-card/${code}.png?platform=${platform}${platform === 'telegram' ? '&v=2' : ''}`;
 }
 
 function boundedNumber(value) {
@@ -83,7 +83,11 @@ async function renderStoryCard(codeValue, platform) {
     width: 420,
     color: { dark: '#25362f', light: '#fffaf0' }
   });
-  const svg = Buffer.from(`
+  // In the observed Telegram Android editor, the link sticker is around
+  // y=1500 and the caption below y=1690. Reserve that area for native UI.
+  // VK retains its existing composition.
+  const telegram = platform === 'telegram';
+  const svgText = `
     <svg width="${STORY_WIDTH}" height="${STORY_HEIGHT}" viewBox="0 0 ${STORY_WIDTH} ${STORY_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -94,6 +98,7 @@ async function renderStoryCard(codeValue, platform) {
       <rect width="1080" height="1920" fill="url(#bg)"/>
       <circle cx="930" cy="170" r="340" fill="url(#sun)"/>
       <circle cx="90" cy="1550" r="330" fill="#bdd6bd" opacity=".38"/>
+      <g transform="${telegram ? 'translate(54 60) scale(0.9 0.78)' : 'translate(0 0)'}">
       <text x="92" y="150" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#87654e" letter-spacing="3">КОПИЛКА ЖИЗНИ</text>
       <text x="92" y="310" font-family="Arial, sans-serif" font-size="76" font-weight="700" fill="#25362f">${escapeXml(card.name)}</text>
       <text x="92" y="410" font-family="Arial, sans-serif" font-size="34" fill="#52645a">Маленькие действия складываются в тепло.</text>
@@ -105,15 +110,17 @@ async function renderStoryCard(codeValue, platform) {
       <text x="620" y="735" font-family="Arial, sans-serif" font-size="74" font-weight="700" fill="#25362f">${card.todayLife} ЖИЗНЬ</text>
       <text x="620" y="825" font-family="Arial, sans-serif" font-size="30" fill="#7e695b">ЗА НЕДЕЛЮ</text>
       <text x="620" y="895" font-family="Arial, sans-serif" font-size="54" font-weight="700" fill="#25362f">${card.weekLife} · ${card.activeDays}/7 дней</text>
-      <rect x="72" y="1040" width="936" height="720" rx="58" fill="#31463b"/>
-      <text x="540" y="1160" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="700" fill="#fffaf0">Открыть публичный профиль</text>
-      <text x="540" y="1215" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#dce9dc">Наведите камеру на QR-код</text>
-      <rect x="310" y="1270" width="460" height="460" rx="42" fill="#fffaf0"/>
-      <text x="540" y="1840" text-anchor="middle" font-family="Arial, sans-serif" font-size="27" fill="#52645a">Без сравнения. Без стыда. Просто видимый след жизни.</text>
-    </svg>`);
+      </g>
+      <rect x="72" y="${telegram ? 830 : 1040}" width="936" height="720" rx="58" fill="#31463b"/>
+      <text x="540" y="${telegram ? 895 : 1160}" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="700" fill="#fffaf0">Открыть публичный профиль</text>
+      <text x="540" y="${telegram ? 945 : 1215}" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#dce9dc">Наведите камеру на QR-код</text>
+      <rect x="310" y="${telegram ? 975 : 1270}" width="460" height="460" rx="42" fill="#fffaf0"/>
+      <text opacity="${telegram ? 0 : 1}" x="540" y="1840" text-anchor="middle" font-family="Arial, sans-serif" font-size="27" fill="#52645a">Без сравнения. Без стыда. Просто видимый след жизни.</text>
+    </svg>`;
+  const svg = Buffer.from(svgText);
   const png = await sharp(svg, { density: 144 })
     .resize(STORY_WIDTH, STORY_HEIGHT)
-    .composite([{ input: qr, left: 330, top: 1290 }])
+    .composite([{ input: qr, left: 330, top: telegram ? 995 : 1290 }])
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
   const value = { png, destination, card };
