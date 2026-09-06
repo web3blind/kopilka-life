@@ -3,6 +3,8 @@
 VK Mini App, Telegram Mini App, сайт и бот на одной учётной записи: vanilla HTML/CSS/JS, Node.js/Express, SQLite и Telegram webhook.
 Интерфейс RU/EN содержит шесть вкладок: «Сегодня», «История», «Договор», «Настройки», «Полезное», «Профиль».
 
+Во вкладке «Профиль» доступны обычное распространение публичного профиля и открытие нативного редактора истории: Telegram Mini App использует `WebApp.shareToStory`, VK Mini App — `VKWebAppShowStoryBox`. Серверная PNG-карточка `/api/story-card/:code.png?platform=telegram|vk` строится только из публичной проекции профиля; публикацию всегда отдельно подтверждает пользователь в редакторе платформы. `#ref=CODE` остаётся реферальным запуском, а `#profile=CODE` после signed platform auth показывает публичный профиль владельца, не подменяя identity получателя.
+
 ## Локальный запуск / Local run
 
 ```bash

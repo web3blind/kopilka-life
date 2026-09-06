@@ -51,10 +51,12 @@ def expired_session_token(user_id):
     return f"{encoded}.{signature}"
 
 
-def telegram_init_data(user_id):
+def telegram_init_data(user_id, first_name="Renewal fixture", start_param=None):
     now = int(time.time())
-    user = json.dumps({"id": int(user_id), "first_name": "Renewal fixture", "language_code": "ru"}, separators=(",", ":"))
+    user = json.dumps({"id": int(user_id), "first_name": str(first_name), "language_code": "ru"}, separators=(",", ":"))
     values = {"auth_date": str(now), "query_id": "browser-renewal-fixture", "user": user}
+    if start_param:
+        values["start_param"] = str(start_param)
     check = "\n".join(f"{key}={values[key]}" for key in sorted(values))
     secret = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
     values["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
@@ -78,6 +80,15 @@ def database_identity(user_id, column):
     connection = sqlite3.connect(DB_PATH, timeout=10)
     try:
         return connection.execute(f"SELECT {column} FROM users WHERE id = ?", (int(user_id),)).fetchone()[0]
+    finally:
+        connection.close()
+
+
+def database_referrer(user_id):
+    connection = sqlite3.connect(DB_PATH, timeout=10)
+    try:
+        row = connection.execute("SELECT referrer_id FROM users WHERE id = ?", (int(user_id),)).fetchone()
+        return None if row is None else row[0]
     finally:
         connection.close()
 
@@ -392,6 +403,97 @@ def run():
             delayed_tg_page.close()
             evidence.append(["cached-token-platform-priority", "Telegram A→B reads+writes", "VK signed/Bridge A→B reads+writes", "delayed Telegram SDK", "passed"])
 
+            # Public-profile deep links preserve signed recipient identity and referral
+            # attribution, but route to the owner's public projection after auth.
+            owner_init_data = telegram_init_data(990250, "Profile owner")
+            owner_auth = context.request.post(
+                f"{BASE_URL}/api/auth/telegram",
+                data={"initData": owner_init_data, "timezone": "UTC"},
+            )
+            require(owner_auth.ok, "public-profile owner fixture auth failed")
+            owner_json = owner_auth.json()
+            owner_id = owner_json["user"]["id"]
+            owner_profile_response = context.request.get(
+                f"{BASE_URL}/api/profile",
+                headers={"Authorization": f"Bearer {owner_json['token']}"},
+            )
+            require(owner_profile_response.ok, "public-profile owner fixture profile failed")
+            owner_profile = owner_profile_response.json()["profile"]
+            owner_code = owner_profile["refCode"]
+
+            vk_ref_id = 880190
+            vk_ref_page = context.new_page()
+            vk_ref_page.goto(f"{BASE_URL}/?{vk_launch_params(vk_ref_id)}#ref={owner_code}", wait_until="domcontentloaded")
+            wait_ready(vk_ref_page)
+            vk_ref_internal = vk_ref_page.evaluate("state.user.id")
+            require(str(database_identity(vk_ref_internal, "vk_id")) == str(vk_ref_id), "VK referral launch authenticated the wrong recipient")
+            require(database_referrer(vk_ref_internal) == owner_id, "VK #ref attribution was lost while fixing profile routing")
+            require(vk_ref_page.locator("#tab-today").is_visible(), "VK #ref launch unexpectedly became a public-profile view")
+            vk_ref_page.close()
+
+            vk_profile_id = 880191
+            vk_profile_page = context.new_page()
+            vk_profile_page.route(f"{BASE_URL}/vendor/vk-bridge-3.0.2.min.js*", lambda route: route.fulfill(status=200, content_type="application/javascript", body="/* preserve injected Bridge fixture */"))
+            vk_profile_page.add_init_script("window.__vkPublicShareCall=null; window.vkBridge={send(method,params){ if(method==='VKWebAppShare'){ window.__vkPublicShareCall=params; return Promise.resolve({result:true}); } return Promise.resolve({}); }};")
+            vk_profile_page.goto(f"{BASE_URL}/?{vk_launch_params(vk_profile_id)}#profile={owner_code}", wait_until="domcontentloaded")
+            vk_profile_page.locator("#profileNameHeading").wait_for(state="visible", timeout=20_000)
+            vk_profile_page.wait_for_function("document.querySelector('#profileNameHeading')?.textContent === 'Profile owner' && document.querySelector('#connectionStatus')?.textContent.includes('Profile owner')")
+            vk_profile_internal = vk_profile_page.evaluate("state.user.id")
+            require(str(database_identity(vk_profile_internal, "vk_id")) == str(vk_profile_id), "VK profile link replaced the signed recipient identity")
+            require(database_referrer(vk_profile_internal) == owner_id, "VK #profile no longer preserves existing invite attribution")
+            require(vk_profile_page.locator("#tab-profile").is_visible() and not vk_profile_page.locator("#tab-today").is_visible(), "VK profile link did not show the owner's public profile")
+            require(vk_profile_page.locator(".tab-bar").is_hidden(), "public VK profile must not expose another user's private navigation")
+            vk_profile_page.locator("#shareProfile").click()
+            vk_profile_page.wait_for_function("window.__vkPublicShareCall !== null")
+            require(vk_profile_page.evaluate("window.__vkPublicShareCall.link") == f"{BASE_URL}/p/{owner_code}", "sharing a displayed public profile used the authenticated recipient's own profile")
+            vk_profile_page.close()
+
+            tg_profile_id = 990251
+            tg_profile_start = f"profile-{owner_code}"
+            tg_profile_data = telegram_init_data(tg_profile_id, "Telegram profile recipient", tg_profile_start)
+            tg_profile_page = context.new_page()
+            tg_profile_page.route("https://telegram.org/js/telegram-web-app.js", lambda route: route.fulfill(status=200, content_type="application/javascript", body="/* isolated local Telegram fixture */"))
+            tg_profile_page.add_init_script(f"localStorage.removeItem('kopilkaToken'); window.Telegram={{WebApp:{{initData:{json.dumps(tg_profile_data)},initDataUnsafe:{{start_param:{json.dumps(tg_profile_start)}}},ready(){{}},expand(){{}}}}}};")
+            tg_profile_page.goto(BASE_URL, wait_until="domcontentloaded")
+            tg_profile_page.locator("#profileNameHeading").wait_for(state="visible", timeout=20_000)
+            tg_profile_page.wait_for_function("document.querySelector('#profileNameHeading')?.textContent === 'Profile owner' && document.querySelector('#connectionStatus')?.textContent.includes('Profile owner')")
+            tg_profile_internal = tg_profile_page.evaluate("state.user.id")
+            require(str(database_identity(tg_profile_internal, "telegram_id")) == str(tg_profile_id), "Telegram profile link replaced the signed recipient identity")
+            require(database_referrer(tg_profile_internal) == owner_id, "Telegram profile link did not preserve invite attribution")
+            tg_profile_page.close()
+
+            # Exact client payloads: Telegram gets a public HTTPS PNG/widget link;
+            # VK gets an inline PNG blob and mandatory URL attachment. Editors are
+            # mocked locally, so this never publishes a real story.
+            tg_story_page = context.new_page()
+            tg_story_page.route("https://telegram.org/js/telegram-web-app.js", lambda route: route.fulfill(status=200, content_type="application/javascript", body="/* isolated local Telegram fixture */"))
+            tg_story_page.add_init_script(f"localStorage.removeItem('kopilkaToken'); window.__tgStoryCall=null; window.Telegram={{WebApp:{{initData:{json.dumps(owner_init_data)},initDataUnsafe:{{}},ready(){{}},expand(){{}},shareToStory(media,params){{window.__tgStoryCall={{media,params}};}}}}}};")
+            tg_story_page.goto(BASE_URL, wait_until="domcontentloaded")
+            wait_ready(tg_story_page)
+            tg_story_page.locator("#tab-button-profile").click()
+            tg_story_page.evaluate("state.profile.telegramStoryCardUrl='https://life.example.test/api/story-card.png'")
+            tg_story_page.locator("#shareStory").click()
+            tg_story_page.wait_for_function("window.__tgStoryCall !== null")
+            tg_story_call = tg_story_page.evaluate("window.__tgStoryCall")
+            require(tg_story_call["media"].startswith("https://") and tg_story_call["params"]["widget_link"]["url"] == owner_profile["telegramProfileLink"], "Telegram shareToStory payload lost the HTTPS PNG or profile widget")
+            require(tg_story_call["params"]["widget_link"]["name"], "Telegram story widget needs an accessible visible name")
+            tg_story_page.close()
+
+            vk_story_id = 880192
+            vk_story_page = context.new_page()
+            vk_story_page.route(f"{BASE_URL}/vendor/vk-bridge-3.0.2.min.js*", lambda route: route.fulfill(status=200, content_type="application/javascript", body="/* preserve injected Bridge fixture */"))
+            vk_story_page.add_init_script("localStorage.removeItem('kopilkaToken'); window.__vkStoryCall=null; window.vkBridge={send(method,params){ if(method==='VKWebAppShowStoryBox'){ window.__vkStoryCall=params; return Promise.resolve({result:true}); } return Promise.resolve({}); }};")
+            vk_story_page.goto(f"{BASE_URL}/?{vk_launch_params(vk_story_id)}", wait_until="domcontentloaded")
+            wait_ready(vk_story_page)
+            vk_story_page.locator("#tab-button-profile").click()
+            vk_story_page.locator("#shareStory").click()
+            vk_story_page.wait_for_function("window.__vkStoryCall !== null", timeout=20_000)
+            vk_story_call = vk_story_page.evaluate("window.__vkStoryCall")
+            require(vk_story_call["background_type"] == "image" and vk_story_call["blob"].startswith("data:image/png;base64,"), "VK story payload must contain an inline PNG image")
+            require(vk_story_call["attachment"]["type"] == "url" and vk_story_call["attachment"]["text"] == "open" and vk_story_call["attachment"]["url"].startswith("https://vk.com/app54723764#profile="), "VK story attachment must open the exact public profile")
+            vk_story_page.close()
+            evidence.append(["profile-deep-links-and-story-payloads", "VK #ref preserved", "VK #profile owner rendered", "Telegram profile start parameter rendered", "referral attribution preserved", "Telegram/VK story payloads", "passed"])
+
             telegram_user_id = 990101
             telegram_data = telegram_init_data(telegram_user_id)
             telegram_page = context.new_page()
@@ -507,7 +609,12 @@ def run():
             require(fallback_value.startswith("http"), "clipboard failure must expose a manual fallback link")
             require("скопирована" not in page.locator("#statusRegion").inner_text().lower(), "clipboard failure must not claim success")
             require(page.evaluate("""() => { const i=document.querySelector('#shareFallbackLink'); return document.activeElement===i && i.selectionStart===0 && i.selectionEnd===i.value.length; }"""), "manual fallback link must be focused and selected")
-            evidence.append(["clipboard-failure-fallback", "passed"])
+            page.locator("#shareStory").click()
+            page.wait_for_function("document.querySelector('#statusRegion').textContent.includes('не поддерживаются')")
+            story_fallback_value = page.locator("#shareFallbackLink").input_value()
+            require(story_fallback_value == page.evaluate("state.profile.profileLink"), "unsupported web story flow must preserve the public-profile fallback link")
+            require(page.evaluate("document.activeElement === document.querySelector('#shareFallbackLink')"), "unsupported story fallback must focus the manual profile link")
+            evidence.append(["clipboard-and-story-fallback", "passed"])
 
             page.locator("#tab-button-settings").click()
             page.locator("#lang-en").click()

@@ -35,6 +35,8 @@ module.exports = {
     apiMax: Number(process.env.RATE_LIMIT_API_MAX || (isProduction ? 120 : 1000)),
     authWindowMs: Number(process.env.RATE_LIMIT_AUTH_WINDOW_MS || 60000),
     authMax: Number(process.env.RATE_LIMIT_AUTH_MAX || (isProduction ? 20 : 200)),
+    storyWindowMs: Number(process.env.RATE_LIMIT_STORY_WINDOW_MS || 60000),
+    storyMax: Number(process.env.RATE_LIMIT_STORY_MAX || (isProduction ? 12 : 200)),
     devWindowMs: Number(process.env.RATE_LIMIT_DEV_WINDOW_MS || 60000),
     devMax: Number(process.env.RATE_LIMIT_DEV_MAX || 200),
     webhookWindowMs: Number(process.env.RATE_LIMIT_WEBHOOK_WINDOW_MS || 60000),

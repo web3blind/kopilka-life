@@ -1,5 +1,5 @@
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20260905-platform-auth-link-proof';
+const CLIENT_VERSION = '20260906-profile-story-share';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -8,7 +8,7 @@ const storage = {
 const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, history: null, historyDate: '', historyEditingId: null, currentContract: null, product: null, profile: null, artifacts: [], artifactQueue: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null, quickActionReturnType: '', sessionRenewalPromise: null, sessionRenewalBlocked: false, vkBridgeLaunchParams: '', vkOAuthWindow: null, vkOAuthChannel: '', vkOAuthAction: '', vkOAuthMonitor: null, vkLinkRequiresOAuth: false };
+const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, history: null, historyDate: '', historyEditingId: null, currentContract: null, product: null, profile: null, publicProfileTarget: null, artifacts: [], artifactQueue: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null, quickActionReturnType: '', sessionRenewalPromise: null, sessionRenewalBlocked: false, vkBridgeLaunchParams: '', vkOAuthWindow: null, vkOAuthChannel: '', vkOAuthAction: '', vkOAuthMonitor: null, vkLinkRequiresOAuth: false };
 function fireVkBridgeInit() {
   try {
     if (!vkLaunchParams()) return;
@@ -67,12 +67,13 @@ const $ = (id) => document.getElementById(id);
 function detectTimezone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (_) { return 'UTC'; }
 }
-// Capture a referral code from ?ref=, /p/CODE, or Telegram start_param, and
-// remember it until signup.
+// Capture attribution from referral launches and public-profile launches. The
+// latter is also parsed separately by publicProfileCode() for display routing.
 function captureRefCode() {
   try {
-    const sp = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
-    const tgRef = referralLikeCode(sp);
+    const sp = String(window.Telegram?.WebApp?.initDataUnsafe?.start_param || '');
+    const profileStart = /^profile-([A-Za-z0-9]{4,24})$/.exec(sp);
+    const tgRef = referralLikeCode(profileStart ? profileStart[1] : sp);
     if (tgRef) { storage.set('kopilkaRef', tgRef); return tgRef; }
     const url = new URL(window.location.href);
     const qRef = referralLikeCode(url.searchParams.get('ref'));
@@ -92,6 +93,9 @@ function publicProfileCode() {
     const p = /^\/p\/([A-Za-z0-9]+)/.exec(url.pathname);
     const pathCode = referralLikeCode(p ? p[1] : '');
     if (pathCode) return pathCode;
+    const startParam = String(window.Telegram?.WebApp?.initDataUnsafe?.start_param || '');
+    const telegramMatch = /^profile-([A-Za-z0-9]{4,24})$/.exec(startParam);
+    if (telegramMatch) return referralLikeCode(telegramMatch[1]);
     const hash = parseHashParams(vkLaunchHash() || window.location.hash);
     return referralLikeCode(hash.get('profile') || '');
   } catch (_) { return ''; }
@@ -247,6 +251,8 @@ function setPublicReadOnlyMode(enabled) {
   ['copyRefLink', 'shareRefLink'].forEach((id) => { const el = $(id); if (el) el.hidden = state.publicReadOnly; });
   const shareProfile = $('shareProfile');
   if (shareProfile) shareProfile.hidden = false;
+  const shareStory = $('shareStory');
+  if (shareStory) shareStory.hidden = state.publicReadOnly;
   const artifactsSection = $('artifactsSection');
   if (artifactsSection) artifactsSection.hidden = state.publicReadOnly;
   const linkLabel = document.querySelector('label[for="refLink"]');
@@ -593,6 +599,8 @@ function renderVkReminderOffer() {
 function renderProfile() {
   const p = state.profile; const name = $('profileNameHeading'); const heart = document.querySelector('.badge-heart'); const count = document.querySelector('.badge-heart-count');
   if (!p) return;
+  state.publicProfileTarget = null;
+  setPublicReadOnlyMode(false);
   if (name) name.textContent = state.user?.firstName || '—';
   const n = p.activeReferred || 0;
   if (heart) { heart.setAttribute('data-size', badgeSize(n)); heart.setAttribute('aria-label', `${L('publicBadgeLabel')} ${n}`); }
@@ -1172,15 +1180,15 @@ function bindEvents() {
       return false;
     }
   }
-  function showManualShare(url, statusKey = 'copyFailed') {
+  function showManualShare(url, statusKey = 'copyFailed', statusType = 'error') {
     const box = $('shareFallback');
     const input = $('shareFallbackLink');
-    if (!box || !input || !url) { setStatus(L(statusKey), 'error'); return; }
+    if (!box || !input || !url) { setStatus(L(statusKey), statusType); return; }
     box.hidden = false;
     input.value = url;
     input.focus();
     input.select();
-    setStatus(L(statusKey), 'error');
+    setStatus(L(statusKey), statusType);
   }
   async function shareUrl(url, text) {
     if (!url) { setStatus(L('shareUnavailable'), 'error'); return; }
@@ -1226,8 +1234,64 @@ function bindEvents() {
   const shareBtn = $('shareProfile');
   if (shareBtn) shareBtn.addEventListener('click', () => {
     const inVk = isVkMiniApp();
-    const url = state.profile ? (inVk ? (state.profile.vkProfileLink || state.profile.profileLink || '') : (state.profile.profileLink || '')) : '';
+    const p = state.publicProfileTarget || state.profile;
+    const url = p ? (inVk ? (p.vkProfileLink || p.profileLink || '') : (p.profileLink || '')) : '';
     void shareUrl(url, L('shareProfileText'));
+  });
+  async function storyImageDataUri(url) {
+    const response = await fetch(url, { credentials: 'omit', cache: 'force-cache' });
+    if (!response.ok || response.headers.get('content-type') !== 'image/png') throw new Error('story image unavailable');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (!bytes.length || bytes.length > 3 * 1024 * 1024) throw new Error('story image size invalid');
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    return `data:image/png;base64,${window.btoa(binary)}`;
+  }
+  const storyBtn = $('shareStory');
+  if (storyBtn) storyBtn.addEventListener('click', async () => {
+    const p = state.publicProfileTarget || state.profile;
+    const inVk = isVkMiniApp();
+    const tg = window.Telegram?.WebApp;
+    const inTelegram = Boolean(tg?.initData);
+    const destination = p ? (inVk ? (p.vkProfileLink || p.profileLink || '') : (inTelegram ? (p.telegramProfileLink || p.profileLink || '') : (p.profileLink || ''))) : '';
+    if (!destination) { setStatus(L('shareUnavailable'), 'error'); return; }
+    if ($('shareFallback')) $('shareFallback').hidden = true;
+    if (inTelegram && typeof tg.shareToStory === 'function') {
+      const mediaUrl = p.telegramStoryCardUrl || '';
+      if (mediaUrl.startsWith('https://')) {
+        try {
+          tg.shareToStory(mediaUrl, { text: L('shareProfileText'), widget_link: { url: destination, name: L('storyWidgetName') } });
+          setStatus(L('storyEditorOpened'));
+          return;
+        } catch (error) {
+          clientLog('telegram_story_failed', userSafeErrorMessage(error));
+          showManualShare(destination, 'storyLoadFailed');
+          return;
+        }
+      }
+    }
+    if (inVk && window.vkBridge?.send) {
+      try {
+        const blob = await storyImageDataUri(p.vkStoryCardUrl || '');
+        await window.vkBridge.send('VKWebAppShowStoryBox', {
+          background_type: 'image',
+          blob,
+          attachment: { text: 'open', type: 'url', url: destination }
+        });
+        setStatus(L('storyEditorOpened'));
+        return;
+      } catch (error) {
+        const detail = userSafeErrorMessage(error);
+        if (/user denied|cancel/i.test(detail)) {
+          showManualShare(destination, 'storyCancelled', 'info');
+          return;
+        }
+        clientLog('vk_story_failed', detail);
+        showManualShare(destination, 'storyLoadFailed');
+        return;
+      }
+    }
+    showManualShare(destination, 'storyUnsupported', 'info');
   });
 }
 async function start() {
@@ -1288,7 +1352,11 @@ async function renderPublicProfile(code, options = {}) {
     const total = $('partnerTotal'); const active = $('partnerActive');
     if (total) total.textContent = profile.totalReferred || 0;
     if (active) active.textContent = n;
-    if ($('refLink')) $('refLink').value = `${window.location.origin}/p/${profile.refCode}`;
+    const publicProfileLink = `${window.location.origin}/p/${profile.refCode}`;
+    // Sharing while viewing somebody else's public profile must never fall
+    // back to the authenticated recipient's own state.profile destination.
+    state.publicProfileTarget = { profileLink: publicProfileLink, vkProfileLink: publicProfileLink };
+    if ($('refLink')) $('refLink').value = publicProfileLink;
     // Public stats without texts.
     const today = profile.today || {}; const week = profile.week || {};
     const statsBox = $('publicStats') || (() => { const box = document.createElement('div'); box.id = 'publicStats'; box.className = 'summary-card'; document.getElementById('tab-profile').appendChild(box); return box; })();
@@ -1301,6 +1369,7 @@ async function renderPublicProfile(code, options = {}) {
     if (status) status.textContent = state.publicStatus;
     return true;
   } catch (_) {
+    state.publicProfileTarget = null;
     $('connectionStatus').textContent = L('publicProfileNotFound');
     await showLoginScreen();
     return false;
@@ -1315,11 +1384,16 @@ async function renderPublicProfile(code, options = {}) {
   const inVk = isVkMiniApp();
   clientLog('bootstrap', `inVk=${inVk} hasSearch=${Boolean(window.location.search)} hasHash=${Boolean(window.location.hash)} token=${Boolean(state.token)}`);
   if (inVk) { if ($('appShell')) $('appShell').hidden = false; if ($('loginScreen')) $('loginScreen').hidden = true; }
-  // In VK Mini App, a referral link can arrive as a hash payload (#ref=CODE or
-  // hash=ref=CODE). Treat it only as signup attribution and always enter the
-  // signed VK auth flow first. If we try public-profile routing before auth,
-  // repeated referral opens in VK Android can stop before /api/auth/vk.
-  if (inVk) { captureRefCode(); await start(); return; }
+  // A VK referral remains attribution-only. A profile hash authenticates the
+  // signed recipient first, then replaces their dashboard with the owner's
+  // public projection.
+  if (inVk) {
+    const profileCode = publicProfileCode();
+    captureRefCode();
+    await start();
+    if (profileCode && state.user) { await renderPublicProfile(profileCode, { readOnly: true }); applyStaticI18n(); setPublicReadOnlyMode(true); }
+    return;
+  }
   const hasTelegramInitData = Boolean(window.Telegram?.WebApp?.initData);
   const looksLikeTelegramLaunch = hasTelegramInitData || Boolean(new URLSearchParams(window.location.search || '').get('tgWebAppData'));
   const telegramReady = await waitForTelegram(looksLikeTelegramLaunch ? 200 : 40);
@@ -1327,7 +1401,10 @@ async function renderPublicProfile(code, options = {}) {
   if (inTelegram) {
     if ($('appShell')) $('appShell').hidden = false;
     if ($('loginScreen')) $('loginScreen').hidden = true;
+    const profileCode = publicProfileCode();
+    captureRefCode();
     await start();
+    if (profileCode && state.user) { await renderPublicProfile(profileCode, { readOnly: true }); applyStaticI18n(); setPublicReadOnlyMode(true); }
     return;
   }
   if (looksLikeTelegramLaunch) { await showLoginScreen({ landing: false }); return; }
@@ -1336,7 +1413,10 @@ async function renderPublicProfile(code, options = {}) {
     state.vkBridgeLaunchParams = bridgeLaunchParams;
     if ($('appShell')) $('appShell').hidden = false;
     if ($('loginScreen')) $('loginScreen').hidden = true;
+    const profileCode = publicProfileCode();
+    captureRefCode();
     await start();
+    if (profileCode && state.user) { await renderPublicProfile(profileCode, { readOnly: true }); applyStaticI18n(); setPublicReadOnlyMode(true); }
     return;
   }
   const publicCode = publicProfileCode();

@@ -17,11 +17,13 @@ const { scheduleNextReminderForUser } = require('../services/remindersService');
 const { getProductLayer, getPractices } = require('../services/productContentService');
 const { listSupportActions, openSupportAction } = require('../services/supportActionsService');
 const { maybeGrantRecoveryBonus } = require('../services/recoveryBonusService');
+const { renderStoryCard, storyCardUrl, telegramProfileLink } = require('../services/storyCardService');
 const { vkMessagesConfigured } = require('../vkMessages');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { normalizeLocale, t } = require('../i18n');
 
 const router = express.Router();
+const storyLimiter = createRateLimiter({ windowMs: config.rateLimits.storyWindowMs, max: config.rateLimits.storyMax, keyPrefix: 'story' });
 const authLimiter = createRateLimiter({ windowMs: config.rateLimits.authWindowMs, max: config.rateLimits.authMax, keyPrefix: 'auth' });
 const devLimiter = createRateLimiter({ windowMs: config.rateLimits.devWindowMs, max: config.rateLimits.devMax, keyPrefix: 'dev' });
 
@@ -276,9 +278,29 @@ router.get('/profile', authRequired, (req, res) => {
     refLink: `${config.webappUrl}?ref=${stats.refCode}`,
     profileLink: `${config.webappUrl}/p/${stats.refCode}`,
     botLink,
+    telegramProfileLink: botLink ? telegramProfileLink(stats.refCode) : null,
+    telegramStoryCardUrl: storyCardUrl(stats.refCode, 'telegram'),
+    vkStoryCardUrl: storyCardUrl(stats.refCode, 'vk'),
     vkRefLink: vkAppBase ? `${vkAppBase}#ref=${stats.refCode}` : null,
     vkProfileLink: vkAppBase ? `${vkAppBase}#profile=${stats.refCode}` : null
   } });
+});
+router.get('/story-card/:code.png', storyLimiter, async (req, res, next) => {
+  try {
+    const platform = String(req.query.platform || '');
+    const result = await renderStoryCard(req.params.code, platform);
+    if (result.error === 'invalid_code') return res.status(400).json({ error: 'invalid code' });
+    if (result.error === 'invalid_platform') return res.status(400).json({ error: 'invalid platform' });
+    if (result.error === 'not_found') return res.status(404).json({ error: 'not found' });
+    res.set({
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    return res.send(result.png);
+  } catch (error) {
+    return next(error);
+  }
 });
 router.get('/public/:code', (req, res) => {
   const profile = publicProfileByCode(req.params.code);

@@ -13,6 +13,7 @@ process.env.VK_OAUTH_CLIENT_SECRET = 'test-vk-oauth-secret';
 process.env.VK_SECURE_KEY = 'test-vk-secure-key';
 process.env.VK_GROUP_ID = '240966481';
 process.env.VK_GROUP_TOKEN = 'test-vk-group-token';
+process.env.BOT_USERNAME = 'HarborLifeBot';
 process.env.DEV_AUTH_ENABLED = 'true';
 process.env.SCHEDULER_ENABLED = 'false';
 process.env.RATE_LIMIT_API_MAX = '1000';
@@ -30,6 +31,7 @@ const { validateVkLaunchParams } = require('../src/auth/validateVkLaunchParams')
 const { sendDueReminders, nextDueAt } = require('../src/services/remindersService');
 const { detectVkTokenGroupMismatch } = require('../src/vkMessages');
 const { createRateLimiter } = require('../src/middleware/rateLimit');
+const { storyDestination } = require('../src/services/storyCardService');
 
 function makeInitData(user, botToken, authDate = Math.floor(Date.now() / 1000)) {
   const params = new URLSearchParams();
@@ -104,6 +106,7 @@ function testStaticAccessibility() {
   assert(css.includes('repeat(3,1fr)'), 'narrow mobile bottom navigation wraps to 3 columns so all six tabs fit');
   assert(css.includes('--nav-height:128px'), 'narrow mobile bottom navigation reserves enough safe-area space for two rows');
   assert(html.includes('supportActionsList'), 'support actions list exists');
+  assert(html.includes('id="shareStory"') && html.includes('data-i18n="shareStory"'), 'profile has a native localized story-share button');
   assert(html.includes('todayContractReminder'), 'today tab can show last-day contract reminder');
   assert(html.includes('recoveryNotice'), 'recovery bonus notice exists');
   assert(html.includes('role="status"') && html.includes('aria-live="polite"'), 'recovery notice is announced without a modal');
@@ -214,6 +217,10 @@ function testStaticAccessibility() {
   assert(frontendApp.includes("el.getAttribute('aria-disabled') === 'true'"), 'busy reset preserves permanently disabled action buttons');
   assert(frontendApp.includes('supportDone'), 'opened support actions use completed copy');
   assert(frontendApp.includes('p.vkRefLink'), 'VK Mini App uses VK referral deeplink in profile');
+  assert(frontendApp.includes("tg.shareToStory(mediaUrl, { text: L('shareProfileText'), widget_link: { url: destination, name: L('storyWidgetName') } })"), 'Telegram story share uses the official payload with widget link');
+  assert(frontendApp.includes("window.vkBridge.send('VKWebAppShowStoryBox'"), 'VK story share uses the official story editor method');
+  assert(frontendApp.includes("attachment: { text: 'open', type: 'url', url: destination }"), 'VK story share includes the required URL attachment');
+  assert(frontendApp.includes("if (profileCode && state.user) { await renderPublicProfile(profileCode, { readOnly: true })"), 'platform profile deep links render the public owner only after authenticated state.user exists');
   assert(frontendApp.includes('VKWebAppAllowMessagesFromGroup'), 'VK reminders request community message permission');
   assert(frontendApp.includes('function clientLogDetails'), 'VK reminder bridge diagnostics serialize object errors');
   assert(frontendApp.includes('version: CLIENT_VERSION'), 'client logs include frontend version for cache diagnostics');
@@ -232,8 +239,8 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(/src="\/i18n\.js\?v=[^"\s]+"/.test(html), 'frontend i18n script has a cache-busting version');
-  assert(html.includes('/app.js?v=20260905-platform-auth-link-proof'), 'frontend app cache bust matches release');
+  assert(html.includes('/i18n.js?v=20260906-profile-story-share'), 'frontend i18n cache bust matches release');
+  assert(html.includes('/app.js?v=20260906-profile-story-share'), 'frontend app cache bust matches release');
   assert(html.includes('/styles.css?v=20260905-platform-auth-link-proof'), 'frontend css cache bust matches release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
@@ -758,6 +765,11 @@ async function main() {
   assert(refAProfile.data.profile.refLink.includes('ref='), 'profile exposes ref link');
   assert(refAProfile.data.profile.vkRefLink.includes('vk.com/app54723764#ref='), 'profile exposes VK Mini App ref link');
   assert(refAProfile.data.profile.vkProfileLink.includes('vk.com/app54723764#profile='), 'profile exposes VK Mini App profile link');
+  assert.equal(refAProfile.data.profile.telegramProfileLink, `https://t.me/HarborLifeBot?startapp=profile-${refCodeA}`, 'profile exposes a Telegram profile deep link distinct from referral startapp');
+  assert.equal(refAProfile.data.profile.telegramStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=telegram`, 'profile exposes canonical Telegram story-card URL');
+  assert.equal(refAProfile.data.profile.vkStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=vk`, 'profile exposes canonical VK story-card URL');
+  assert.equal(storyDestination(refCodeA, 'telegram'), refAProfile.data.profile.telegramProfileLink, 'Telegram QR destination is the distinct profile start parameter');
+  assert.equal(storyDestination(refCodeA, 'vk'), refAProfile.data.profile.vkProfileLink, 'VK QR destination is the profile hash deep link');
   const publicShell = await fetch(`${baseUrl}/p/${refCodeA}`);
   assert.equal(publicShell.status, 200, 'public profile path serves SPA shell without auth');
   assert((await publicShell.text()).includes('/app.js'), 'public profile shell loads app script');
@@ -779,6 +791,26 @@ async function main() {
   assert(publicResp.data.profile.week && typeof publicResp.data.profile.week.activeDays === 'number', 'public profile has week stats');
   const publicBody = JSON.stringify(publicResp.data);
   assert(!publicBody.includes('"note"'), 'public profile never leaks personal notes');
+  db.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'joy', 'Private category title', 'PRIVATE_STORY_NOTE', 1, date('now'))").run(refAId);
+  for (const platform of ['telegram', 'vk']) {
+    const storyResponse = await fetch(`${baseUrl}/api/story-card/${refCodeA}.png?platform=${platform}`);
+    assert.equal(storyResponse.status, 200, `${platform} story card is reachable`);
+    assert.equal(storyResponse.headers.get('content-type'), 'image/png', `${platform} story card is PNG`);
+    assert.match(storyResponse.headers.get('cache-control') || '', /public.*max-age/i, `${platform} story card has bounded public cache`);
+    assert.equal(storyResponse.headers.get('x-content-type-options'), 'nosniff', `${platform} story card prevents MIME sniffing`);
+    const storyBuffer = Buffer.from(await storyResponse.arrayBuffer());
+    assert.equal(storyBuffer.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `${platform} story card has PNG signature`);
+    assert.equal(storyBuffer.readUInt32BE(16), 1080, `${platform} story card width is 1080`);
+    assert.equal(storyBuffer.readUInt32BE(20), 1920, `${platform} story card height is 1920`);
+    assert(!storyBuffer.includes(Buffer.from('PRIVATE_STORY_NOTE')), `${platform} story card does not contain private note bytes`);
+    assert(!storyBuffer.includes(Buffer.from('Private category title')), `${platform} story card does not contain category/history text bytes`);
+  }
+  const invalidStoryPlatform = await fetch(`${baseUrl}/api/story-card/${refCodeA}.png?platform=other`);
+  assert.equal(invalidStoryPlatform.status, 400, 'story card rejects invalid platform');
+  const badStoryCode = await fetch(`${baseUrl}/api/story-card/ZZZZ9999.png?platform=vk`);
+  assert.equal(badStoryCode.status, 404, 'story card returns 404 for unknown valid code');
+  const malformedStoryCode = await fetch(`${baseUrl}/api/story-card/BAD%20CODE.png?platform=vk`);
+  assert.equal(malformedStoryCode.status, 400, 'story card rejects malformed code');
   const badPublic = await request('/api/public/NO_SUCH_CODE_ZZZZ');
   assert.equal(badPublic.res.status, 404, 'unknown public profile code -> 404');
   db.prepare('DELETE FROM users WHERE id IN (?, ?)').run(refAId, refBId);
