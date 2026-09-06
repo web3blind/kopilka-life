@@ -262,7 +262,7 @@
     publicProfileIntro: { ru: 'Публичный профиль:', en: 'Public profile:' },
     publicBadgeLabel: { ru: 'Сердце заботы:', en: 'Care heart:' },
     publicToday: { ru: 'Сегодня', en: 'Today' },
-    publicWeek: { ru: 'За неделю', en: 'This week' },
+    publicWeek: { ru: 'За последние 7 дней', en: 'Last 7 days' },
     publicActiveDays: { ru: 'дней с отметками', en: 'days with entries' },
     publicLoginHint: { ru: 'Если хочешь открыть свою Копилку, войди ниже. Этот профиль будет сохранён как приглашение.', en: 'If you want to open your own Life Harbor, sign in below. This profile will be saved as the invite.' },
     publicLoginCta: { ru: 'Открыть свою Копилку', en: 'Open my Life Harbor' },

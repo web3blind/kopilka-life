@@ -239,7 +239,7 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260906-telegram-story-confirm'), 'frontend i18n cache bust matches release');
+  assert(html.includes('/i18n.js?v=20260906-rolling7'), 'frontend i18n cache bust matches release');
   assert(html.includes('/app.js?v=20260906-telegram-story-confirm'), 'frontend app cache bust matches release');
   assert(html.includes('/styles.css?v=20260905-platform-auth-link-proof'), 'frontend css cache bust matches release');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
@@ -766,8 +766,8 @@ async function main() {
   assert(refAProfile.data.profile.vkRefLink.includes('vk.com/app54723764#ref='), 'profile exposes VK Mini App ref link');
   assert(refAProfile.data.profile.vkProfileLink.includes('vk.com/app54723764#profile='), 'profile exposes VK Mini App profile link');
   assert.equal(refAProfile.data.profile.telegramProfileLink, `https://t.me/HarborLifeBot?startapp=profile-${refCodeA}`, 'profile exposes a Telegram profile deep link distinct from referral startapp');
-  assert.equal(refAProfile.data.profile.telegramStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=telegram&v=2`, 'profile exposes canonical Telegram story-card URL');
-  assert.equal(refAProfile.data.profile.vkStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=vk`, 'profile exposes canonical VK story-card URL');
+  assert.equal(refAProfile.data.profile.telegramStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=telegram&v=3`, 'profile exposes canonical Telegram story-card URL');
+  assert.equal(refAProfile.data.profile.vkStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=vk&v=3`, 'profile exposes canonical VK story-card URL');
   assert.equal(storyDestination(refCodeA, 'telegram'), refAProfile.data.profile.telegramProfileLink, 'Telegram QR destination is the distinct profile start parameter');
   assert.equal(storyDestination(refCodeA, 'vk'), refAProfile.data.profile.vkProfileLink, 'VK QR destination is the profile hash deep link');
   const publicShell = await fetch(`${baseUrl}/p/${refCodeA}`);

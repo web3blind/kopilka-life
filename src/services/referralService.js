@@ -1,7 +1,7 @@
 const { getDb } = require('../db');
 const { localDateInTimeZone } = require('../utils/timezone');
 const { ensureRefCode, getUserById } = require('./usersService');
-const { getSummary, getWeekSummary } = require('./entriesService');
+const { getSummary, getLast7DaysSummary } = require('./entriesService');
 
 function userTimeZone(userId) { return getDb().prepare('SELECT timezone FROM users WHERE id = ?').get(userId)?.timezone || 'Asia/Novosibirsk'; }
 
@@ -36,7 +36,7 @@ function publicProfileByCode(code) {
   if (!row) return null;
   const firstName = row.first_name || row.username || 'Life Harbor user';
   const today = getSummary(row.id);
-  const week = getWeekSummary(row.id);
+  const week = getLast7DaysSummary(row.id);
   // Public projection: aggregates and category names only, NEVER personal notes.
   return {
     firstName,

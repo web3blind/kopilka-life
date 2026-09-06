@@ -148,6 +148,16 @@ function getSummary(userId) {
 function getWeekSummary(userId) {
   const lang = getUserLocale(userId);
   const entries = listEntries(userId, 'week');
+  return summarizeEntries(entries, lang);
+}
+// Public profiles/stories use seven owner-local calendar dates, not a Monday reset.
+function getLast7DaysSummary(userId, now = new Date()) {
+  const endDate = todayForUser(userId, now);
+  const startDate = addDateDays(endDate, -6);
+  const entries = getDb().prepare('SELECT * FROM entries WHERE user_id = ? AND entry_date BETWEEN ? AND ? ORDER BY entry_date DESC, created_at DESC, id DESC').all(userId, startDate, endDate);
+  return summarizeEntries(entries, getUserLocale(userId));
+}
+function summarizeEntries(entries, lang) {
   const days = new Map();
   const categories = new Map();
   entries.forEach((entry) => {
@@ -166,4 +176,4 @@ function getWeekSummary(userId) {
     entries
   };
 }
-module.exports = { ENTRY_TYPES, ENTRY_POINTS, ENTRY_NOTE_MAX_LENGTH, entryTitle, entryHint, createEntry, listEntries, getHistory, updateEntryNote, deleteEntry, getSummary, getWeekSummary, displayTitle, todayForUser, validDateString };
+module.exports = { ENTRY_TYPES, ENTRY_POINTS, ENTRY_NOTE_MAX_LENGTH, entryTitle, entryHint, createEntry, listEntries, getHistory, updateEntryNote, deleteEntry, getSummary, getWeekSummary, getLast7DaysSummary, displayTitle, todayForUser, validDateString };

@@ -47,7 +47,7 @@ function storyDestination(code, platform) {
 
 function storyCardUrl(code, platform) {
   if (!PLATFORMS.has(platform)) throw new Error('invalid story platform');
-  return `${baseUrl()}/api/story-card/${code}.png?platform=${platform}${platform === 'telegram' ? '&v=2' : ''}`;
+  return `${baseUrl()}/api/story-card/${code}.png?platform=${platform}&v=3`;
 }
 
 function boundedNumber(value) {
@@ -108,7 +108,7 @@ async function renderStoryCard(codeValue, platform) {
       <line x1="560" y1="585" x2="560" y2="875" stroke="#eadac6" stroke-width="3"/>
       <text x="620" y="640" font-family="Arial, sans-serif" font-size="30" fill="#7e695b">СЕГОДНЯ</text>
       <text x="620" y="735" font-family="Arial, sans-serif" font-size="74" font-weight="700" fill="#25362f">${card.todayLife} ЖИЗНЬ</text>
-      <text x="620" y="825" font-family="Arial, sans-serif" font-size="30" fill="#7e695b">ЗА НЕДЕЛЮ</text>
+      <text x="620" y="825" font-family="Arial, sans-serif" font-size="28" fill="#7e695b">За последние 7 дней</text>
       <text x="620" y="895" font-family="Arial, sans-serif" font-size="54" font-weight="700" fill="#25362f">${card.weekLife} · ${card.activeDays}/7 дней</text>
       </g>
       <rect x="72" y="${telegram ? 830 : 1040}" width="936" height="720" rx="58" fill="#31463b"/>
