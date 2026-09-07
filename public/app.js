@@ -1468,6 +1468,16 @@ async function renderPublicProfile(code, options = {}) {
     setStatus(msg, 'error');
   } catch (_) { /* diagnostics only */ }
 });
+// Keep the final legal links above the fixed navigation even when text grows,
+// labels wrap, or a WebView changes size. CSS supplies a no-JS fallback.
+const tabBar = document.querySelector('.tab-bar');
+if (tabBar && typeof ResizeObserver === 'function') {
+  new ResizeObserver(() => {
+    const height = tabBar.getBoundingClientRect().height;
+    if (height > 0) document.documentElement.style.setProperty('--measured-nav-height', `${Math.ceil(height)}px`);
+  }).observe(tabBar);
+}
+
 // Surface any runtime JS error into the status region so it is visible/audible
 // (helps a11y users and makes client-side failures diagnosable).
 window.addEventListener('error', (event) => {

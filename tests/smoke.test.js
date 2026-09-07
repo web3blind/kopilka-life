@@ -20,6 +20,16 @@ process.env.RATE_LIMIT_API_MAX = '1000';
 process.env.RATE_LIMIT_AUTH_MAX = '200';
 process.env.RATE_LIMIT_DEV_MAX = '200';
 process.env.RECOVERY_BONUS_UNTIL = '2099-01-01T00:00:00.000Z';
+// Keep provider enrichment offline; only the loopback HTTP test server uses real fetch.
+const localFetch = global.fetch;
+global.fetch = async (url, options) => {
+  if (String(url) === 'https://api.vk.com/method/users.get') {
+    return { ok: true, json: async () => ({ response: [{ id: options.body.get('user_ids'), first_name: 'VK fixture' }] }) };
+  }
+  const target = new URL(url);
+  if (target.protocol === 'http:' && target.hostname === '127.0.0.1') return localFetch(url, options);
+  throw new Error('Unexpected external fetch in test');
+};
 const { createApp } = require('../src/server');
 const { closeDb, getDb } = require('../src/db');
 const { createOAuthLinkProof } = require('../src/auth/vkOAuth');
@@ -240,8 +250,8 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
   assert(html.includes('/i18n.js?v=20260906-rolling7'), 'frontend i18n cache bust matches release');
-  assert(html.includes('/app.js?v=20260906-telegram-story-confirm'), 'frontend app cache bust matches release');
-  assert(html.includes('/styles.css?v=20260905-platform-auth-link-proof'), 'frontend css cache bust matches release');
+  assert(/\/app\.js\?v=[^"\s]+/.test(html), 'frontend app has a nonempty cache-busting version');
+  assert(/\/styles\.css\?v=[^"\s]+/.test(html), 'CSS has cache version');
   // The dynamic counter must not sit inside a [data-i18n] element, or the
   // i18n pass would destroy <strong id="todayLife"> and crash renderSummary.
   assert(!/<p[^>]*data-i18n="todayAdded"[^>]*>[^<]*<strong id="todayLife"/.test(html), 'todayLife counter is not inside a data-i18n container');

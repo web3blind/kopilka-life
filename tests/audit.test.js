@@ -22,6 +22,16 @@ process.env.RATE_LIMIT_API_MAX = '1000';
 process.env.RATE_LIMIT_AUTH_MAX = '1000';
 process.env.RATE_LIMIT_WEBHOOK_MAX = '1000';
 
+// Keep provider enrichment offline; only the loopback HTTP test server uses real fetch.
+const localFetch = global.fetch;
+global.fetch = async (url, options) => {
+  if (String(url) === 'https://api.vk.com/method/users.get') {
+    return { ok: true, json: async () => ({ response: [{ id: options.body.get('user_ids'), first_name: 'VK fixture' }] }) };
+  }
+  const target = new URL(url);
+  if (target.protocol === 'http:' && target.hostname === '127.0.0.1') return localFetch(url, options);
+  throw new Error('Unexpected external fetch in test');
+};
 const { createApp } = require('../src/server');
 const config = require('../src/config');
 const { validateRuntimeConfig } = config;

@@ -9,6 +9,7 @@ const { createToken, verifyToken, inspectToken } = require('../auth/session');
 const { buildVkMergeOffer, buildMergePreview, applyMergeByToken } = require('../services/accountMergeService');
 const { verifyMergeToken } = require('../auth/mergeToken');
 const { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, updateVkMessagesAllowed, deleteDemoUser } = require('../services/usersService');
+const { getVkFirstName } = require('../services/vkProfileService');
 const { grantReferrerBonusOnFirstEntry, profileStats, publicProfileByCode } = require('../services/referralService');
 const { listArtifacts, awardArtifactsForUser, artifactSummary } = require('../services/artifactsService');
 const { createEntry, getSummary, getWeekSummary, listEntries, getHistory, updateEntryNote, deleteEntry } = require('../services/entriesService');
@@ -144,10 +145,11 @@ router.post('/auth/telegram-login', authLimiter, (req, res) => {
     res.status(401).json({ error: 'Не удалось подтвердить вход через Telegram.' });
   }
 });
-router.post('/auth/vk', authLimiter, (req, res) => {
+router.post('/auth/vk', authLimiter, async (req, res) => {
   try {
     const validated = validateVkLaunchParams(req.body.launchParams, config.vkSecureKey, { appId: config.vkAppId, maxAgeSeconds: config.vkAuthMaxAgeSeconds });
-    const user = upsertVkUser(validated.vkId, req.body.refCode, req.body.timezone, validated.language || req.body.locale || 'ru');
+    const firstName = await getVkFirstName(validated.vkId);
+    const user = upsertVkUser(validated.vkId, req.body.refCode, req.body.timezone, validated.language || req.body.locale || 'ru', firstName);
     res.json({ token: createToken(user.id), user: publicUser(user) });
   } catch (error) {
     console.error('[auth/vk] reject:', error && error.message ? error.message : String(error), vkLaunchDiag(req.body.launchParams));
@@ -212,7 +214,8 @@ router.get('/auth/vk-oauth/callback', authLimiter, async (req, res) => {
       const linkProof = createOAuthLinkProof({ targetUserId: Number(stateContext.userId), vkId, channel: stateContext.channel });
       return sendOAuthHandoff(res, { type: 'kopilka:vk-oauth', channel: stateContext.channel, action: 'link', linkProof });
     }
-    const user = upsertVkUser(vkId, stateContext.refCode || '', stateContext.timezone || '', stateContext.locale || 'ru');
+    const firstName = await getVkFirstName(vkId);
+    const user = upsertVkUser(vkId, stateContext.refCode || '', stateContext.timezone || '', stateContext.locale || 'ru', firstName);
     const appToken = createToken(user.id);
     return sendOAuthHandoff(res, { type: 'kopilka:vk-oauth', channel: stateContext.channel, action: 'auth', token: appToken });
   } catch (error) {

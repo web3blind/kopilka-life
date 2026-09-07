@@ -8,7 +8,7 @@
     "dev": "NODE_ENV=development DEV_AUTH_ENABLED=true node src/server.js",
     "init-db": "node scripts/init-db.js",
     "set-webhook": "node scripts/set-webhook.js",
-    "test": "NODE_ENV=test DEV_AUTH_ENABLED=true SCHEDULER_ENABLED=false node tests/smoke.test.js && NODE_ENV=test DEV_AUTH_ENABLED=true SCHEDULER_ENABLED=false node tests/audit.test.js && node tests/public-rolling.test.js",
+    "test": "NODE_ENV=test DEV_AUTH_ENABLED=true SCHEDULER_ENABLED=false node tests/smoke.test.js && NODE_ENV=test DEV_AUTH_ENABLED=true SCHEDULER_ENABLED=false node tests/audit.test.js && node tests/public-rolling.test.js && node tests/vk-profile.test.js",
     "webhook:set": "node scripts/set-webhook.js --set",
     "webhook:clear": "node scripts/set-webhook.js --clear",
     "webhook:info": "node scripts/set-webhook.js --info"

@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { getDb } = require('../db');
 const { normalizeHHMM, normalizeTimezone } = require('../time');
 const { normalizeLocale } = require('../i18n');
+const { sanitizeVkFirstName } = require('./vkProfileService');
 
 const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I, O, 0, 1
 function generateRefCode() {
@@ -61,19 +62,22 @@ function createDemoUser(name = 'Demo', locale = 'ru', refCode, timezone) {
   ensureRefCode(info.lastInsertRowid);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }
-function upsertVkUser(vkId, refCode, timezone, locale = 'ru') {
+function upsertVkUser(vkId, refCode, timezone, locale = 'ru', verifiedFirstName = '') {
   const db = getDb();
   const vkIdText = String(vkId);
+  const firstName = sanitizeVkFirstName(verifiedFirstName);
   const existing = db.prepare('SELECT * FROM users WHERE vk_id = ?').get(vkIdText);
   if (existing) {
     ensureRefCode(existing.id);
-    db.prepare('UPDATE users SET locale = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(normalizeLocale(locale), existing.id);
+    // Linked Telegram accounts retain their Telegram names; failed lookup retains the existing name.
+    const name = existing.telegram_id === `vk:${vkIdText}` && firstName ? firstName : existing.first_name;
+    db.prepare('UPDATE users SET first_name = ?, locale = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(name, normalizeLocale(locale), existing.id);
     return db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
   }
   const referrer = resolveRefCode(refCode);
   const zone = normalizeTimezone(timezone || 'UTC');
   const info = db.prepare("INSERT INTO users (telegram_id, vk_id, first_name, username, timezone, locale, reminders_enabled, is_demo, referrer_id) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?)")
-    .run(`vk:${vkIdText}`, vkIdText, 'VK user', '', zone, normalizeLocale(locale), referrer ? referrer.id : null);
+    .run(`vk:${vkIdText}`, vkIdText, firstName || 'VK user', '', zone, normalizeLocale(locale), referrer ? referrer.id : null);
   ensureRefCode(info.lastInsertRowid);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }

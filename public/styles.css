@@ -48,6 +48,7 @@ body{
   font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,"Segoe UI", sans-serif;
   font-size:16px;
   line-height:1.55;
+  overflow-wrap:anywhere;
   text-rendering:optimizeLegibility;
   -webkit-font-smoothing:antialiased;
 }
@@ -114,7 +115,7 @@ legend{font-weight:950;margin-bottom:.72rem;font-size:1.05rem;color:#3a2416}
   background:var(--focus);color:#fff;padding:.7rem 1rem;border-radius:var(--radius-sm);
 }
 .skip-link:focus{transform:none}
-.app-shell{width:min(100%,760px);margin:0 auto;position:relative;padding:0 0 .75rem}
+.app-shell{width:min(100%,760px);margin:0 auto;position:relative;padding:0 0 calc(var(--measured-nav-height,var(--nav-height)) + 2rem + env(safe-area-inset-bottom))}
 .top-card,.summary-card,.card-form,.contract-box,.screen-panel.screen-panel{
   position:relative;
 }
@@ -187,7 +188,8 @@ legend{font-weight:950;margin-bottom:.72rem;font-size:1.05rem;color:#3a2416}
 .recovery-notice h2{margin:.05rem 0 .25rem;font-size:1.05rem;color:#244838}
 .recovery-notice p{margin:0;color:#34483d}
 .recovery-notice button{flex:0 0 auto;min-height:40px;padding:.55rem .82rem}
-.main-content{padding-bottom:calc(var(--nav-height) + 38px + env(safe-area-inset-bottom))}
+/* Clearance belongs after status and legal links, not just after the main panel. */
+.main-content{padding-bottom:.75rem}
 .screen-panel{padding:.05rem .25rem}
 #tab-today.screen-panel{padding-top:.05rem}
 .screen-panel>h1,.screen-panel>p,.screen-panel>h2{margin-left:1rem;margin-right:1rem}
@@ -462,7 +464,8 @@ h3{letter-spacing:-.015em}
   font-weight:780;
 }
 .status-region.error{color:var(--danger)}
-.legal-links{text-align:center;font-size:.9rem;margin:0 1rem 1rem}
+.legal-links{text-align:center;font-size:.9rem;margin:0 1rem 1rem;overflow-wrap:anywhere}
+.language-switch button{min-width:0;overflow-wrap:anywhere}
 .tab-bar{
   position:fixed;
   left:50%;
@@ -482,6 +485,8 @@ h3{letter-spacing:-.015em}
   z-index:20;
 }
 .tab-bar button{
+  min-width:0;
+  overflow-wrap:anywhere;
   position:relative;
   min-height:3.15rem;
   padding:.32rem .2rem;
