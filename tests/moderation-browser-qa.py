@@ -80,6 +80,26 @@ def main():
                             frame.evaluate('(scale)=>document.documentElement.style.fontSize=(16*scale)+"px"',scale)
                             for tab in ['settings','profile','today','week','contract','support']:
                                 frame.locator('#tab-button-'+tab).click()
+                                if tab == 'today':
+                                    saved = frame.locator('#totalLife').inner_text()
+                                    for amount in ['2', '999', '123456', '123456789']:
+                                        frame.locator('#totalLife').evaluate('(e,v)=>e.textContent=v',amount)
+                                        geometry = frame.evaluate("""() => {
+                                          const root=document.querySelector('.big-number');
+                                          const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+                                          const tops=[]; let node;
+                                          while(node=walker.nextNode()) {
+                                            if(node.parentElement.closest('#totalLife')) continue;
+                                            for(let i=0;i<node.length;i++) {
+                                              if(!node.textContent[i].trim()) continue;
+                                              const r=document.createRange();r.setStart(node,i);r.setEnd(node,i+1);
+                                              tops.push(Math.round(r.getBoundingClientRect().top));
+                                            }
+                                          }
+                                          return {labelLines:new Set(tops).size,overflow:document.documentElement.scrollWidth>innerWidth+1};
+                                        }""")
+                                        assert geometry['labelLines']==1 and not geometry['overflow'],f'Broken balance {width=} {scale=} {amount=}: {geometry}'
+                                    frame.locator('#totalLife').evaluate('(e,v)=>e.textContent=v',saved)
                                 result=inspect_footer(frame)
                                 assert all(l['visible'] and l['clickable'] for l in result['links']),f'Footer overlaps {width=} {scale=} {tab=}: {result}'
                                 assert not result['horizontalOverflow'],f'Overflow {width=} {scale=} {tab=}: {result}'

@@ -280,17 +280,19 @@ h3{letter-spacing:-.015em}
 }
 .big-number{
   position:relative;
-  display:inline-flex;
-  align-items:flex-end;
-  gap:.28rem;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:.15em .28rem;
   font-size:clamp(2.25rem,12.2vw,4.4rem);
-  line-height:.92;
+  line-height:1.1;
   margin:.42rem 0 .62rem;
   font-weight:1000;
   letter-spacing:-.075em;
   color:#2a160b;
 }
-.big-number span{font-variant-numeric:tabular-nums;margin-right:.18rem}
+.big-number #totalLife{font-variant-numeric:tabular-nums;margin-right:.18rem;max-width:100%;overflow-wrap:anywhere}
+.big-number .life-unit{white-space:nowrap}
 .hint-title{font-weight:900;font-size:1.02rem;color:#3a2416;margin:.15rem 0 .18rem}
 .quick-action-grid{
   display:grid;
