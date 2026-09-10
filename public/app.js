@@ -1467,7 +1467,7 @@ async function renderPublicProfile(code, options = {}) {
     if ($('connectionStatus')) $('connectionStatus').textContent = msg;
     setStatus(msg, 'error');
   } catch (_) { /* diagnostics only */ }
-});
+}).finally(() => window.KopilkaDocuments?.refresh());
 // Keep the final legal links above the fixed navigation even when text grows,
 // labels wrap, or a WebView changes size. CSS supplies a no-JS fallback.
 const tabBar = document.querySelector('.tab-bar');

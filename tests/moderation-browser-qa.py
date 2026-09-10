@@ -93,8 +93,8 @@ def main():
                         for href in ['/privacy.html','/terms.html']:
                             frame.locator('#tab-button-settings').click()
                             inspect_footer(frame)
-                            frame.locator('.legal-links a[href="'+href+'"]').click()
-                            frame.wait_for_url('**'+href)
+                            frame.locator('.legal-links a[href="'+href+'?source=vk"]').click()
+                            frame.wait_for_url('**'+href+'?source=vk')
                             assert frame.locator('h1').inner_text()
                             frame.evaluate('history.back()')
                             frame.wait_for_url('**/?*')
