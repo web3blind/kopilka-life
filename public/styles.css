@@ -537,6 +537,25 @@ h3{letter-spacing:-.015em}
 @media (min-width:820px){
   .app-shell{width:min(760px, calc(100% - 2rem))}
 }
+/* Legal reader is a top-layer modal; the app underneath is never rebuilt. */
+html.document-view-gutter{scrollbar-gutter:stable}
+html.document-view-open,html.document-view-open body{overflow:hidden;overscroll-behavior:none}
+.document-dialog{
+  padding:0;border:1px solid var(--border);border-radius:var(--radius-md);
+  width:min(760px,calc(100% - 1rem));max-width:calc(100% - 1rem);
+  height:calc(100dvh - 1rem);max-height:calc(100% - 1rem);
+  color:var(--text);background:var(--surface);box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.document-dialog[open]{display:flex;flex-direction:column}
+.document-dialog::backdrop{background:rgba(35,22,15,.55)}
+.document-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;flex:none;padding:.75rem;border-bottom:1px solid var(--border)}
+.document-toolbar span{flex:1 1 12rem;font-weight:850;min-width:0}
+.document-toolbar button{flex:0 1 auto}
+.document-content{overflow:auto;overscroll-behavior:contain;min-height:0;padding:1rem;padding-bottom:max(1rem,env(safe-area-inset-bottom))}
+.document-content .summary-card{margin:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none;backdrop-filter:none}
+.document-content h1{font-size:1.65rem}
+.document-content :focus-visible,.document-toolbar :focus-visible{outline:3px solid var(--focus);outline-offset:3px}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
 }

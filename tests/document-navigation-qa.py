@@ -53,8 +53,8 @@ def main():
                 with sync_playwright() as pw:
                     browser = pw.chromium.connect_over_cdp(os.environ.get('KOPILKA_QA_CDP_URL','http://127.0.0.1:18800'))
                     try:
-                        for surface,target in [('vk','https://vk.ru/app54723764'),('telegram','https://t.me/HarborLifeBot?startapp'),('web',BASE+'/')]:
-                            ctx = browser.new_context(viewport={'width':390,'height':700})
+                        for surface in ['vk', 'telegram', 'web']:
+                            ctx = browser.new_context(viewport={'width':390,'height':700}, has_touch=True)
                             errors=[]
                             ctx.on('page',lambda p:p.on('pageerror',lambda e:errors.append(str(e))))
                             ctx.route('https://**/*',lambda r:r.fulfill(status=200,body='',content_type='application/javascript'))
@@ -62,48 +62,127 @@ def main():
                                 ctx.add_init_script('window.Telegram={WebApp:{initData:'+json.dumps(signed_tg())+',ready(){},expand(){},onEvent(){}}};')
                             page=ctx.new_page()
                             url=BASE+'/?'+signed_vk() if surface=='vk' else BASE+'/'
-                            for doc,other in [('privacy','terms'),('terms','privacy')]:
+                            try:
                                 page.goto(url)
-                                if surface!='web':
+                                if surface != 'web':
                                     page.wait_for_function("document.querySelector('#connectionStatus').textContent.includes('Подключено')")
+                                    page.locator('#entryNote').fill('Unsaved legal-reader regression draft')
                                     page.locator('#tab-button-settings').click()
-                                    link=page.locator('.legal-links a[href^="/'+doc+'.html"]')
+                                    entry = '.legal-links'
                                 else:
                                     page.locator('#loginScreen').wait_for(state='visible')
-                                    link=page.locator('#loginScreen a[href^="/'+doc+'.html"]')
-                                # Href works even when opened in a separate tab, not only with a click handler.
-                                href=link.get_attribute('href')
-                                assert href is not None
-                                assert href == '/'+doc+'.html?source='+surface, (surface,href)
-                                link.click()
-                                page.wait_for_url('**/'+doc+'.html?source='+surface)
-                                page.reload()
-                                assert page.get_by_role('link',name='Вернуться в приложение').get_attribute('href')==target
-                                page.locator('a[href^="/'+other+'.html"]').click()
-                                page.wait_for_url('**/'+other+'.html?source='+surface)
+                                    entry = '#loginScreen'
+                                page.emulate_media(reduced_motion='reduce')
+                                page.evaluate("window.__appDocument=document;window.__appShell=document.querySelector('.app-shell');window.__draft=document.querySelector('#entryNote');window.__storage=JSON.stringify({...localStorage});window.__session=JSON.stringify({...sessionStorage})")
+                                navigations=[]
+                                page.on('framenavigated',lambda f:navigations.append(f.url))
+                                fetches=[]
+                                page.on('request',lambda r:fetches.append(r) if urllib.parse.urlparse(r.url).path in ['/privacy.html','/terms.html'] else None)
+                                for width in [390,760]:
+                                    page.set_viewport_size({'width':width,'height':700})
+                                    for doc,other in [('privacy','terms'),('terms','privacy')]:
+                                        for action in ['close','escape','back','return']:
+                                            link=page.locator(entry+' a[href="/'+doc+'.html"]')
+                                            link.scroll_into_view_if_needed()
+                                            link.focus()
+                                            before=page.evaluate('({x:scrollX,y:scrollY,tab:document.querySelector(".tab-bar [aria-selected=true]")?.id})')
+                                            page.evaluate('window.__opener=document.activeElement')
+                                            if action=='escape':
+                                                link.press('Enter')
+                                            elif action=='close' and width==390:
+                                                link.tap()
+                                            else:
+                                                link.click()
+                                            dialog=page.get_by_role('dialog')
+                                            heading=dialog.locator('h1')
+                                            heading.wait_for()
+                                            assert page.url==url
+                                            assert page.evaluate('document.activeElement===document.querySelector(".document-content h1")')
+                                            # Native modal keeps underlying app controls inert and Tab inside.
+                                            for _ in range(7):
+                                                page.keyboard.press('Tab')
+                                                assert page.evaluate('document.querySelector("dialog").contains(document.activeElement)')
+                                            page.keyboard.press('Shift+Tab')
+                                            assert page.evaluate('document.querySelector("dialog").contains(document.activeElement)')
+                                            canonical=ctx.request.get(BASE+'/'+doc+'.html').text()
+                                            expected=page.evaluate('(html)=>Array.from(new DOMParser().parseFromString(html,"text/html").querySelectorAll("main h1,main h2,main li,main p")).map(n=>n.textContent.trim()).slice(0,-1)',canonical)
+                                            actual=dialog.locator('h1,h2,li,p').evaluate_all('(nodes)=>nodes.map(n=>n.textContent.trim()).slice(0,-1)')
+                                            assert actual==expected,'Legal copy changed'
+                                            dialog.locator('a[href="/'+other+'.html"]').click()
+                                            page.wait_for_function('(name)=>document.querySelector("dialog h1")?.textContent.includes(name)',arg='Условия' if other=='terms' else 'Политика')
+                                            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
+                                            if action=='close':
+                                                dialog.get_by_role('button',name='Закрыть документ').click()
+                                            elif action=='escape':
+                                                page.keyboard.press('Escape')
+                                            elif action=='back':
+                                                page.go_back()
+                                            else:
+                                                dialog.get_by_role('button',name='Вернуться в приложение').click()
+                                            dialog.wait_for(state='hidden')
+                                            page.wait_for_timeout(50)
+                                            assert page.evaluate('document===window.__appDocument && document.querySelector(".app-shell")===window.__appShell && document.querySelector("#entryNote")===window.__draft')
+                                            assert page.evaluate('document.activeElement===window.__opener')
+                                            assert page.evaluate('JSON.stringify({...localStorage})===window.__storage && JSON.stringify({...sessionStorage})===window.__session')
+                                            after=page.evaluate('({x:scrollX,y:scrollY,tab:document.querySelector(".tab-bar [aria-selected=true]")?.id})')
+                                            assert before==after,(before,after)
+                                            if surface!='web':
+                                                assert page.locator('#entryNote').input_value()=='Unsaved legal-reader regression draft'
+                                # Browser Forward reopens the same embedded reader, Back closes it again.
+                                page.go_forward()
+                                page.get_by_role('dialog').locator('h1').wait_for()
+                                page.go_back()
+                                page.get_by_role('dialog').wait_for(state='hidden')
+                                for mode in ['http','invalid','network']:
+                                    def fail(route):
+                                        if mode=='network': route.abort()
+                                        else: route.fulfill(status=503 if mode=='http' else 200,body='<main>Not a document</main>',content_type='text/html')
+                                    page.route('**/privacy.html',fail)
+                                    page.locator(entry+' a[href="/privacy.html"]').click()
+                                    page.get_by_role('alert').filter(has_text='Не удалось загрузить').wait_for()
+                                    assert page.url==url
+                                    page.unroute('**/privacy.html',fail)
+                                    page.get_by_role('button',name='Повторить загрузку').click()
+                                    page.get_by_role('dialog').locator('h1').wait_for()
+                                    page.get_by_role('button',name='Закрыть документ').click()
+                                    page.get_by_role('dialog').wait_for(state='hidden')
+                                # Closing a still-pending fetch must not reopen or replace the app later.
+                                pending=[]
+                                page.route('**/privacy.html',lambda route:pending.append(route))
+                                link=page.locator(entry+' a[href="/privacy.html"]')
+                                link.evaluate('el=>{el.href="/privacy.html?sign=DO_NOT_FORWARD&return=https://evil.example";el.target="_blank"}')
+                                page.locator(entry+' a[href^="/privacy.html?"]').tap()
+                                page.get_by_role('dialog').wait_for()
+                                page.wait_for_function('document.querySelector(".document-content").getAttribute("aria-busy")==="true"')
+                                page.get_by_role('button',name='Закрыть документ').click()
+                                page.get_by_role('dialog').wait_for(state='hidden')
+                                for route in pending: route.abort()
+                                page.unroute('**/privacy.html')
+                                page.wait_for_timeout(100)
+                                assert not page.get_by_role('dialog').is_visible()
+                                assert page.evaluate('document===window.__appDocument')
+                                assert page.url==url and all(u==url for u in navigations)
+                                assert len(ctx.pages)==1,'Document opened another window'
+                                assert fetches
+                                for req in fetches:
+                                    assert urllib.parse.urlparse(req.url).query==''
+                                    headers=req.all_headers()
+                                    assert not any(k in headers for k in ['referer','cookie','authorization']),headers.keys()
+                                    assert not req.is_navigation_request()
+                                # Standalone pages / reload / cross-links still work, untrusted return ignored.
                                 extra=ctx.new_page()
-                                extra.goto(BASE+href)
-                                assert extra.get_by_role('link',name='Вернуться в приложение').get_attribute('href')==target
+                                for doc in ['privacy','terms']:
+                                    extra.goto(BASE+'/'+doc+'.html?source=https://evil.example&return=https://evil.example')
+                                    extra.reload()
+                                    assert extra.locator('main h1').is_visible()
+                                    assert extra.get_by_role('link',name='Вернуться в приложение').get_attribute('href')==BASE+'/'
+                                    extra.locator('main a[href^="/'+('terms' if doc=='privacy' else 'privacy')+'.html"]').click()
+                                    assert extra.locator('main h1').is_visible()
                                 extra.close()
-                                if surface!='web':
-                                    page.route(target,lambda r:r.fulfill(status=200,body='<h1>Platform destination fixture</h1>',content_type='text/html'))
-                                page.get_by_role('link',name='Вернуться в приложение').click()
-                                page.wait_for_url(target)
-                            # The same return must escape a host iframe on a real user click.
-                            if surface != 'web':
-                                page.goto(BASE+'/privacy.html?source='+surface)
-                                page.set_content('<iframe title="Document frame" src="'+BASE+'/terms.html?source='+surface+'"></iframe>')
-                                frame=page.frame_locator('iframe')
-                                frame.get_by_role('link',name='Вернуться в приложение').click()
-                                page.wait_for_url(target)
-                            page.goto(BASE+'/privacy.html?source=vk&source=telegram')
-                            assert page.get_by_role('link',name='Вернуться в приложение').get_attribute('href')==BASE+'/'
-                            for source in ['https://evil.example','javascript:alert(1)','vk&source=telegram','']:
-                                page.goto(BASE+'/privacy.html?source='+urllib.parse.quote(source)+'&return=https://evil.example')
-                                assert page.get_by_role('link',name='Вернуться в приложение').get_attribute('href')==BASE+'/'
-                            assert not errors,errors
-                            print('PASS',surface,'both document entries/cross-links/reload/new tab/click return; invalid source safe; JS errors=0')
-                            ctx.close()
+                                assert not errors,errors
+                                print('PASS',surface,'390/760px: both documents, full canonical copy, internal cross-links, 4 close paths, keyboard/focus, same DOM/tab/draft/scroll/storage, forward, HTTP/invalid/network retry, no external navigation/new tabs/credential forwarding; standalone; JS errors=0')
+                            finally:
+                                ctx.close()
                     finally:
                         browser.close()
             finally:

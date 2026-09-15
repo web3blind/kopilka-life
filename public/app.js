@@ -657,10 +657,13 @@ function renderSupportActions() {
   if (!actions.length) { box.innerHTML = `<p class="soft-note">${escapeHtml(L('supportEmpty'))}</p>`; return; }
   box.innerHTML = actions.map((action) => {
     const opened = action.status !== 'available';
+    const nativeCopy = isVkMiniApp() && action.slug === 'share-kopilka';
+    const disabled = opened && !nativeCopy;
+    const buttonLabel = nativeCopy ? L('copyRefLink') : (opened ? L('supportDone') : (action.buttonLabel || L('supportOpen')));
     const disclosure = action.disclosureText ? `<p class="field-hint">${escapeHtml(action.disclosureText)}</p>` : '';
     const ad = action.isAd || action.isPartner ? `<span class="support-pill">${escapeHtml(action.isAd ? L('supportAd') : L('supportPartner'))}</span>` : '';
     const statePill = opened ? `<span class="support-pill done">${escapeHtml(L('supportDone'))}</span>` : `<span class="support-pill">${escapeHtml(action.rewardLabel || L('supportReward'))}</span>`;
-    return `<article class="support-action-card${opened ? ' is-opened' : ''}" data-support-action-id="${action.id}" aria-label="${escapeHtml(action.title)}"><h3>${escapeHtml(action.title)}</h3><p>${escapeHtml(action.description)}</p>${disclosure}<div class="support-action-meta">${statePill}${ad}</div><button type="button" ${opened ? 'class="secondary" disabled aria-disabled="true"' : ''} data-support-open="${action.id}">${escapeHtml(opened ? L('supportDone') : (action.buttonLabel || L('supportOpen')))}</button></article>`;
+    return `<article class="support-action-card${opened ? ' is-opened' : ''}" data-support-action-id="${action.id}" aria-label="${escapeHtml(action.title)}"><h3>${escapeHtml(action.title)}</h3><p>${escapeHtml(action.description)}</p>${disclosure}<div class="support-action-meta">${statePill}${ad}</div><button type="button" ${disabled ? 'class="secondary" disabled aria-disabled="true"' : ''} data-support-open="${action.id}">${escapeHtml(buttonLabel)}</button></article>`;
   }).join('');
 }
 function rememberRecoveryNotice(notice) {
@@ -978,6 +981,37 @@ async function deleteHistoryEntry(id) {
   });
 }
 async function openSupportAction(actionId) {
+  if (state.busy) return;
+  const action = state.support?.actions?.find((item) => String(item.id) === String(actionId));
+  if (isVkMiniApp() && action?.slug === 'share-kopilka') {
+    return withBusy(L('copyingLink'), async () => {
+      // Use the verified profile's VK referral, never the generic action URL.
+      let link;
+      try { link = new URL(state.profile?.vkRefLink || ''); } catch (_) { /* not loaded */ }
+      if (!link || link.protocol !== 'https:' || !['vk.com', 'vk.ru'].includes(link.host) ||
+          link.pathname !== '/app54723764' || link.username || link.password) {
+        setStatus(L('shareUnavailable'), 'error');
+        return;
+      }
+      try {
+        if (!window.vkBridge?.send) throw new Error('VK bridge unavailable');
+        const result = await withTimeout(window.vkBridge.send('VKWebAppCopyText', { text: link.href }), 10000, 'VK copy timeout');
+        if (result?.result !== true) throw new Error('VK copy was not confirmed');
+      } catch (error) {
+        clientLog('vk_support_copy_failed', userSafeErrorMessage(error));
+        setStatus(L('copyRetry'), 'error');
+        return;
+      }
+      // The server remains the idempotent reward authority. A failed/cancelled
+      // bridge call must never reach the credit endpoint; repeats just copy.
+      if (action.status === 'available') {
+        await api(`/api/support/actions/${encodeURIComponent(actionId)}/open`, { method: 'POST', body: JSON.stringify({ source: 'vk' }) });
+        state.support = await api('/api/support/actions?source=vk');
+        renderSupportActions();
+      }
+      setStatus(L('copied'));
+    });
+  }
   return withBusy(L('supportOpening'), async () => {
     const data = await api(`/api/support/actions/${encodeURIComponent(actionId)}/open`, { method: 'POST', body: JSON.stringify({ source: supportSurface() }) });
     state.support = await api(`/api/support/actions?source=${encodeURIComponent(supportSurface())}`);

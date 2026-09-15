@@ -64,7 +64,8 @@ def main():
                         time.sleep(.1)
                 with sync_playwright() as pw:
                     browser=pw.chromium.connect_over_cdp(os.environ.get('KOPILKA_QA_CDP_URL','http://127.0.0.1:18800'))
-                    page=browser.contexts[0].new_page()
+                    ctx=browser.new_context()
+                    page=ctx.new_page()
                     errors=[]
                     page.on('pageerror',lambda error:errors.append(str(error)))
                     page.route('https://**/*',lambda route:route.fulfill(status=200,body='',content_type='application/javascript'))
@@ -104,25 +105,39 @@ def main():
                                 assert all(l['visible'] and l['clickable'] for l in result['links']),f'Footer overlaps {width=} {scale=} {tab=}: {result}'
                                 assert not result['horizontalOverflow'],f'Overflow {width=} {scale=} {tab=}: {result}'
                                 assert not frame.locator('#servicePanel').is_visible(),'Service controls shown for real account'
+                                # Every footer entry stays inside the existing Mini App iframe.
+                                for doc in ['privacy','terms']:
+                                    link=frame.locator('.legal-links a[href="/'+doc+'.html"]')
+                                    link.focus()
+                                    frame.evaluate("window.__doc=document;window.__shell=document.querySelector('.app-shell');window.__opener=document.activeElement;document.querySelector('#entryNote').value='Preserved draft'")
+                                    before=frame.evaluate('({y:scrollY,tab:document.querySelector(".tab-bar [aria-selected=true]").id})')
+                                    link.click()
+                                    dialog=frame.get_by_role('dialog')
+                                    dialog.locator('h1').wait_for()
+                                    assert frame.url==url and page.url=='about:blank'
+                                    geometry=dialog.evaluate("""el=>{
+                                      const close=el.querySelector('[data-document-close]').getBoundingClientRect();
+                                      const content=el.querySelector('.document-content');
+                                      return {closeVisible:close.top>=0&&close.bottom<=innerHeight,
+                                        contentHeight:content.clientHeight,overflow:el.scrollWidth>el.clientWidth+1||content.scrollWidth>content.clientWidth+1};
+                                    }""")
+                                    assert geometry['closeVisible'] and geometry['contentHeight']>50 and not geometry['overflow'],geometry
+                                    dialog.locator('.document-content').evaluate('el=>el.scrollTop=el.scrollHeight')
+                                    if doc=='privacy': frame.evaluate('history.back()')
+                                    else: page.keyboard.press('Escape')
+                                    dialog.wait_for(state='hidden')
+                                    frame.wait_for_timeout(50)
+                                    assert frame.evaluate("document===window.__doc&&document.querySelector('.app-shell')===window.__shell&&document.activeElement===window.__opener&&document.querySelector('#entryNote').value==='Preserved draft'")
+                                    after=frame.evaluate('({y:scrollY,tab:document.querySelector(".tab-bar [aria-selected=true]").id})')
+                                    assert before==after,(width,scale,tab,doc,before,after)
+
                             colors=frame.evaluate("({text:getComputedStyle(document.body).color,scheme:getComputedStyle(document.documentElement).colorScheme,inputBackground:getComputedStyle(document.querySelector('input')).backgroundColor,inputColor:getComputedStyle(document.querySelector('input')).color})")
                             assert colors['text']=='rgb(35, 22, 15)' and 'light' in colors['scheme'],colors
                             print('PASS viewport',width,height,'font-scale',scale,'dark',dark,json.dumps(result,ensure_ascii=False))
-                        # Real clicks through both documents, including browser Back to app.
-                        page.locator('iframe').evaluate('el=>{el.style.width="390px";el.style.height="700px"}')
-                        frame.evaluate('document.documentElement.style.fontSize="16px"')
-                        for href in ['/privacy.html','/terms.html']:
-                            frame.locator('#tab-button-settings').click()
-                            inspect_footer(frame)
-                            frame.locator('.legal-links a[href="'+href+'?source=vk"]').click()
-                            frame.wait_for_url('**'+href+'?source=vk')
-                            assert frame.locator('h1').inner_text()
-                            frame.evaluate('history.back()')
-                            frame.wait_for_url('**/?*')
-                            frame.wait_for_function("document.querySelector('#connectionStatus')?.textContent.includes('Подключено')",timeout=20000)
                         assert not errors,errors
-                        print('PASS document navigation/back and JS errors=0')
+                        print('PASS embedded documents from six tabs, same iframe/app DOM/draft/tab/focus/scroll; Back/Escape; JS errors=0')
                     finally:
-                        page.close()
+                        ctx.close()
                         browser.close()
             finally:
                 proc.terminate()
