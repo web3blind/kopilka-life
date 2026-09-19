@@ -26,6 +26,7 @@ module.exports = {
   dbPath: process.env.DB_PATH || path.join(process.cwd(), 'data', 'kopilka-life.sqlite'),
   sessionSecret: process.env.SESSION_SECRET || 'local-dev-secret-change-me',
   sessionMaxAgeSeconds: Number(process.env.SESSION_MAX_AGE_SECONDS || 604800),
+  vkOutboundTimeoutMs: 15000,
   vkOAuthStateMaxAgeSeconds: Number(process.env.VK_OAUTH_STATE_MAX_AGE_SECONDS || 600),
   devAuthEnabled: !isProduction && process.env.DEV_AUTH_ENABLED === 'true',
   schedulerEnabled: process.env.SCHEDULER_ENABLED !== 'false',
@@ -46,13 +47,16 @@ module.exports = {
 
 module.exports.validateRuntimeConfig = function validateRuntimeConfig(settings = module.exports) {
   if (!settings.isProduction && settings.nodeEnv !== 'production') return;
-  if (!settings.sessionSecret || settings.sessionSecret === 'local-dev-secret-change-me') {
-    throw new Error('SESSION_SECRET must be configured in production');
+  // Reject published examples; keep existing non-placeholder secrets >=16 chars valid.
+  const unsafeSecret = (value) => typeof value !== 'string' || value.trim().length < 16 ||
+    /(?:replace[_-]?(?:me|with)|change[_-]?me|local-dev-secret|your[_-].*secret|test[_-]secret)/i.test(value);
+  if (unsafeSecret(settings.sessionSecret)) {
+    throw new Error('SESSION_SECRET must be non-placeholder and at least 16 characters in production (32+ random recommended)');
   }
   if (!Number.isFinite(settings.sessionMaxAgeSeconds) || settings.sessionMaxAgeSeconds < 300) {
     throw new Error('SESSION_MAX_AGE_SECONDS must be at least 300');
   }
-  if (!settings.telegramWebhookSecret || !/^[A-Za-z0-9_-]{1,256}$/.test(settings.telegramWebhookSecret)) {
+  if (unsafeSecret(settings.telegramWebhookSecret) || !/^[A-Za-z0-9_-]{16,256}$/.test(settings.telegramWebhookSecret)) {
     throw new Error('TELEGRAM_WEBHOOK_SECRET must be configured with Telegram-safe characters in production');
   }
   if (settings.vkOAuthAuthorizeUrl !== 'https://id.vk.ru/authorize' || settings.vkOAuthTokenUrl !== 'https://id.vk.ru/oauth2/auth') {

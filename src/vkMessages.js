@@ -27,14 +27,39 @@ function reminderKeyboard(locale) {
   });
 }
 
+// One deadline includes connection, headers AND body consumption. Race also bounds
+// broken transports that do not settle on abort; always abort the underlying request.
+async function fetchVkJson(url, options) {
+  const controller = new AbortController();
+  let timer;
+  try {
+    return await Promise.race([
+      (async () => {
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        const data = await res.json();
+        return { res, data };
+      })(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error('VK request timed out');
+          error.code = 'ETIMEDOUT';
+          reject(error);
+          controller.abort();
+        }, config.vkOutboundTimeoutMs || 15000);
+      })
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callVk(method, payload) {
   if (!config.vkGroupToken || config.vkGroupToken === 'replace_me' || config.vkGroupToken.startsWith('test-') || config.nodeEnv === 'test') {
     console.log(`[vk:dry] ${method}`, JSON.stringify({ ...payload, access_token: '[REDACTED]' }));
     return { response: 1, dryRun: true };
   }
   const body = new URLSearchParams({ ...payload, access_token: config.vkGroupToken, v: '5.199' });
-  const res = await fetch(`https://api.vk.com/method/${method}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body });
-  const data = await res.json().catch(() => ({}));
+  const { res, data } = await fetchVkJson(`https://api.vk.com/method/${method}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body });
   if (!res.ok || data.error) {
     const code = data.error?.error_code || res.status;
     const msg = data.error?.error_msg || `HTTP ${res.status}`;
@@ -84,7 +109,7 @@ function vkMessagesConfigured() {
   return true;
 }
 
-async function sendVkReminder(vkUserId, locale, extraText = '') {
+async function sendVkReminder(vkUserId, locale, extraText = '', deliveryKey = '') {
   if (!vkUserId) throw new Error('VK user id is missing');
   const ownerCheck = await ensureVkGroupTokenMatchesConfig();
   if (ownerCheck.ok === false) {
@@ -95,7 +120,7 @@ async function sendVkReminder(vkUserId, locale, extraText = '') {
   }
   const basePayload = {
     user_id: String(vkUserId),
-    random_id: crypto.randomInt(1, 2147483647),
+    random_id: deliveryKey ? ((crypto.createHash('sha256').update(`${vkUserId}:${deliveryKey}`).digest().readUInt32BE(0) & 0x7fffffff) || 1) : crypto.randomInt(1, 2147483647),
     message: reminderText(locale, extraText),
     dont_parse_links: 0
   };
@@ -104,8 +129,8 @@ async function sendVkReminder(vkUserId, locale, extraText = '') {
   } catch (error) {
     if (![911, 912].includes(Number(error.code))) throw error;
     console.error('VK keyboard rejected; retrying reminder without keyboard');
-    return callVk('messages.send', { ...basePayload, random_id: crypto.randomInt(1, 2147483647) });
+    return callVk('messages.send', basePayload);
   }
 }
 
-module.exports = { callVk, sendVkReminder, reminderText, reminderKeyboard, vkAppUrl, detectVkTokenGroupMismatch, ensureVkGroupTokenMatchesConfig, vkMessagesConfigured };
+module.exports = { fetchVkJson, callVk, sendVkReminder, reminderText, reminderKeyboard, vkAppUrl, detectVkTokenGroupMismatch, ensureVkGroupTokenMatchesConfig, vkMessagesConfigured };

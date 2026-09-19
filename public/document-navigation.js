@@ -2,6 +2,7 @@
 (() => {
   const documents = new Set(['/privacy.html', '/terms.html']);
   const isDocument = documents.has(window.location.pathname);
+  const text = (key, fallback) => window.KopilkaI18n?.t(document.documentElement.lang, key) || fallback;
   function documentPath(link) {
     try {
       const url = new URL(link.getAttribute('href'), window.location.href);
@@ -12,6 +13,7 @@
   // Public standalone URLs still work, including old, allowlisted source hints.
   // The embedded reader never forwards a query, launch signature or return URL.
   function refresh() {
+    document.querySelectorAll('[data-document-close]').forEach((button) => { button.textContent = text('legalClose', 'Закрыть документ'); });
     const sources = new URLSearchParams(window.location.search).getAll('source');
     const destinations = { web: new URL('/', window.location.origin).href,
       vk: 'https://vk.ru/app54723764', telegram: 'https://t.me/HarborLifeBot?startapp' };
@@ -66,9 +68,10 @@
     const controller = new AbortController();
     request = controller;
     const timeout = setTimeout(() => controller.abort(), 12000);
-    title.textContent = path === '/privacy.html' ? 'Политика конфиденциальности' : 'Условия использования';
+    title.textContent = path === '/privacy.html' ? text('legalPrivacy', 'Политика конфиденциальности') : text('legalTerms', 'Условия использования');
+    dialog.querySelector('[data-document-close]').textContent = text('legalClose', 'Закрыть документ');
     content.setAttribute('aria-busy', 'true');
-    content.textContent = 'Загружаем документ…';
+    content.textContent = text('legalLoading', 'Загружаем документ…');
     content.scrollTop = 0;
     title.focus({ preventScroll: true });
     try {
@@ -85,12 +88,14 @@
           if (/^on/i.test(attr.name)) node.removeAttribute(attr.name);
         }
       });
+      section.lang = 'ru'; // canonical legal copy is Russian, independent of app controls
       const back = section.querySelector('[data-document-return]');
       if (back) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'secondary';
-        button.textContent = back.textContent;
+        button.lang = document.documentElement.lang;
+        button.textContent = text('legalReturn', back.textContent);
         button.addEventListener('click', close);
         back.replaceWith(button);
       }
@@ -112,10 +117,10 @@
       if (request !== controller || !dialog.open) return;
       const message = document.createElement('p');
       message.setAttribute('role', 'alert');
-      message.textContent = 'Не удалось загрузить документ. Попробуйте ещё раз.';
+      message.textContent = text('legalLoadFailed', 'Не удалось загрузить документ. Попробуйте ещё раз.');
       const retry = document.createElement('button');
       retry.type = 'button';
-      retry.textContent = 'Повторить загрузку';
+      retry.textContent = text('legalRetry', 'Повторить загрузку');
       retry.addEventListener('click', () => load(path));
       content.replaceChildren(message, retry);
     } finally {

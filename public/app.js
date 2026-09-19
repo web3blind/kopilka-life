@@ -1,5 +1,5 @@
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20260906-telegram-story-confirm';
+const CLIENT_VERSION = '20260919-frontend-quality';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -8,7 +8,7 @@ const storage = {
 const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kopilkaLocale') || 'ru');
 const L = (key, params) => I18N.t(locale(), key, params);
 
-const state = { token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, history: null, historyDate: '', historyEditingId: null, currentContract: null, product: null, profile: null, publicProfileTarget: null, artifacts: [], artifactQueue: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null, quickActionReturnType: '', sessionRenewalPromise: null, sessionRenewalBlocked: false, vkBridgeLaunchParams: '', vkOAuthWindow: null, vkOAuthChannel: '', vkOAuthAction: '', vkOAuthMonitor: null, vkLinkRequiresOAuth: false };
+const state = { settingsDirty: false, refreshFailed: false, lastRefresh: 0, refreshPending: false, token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, history: null, historyDate: '', historyEditingId: null, currentContract: null, product: null, profile: null, publicProfileTarget: null, artifacts: [], artifactQueue: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null, quickActionReturnType: '', sessionRenewalPromise: null, sessionRenewalBlocked: false, vkBridgeLaunchParams: '', vkOAuthWindow: null, vkOAuthChannel: '', vkOAuthAction: '', vkOAuthMonitor: null, vkLinkRequiresOAuth: false };
 function fireVkBridgeInit() {
   try {
     if (!vkLaunchParams()) return;
@@ -246,6 +246,12 @@ async function startVkOAuth(action = 'auth', statusEl = null) {
 }
 function setPublicReadOnlyMode(enabled) {
   state.publicReadOnly = Boolean(enabled);
+  document.querySelectorAll('[data-own-profile]').forEach((el) => { el.hidden = state.publicReadOnly; });
+  if ($('shareFallback')) $('shareFallback').hidden = true;
+  if (!state.publicReadOnly) {
+    $('publicStats')?.remove();
+    state.publicProfileTarget = null; state.publicStatus = '';
+  }
   const nav = document.querySelector('.tab-bar');
   if (nav) nav.hidden = state.publicReadOnly;
   ['copyRefLink', 'shareRefLink'].forEach((id) => { const el = $(id); if (el) el.hidden = state.publicReadOnly; });
@@ -257,10 +263,11 @@ function setPublicReadOnlyMode(enabled) {
   if (artifactsSection) artifactsSection.hidden = state.publicReadOnly;
   const linkLabel = document.querySelector('label[for="refLink"]');
   if (linkLabel) linkLabel.textContent = state.publicReadOnly ? L('profileLinkLabel') : L('refLinkLabel');
+  if ($('partnerHeading')) $('partnerHeading').textContent = state.publicReadOnly ? L('profileLinkLabel') : L('partnerHeading');
   const hint = $('refLinkHint');
   if (hint) hint.textContent = state.publicReadOnly ? L('profileLinkHint') : L('refLinkHint');
 }
-function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text; region.classList.toggle('error', type === 'error'); }
+function setStatus(text, type = 'info') { const region = $('statusRegion'); region.textContent = text + (state.refreshFailed && type !== 'error' ? ` ${L('refreshPending')}` : ''); region.classList.toggle('error', type === 'error'); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
 function userSafeErrorMessage(error, fallbackKey = 'actionFailed') {
   const raw = error?.error_data?.error_reason || error?.error_reason || error?.message || error?.error_type || String(error || '');
@@ -268,23 +275,33 @@ function userSafeErrorMessage(error, fallbackKey = 'actionFailed') {
   const cleaned = firstLine.replace(/^(Error|TypeError|ReferenceError|SyntaxError):\s*/i, '').trim();
   return (cleaned || L(fallbackKey)).slice(0, 180);
 }
+const busyDisabled = new WeakMap();
 function setBusy(isBusy, message = '') {
   state.busy = isBusy;
   document.querySelectorAll('button,input,textarea,select').forEach((el) => {
-    if (el.id === 'cleanupDemo' && state.user && !state.user.isDemo) return;
-    if (!isBusy && el.getAttribute('aria-disabled') === 'true') return;
-    el.disabled = isBusy;
+    if (isBusy) { busyDisabled.set(el, el.disabled); el.disabled = true; }
+    else if (el.dataset.entryType) el.disabled = false; // used quick actions stay focusable
+    else if (el.getAttribute('aria-disabled') !== null) el.disabled = el.getAttribute('aria-disabled') === 'true';
+    else if (busyDisabled.has(el)) el.disabled = busyDisabled.get(el);
+    if (!isBusy) busyDisabled.delete(el);
   });
   document.body.setAttribute('aria-busy', isBusy ? 'true' : 'false');
   if (message) setStatus(message);
 }
-async function withBusy(message, fn) { setBusy(true, message); try { return await fn(); } finally { setBusy(false); } }
+async function withBusy(message, fn) { state.refreshFailed = false; setBusy(true, message); try { return await fn(); } finally { setBusy(false); } }
 async function requestJson(path, options = {}, token = state.token) {
   const headers = { 'content-type': 'application/json', 'x-kopilka-surface': supportSurface(), ...(options.headers || {}) };
   if (token) headers.authorization = `Bearer ${token}`;
-  const res = await fetch(path, { ...options, headers });
-  const data = await res.json().catch(() => ({}));
-  return { res, data };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(path, { ...options, headers, signal: controller.signal });
+    const data = await res.json();
+    return { res, data };
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error(L('requestTimeout'));
+    throw error;
+  } finally { clearTimeout(timeout); }
 }
 async function renewSurfaceSession() {
   if (state.sessionRenewalBlocked) return false;
@@ -438,6 +455,9 @@ function applyStaticI18n() {
     const key = el.getAttribute('data-i18n');
     el.textContent = L(key);
   });
+  document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', L(el.dataset.i18nAria)));
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = L(el.dataset.i18nPlaceholder); });
+  window.KopilkaDocuments?.refresh();
   const status = $('connectionStatus');
   if (status) status.textContent = state.publicStatus || (state.user ? L('connected') : L('connecting'));
 }
@@ -449,7 +469,7 @@ function renderQuickActions() {
   $('quickActions').innerHTML = types.map((it) => {
     const used = usedToday.has(it.type);
     const aria = used ? `${it.title}, ${L('alreadyAddedToday')}` : `${it.title}, ${it.hint}, ${L('addLife', { points: it.points })}`;
-    return `<button type="button" data-entry-type="${it.type}" data-last-quick-entry-type="${it.type}" data-used-today="${used ? 'true' : 'false'}" ${used ? 'aria-disabled="true"' : ''} aria-label="${escapeHtml(aria)}"><span class="qa-head"><span class="qa-icon" aria-hidden="true">${escapeHtml(it.icon || '✦')}</span><span class="qa-title">${escapeHtml(it.title)}</span></span><span class="qa-hint">${escapeHtml(used ? L('alreadyAddedToday') : it.hint)}</span><span class="qa-points">${used ? escapeHtml(L('availableTomorrow')) : `+${it.points} ЖИЗНЬ`}</span></button>`;
+    return `<button type="button" data-entry-type="${it.type}" data-last-quick-entry-type="${it.type}" data-used-today="${used ? 'true' : 'false'}" ${used ? 'aria-disabled="true"' : ''} aria-label="${escapeHtml(aria)}"><span class="qa-head"><span class="qa-icon" aria-hidden="true">${escapeHtml(it.icon || '✦')}</span><span class="qa-title">${escapeHtml(it.title)}</span></span><span class="qa-hint">${escapeHtml(used ? L('alreadyAddedToday') : it.hint)}</span><span class="qa-points">${used ? escapeHtml(L('availableTomorrow')) : escapeHtml(L('plusLife', { points: it.points }))}</span></button>`;
   }).join('');
 }
 function renderSummary() {
@@ -510,11 +530,11 @@ function renderHistory() {
   const life = history.selectedEntries.reduce((sum, entry) => sum + Number(entry.life_points || 0), 0);
   if ($('selectedDaySummary')) $('selectedDaySummary').textContent = L('historyDaySummary', { date: formatHistoryDate(history.selectedDate), count: history.selectedEntries.length, life });
   const list = $('selectedDayEntries');
-  if (list) {
+  if (list && !(state.historyEditingId && $(`history-note-${state.historyEditingId}`))) {
     list.innerHTML = history.selectedEntries.length ? history.selectedEntries.map((entry) => {
       const note = entry.note ? `<p>${escapeHtml(entry.note)}</p>` : '';
       if (state.historyEditingId === entry.id && entry.editable) {
-        return `<li><form data-history-edit-form="${entry.id}"><p><strong>${escapeHtml(entry.title)}</strong> · +${Number(entry.life_points) || 0} ${escapeHtml(L('life'))}</p><label for="history-note-${entry.id}">${escapeHtml(L('historyEditLabel', { title: entry.title }))}</label><textarea id="history-note-${entry.id}" name="note" rows="3" maxlength="2000">${escapeHtml(entry.note || '')}</textarea><div class="history-entry-actions"><button type="submit">${escapeHtml(L('historySave'))}</button><button type="button" class="secondary" data-history-cancel>${escapeHtml(L('historyCancel'))}</button></div></form></li>`;
+        return `<li><form data-history-edit-form="${entry.id}"><p><strong>${escapeHtml(entry.title)}</strong> · +${Number(entry.life_points) || 0} ${escapeHtml(L('life'))}</p><label for="history-note-${entry.id}">${escapeHtml(L('historyEditLabel', { title: entry.title }))}</label><textarea id="history-note-${entry.id}" name="note" rows="3" maxlength="${Math.max(2000, (entry.note || '').length)}">${escapeHtml(entry.note || '')}</textarea><div class="history-entry-actions"><button type="submit">${escapeHtml(L('historySave'))}</button><button type="button" class="secondary" data-history-cancel>${escapeHtml(L('historyCancel'))}</button></div></form></li>`;
       }
       const actions = entry.editable ? `<div class="history-entry-actions"><button type="button" class="secondary" data-history-edit="${entry.id}">${escapeHtml(L('historyEdit'))}</button><button type="button" class="secondary" data-history-delete="${entry.id}">${escapeHtml(L('historyDelete'))}</button></div>` : `<p class="field-hint">${escapeHtml(L('historyProtected'))}</p>`;
       return `<li><article><h3>${escapeHtml(entry.title)}</h3><p>+${Number(entry.life_points) || 0} ${escapeHtml(L('life'))}</p>${note}${actions}</article></li>`;
@@ -544,7 +564,7 @@ function renderContract() {
 }
 function renderContractTemplates() { const templates = state.product?.contractTemplates || []; const box = $('contractTemplates'); if (!box) return; box.innerHTML = templates.length ? templates.map((t) => `<button type="button" class="secondary" data-template-id="${escapeHtml(t.id)}">${escapeHtml(t.title)}</button>`).join('') : `<p class="soft-note">${escapeHtml(L('templatesLoading'))}</p>`; }
 function renderWeeklyReview() { const review = state.product?.weeklyReview; if (!review) return; $('weeklyReviewText').textContent = review.summaryText; $('weeklyReviewQuestions').innerHTML = review.questions.map((q) => `<li>${escapeHtml(q)}</li>`).join(''); }
-function renderPractices() { const data = state.product?.practices; if (!data) return; const select = $('practiceGoal'); if (select.options.length === 0) { select.innerHTML = data.goals.map((g) => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.title)}</option>`).join(''); } select.value = data.goal; $('goalPractices').innerHTML = data.practices.map((p) => `<li>${escapeHtml(p)}</li>`).join(''); }
+function renderPractices() { const data = state.product?.practices; if (!data) return; const select = $('practiceGoal'); select.innerHTML = data.goals.map((g) => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.title)}</option>`).join(''); select.value = data.goal; $('goalPractices').innerHTML = data.practices.map((p) => `<li>${escapeHtml(p)}</li>`).join(''); }
 function applyTemplate(templateId) { const t = (state.product?.contractTemplates || []).find((item) => item.id === templateId); if (!t) return; $('contractTitle').value = t.title; $('contractTarget').value = t.targetValue; $('stakeAmount').value = t.stakeAmount || ''; $('stakeCurrency').value = t.stakeCurrency || 'RUB'; $('rewardDescription').value = t.rewardDescription || ''; $('fundDescription').value = t.fundDescription || ''; setStatus(L('templateApplied', { title: t.title })); }
 function renderMergePrompt() {
   const container = $('accountMergePrompt') || (() => {
@@ -562,14 +582,22 @@ function renderMergePrompt() {
   const p = pending.preview || {};
   const r = p.result || {};
   const blocking = p.blocking || [];
+  const blockingKeys = {
+    active_contract_conflict: 'mergeBlockedActiveContract',
+    source_telegram_conflict: 'mergeBlockedSourceTelegram',
+    primary_vk_conflict: 'mergeBlockedPrimaryVk',
+    support_metadata_conflict: 'mergeBlockedSupportMetadata'
+  };
   container.hidden = false;
-  container.innerHTML = `<h3>${escapeHtml(L('mergeAccountsTitle'))}</h3><p>${escapeHtml(L('mergeAccountsIntro'))}</p><ul class="compact-list"><li>${escapeHtml(L('mergeMovedEntries', { count: r.movedEntries || 0 }))}</li><li>${escapeHtml(L('mergeDedupedEntries', { count: r.dedupedQuickEntries || 0 }))}</li><li>${escapeHtml(L('mergeNotes', { count: r.mergedNotes || 0 }))}</li><li>${escapeHtml(L('mergeContracts', { count: r.movedContracts || 0 }))}</li><li>${escapeHtml(L('mergeRemindersDropped', { count: r.scheduledRemindersDropped || 0 }))}</li></ul>${blocking.length ? `<p class="soft-note">${escapeHtml(L('mergeBlockedActiveContract'))}</p>` : `<button type="button" id="confirmAccountMerge">${escapeHtml(L('mergeConfirm'))}</button>`}<button type="button" id="cancelAccountMerge" class="secondary">${escapeHtml(L('mergeCancel'))}</button>`;
+  container.innerHTML = `<h3>${escapeHtml(L('mergeAccountsTitle'))}</h3><p>${escapeHtml(L('mergeAccountsIntro'))}</p><ul class="compact-list"><li>${escapeHtml(L('mergeMovedEntries', { count: r.movedEntries || 0 }))}</li><li>${escapeHtml(L('mergeDedupedEntries', { count: r.dedupedQuickEntries || 0 }))}</li><li>${escapeHtml(L('mergeNotes', { count: r.mergedNotes || 0 }))}</li><li>${escapeHtml(L('mergeContracts', { count: r.movedContracts || 0 }))}</li><li>${escapeHtml(L('mergeRemindersDropped', { count: r.scheduledRemindersDropped || 0 }))}</li></ul>${blocking.length ? blocking.map((reason) => `<p class="soft-note">${escapeHtml(L(blockingKeys[reason] || 'mergeBlockedUnknown'))}</p>`).join('') : `<button type="button" id="confirmAccountMerge">${escapeHtml(L('mergeConfirm'))}</button>`}<button type="button" id="cancelAccountMerge" class="secondary">${escapeHtml(L('mergeCancel'))}</button>`;
 }
 function renderSettings() {
   if (!state.user) return;
-  $('timezone').value = state.user.timezone || 'Asia/Novosibirsk';
-  $('remindersEnabled').checked = Boolean(state.user.remindersEnabled);
-  $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00';
+  if (!state.settingsDirty) {
+    $('timezone').value = state.user.timezone || 'Asia/Novosibirsk';
+    $('remindersEnabled').checked = Boolean(state.user.remindersEnabled);
+    $('eveningReminderTime').value = state.user.eveningReminderTime || '20:00';
+  }
   const servicePanel = $('servicePanel');
   if (servicePanel) servicePanel.hidden = !state.user.isDemo;
   if ($('userDebug')) $('userDebug').textContent = `ID: ${state.user.id}. Demo: ${state.user.isDemo ? L('yes') : L('no')}.`;
@@ -658,8 +686,8 @@ function renderSupportActions() {
   box.innerHTML = actions.map((action) => {
     const opened = action.status !== 'available';
     const nativeCopy = isVkMiniApp() && action.slug === 'share-kopilka';
-    const disabled = opened && !nativeCopy;
-    const buttonLabel = nativeCopy ? L('copyRefLink') : (opened ? L('supportDone') : (action.buttonLabel || L('supportOpen')));
+    const disabled = false; // repeat opening never awards twice (server-idempotent)
+    const buttonLabel = nativeCopy ? L('copyRefLink') : (opened ? L('supportOpenAgain') : (action.buttonLabel || L('supportOpen')));
     const disclosure = action.disclosureText ? `<p class="field-hint">${escapeHtml(action.disclosureText)}</p>` : '';
     const ad = action.isAd || action.isPartner ? `<span class="support-pill">${escapeHtml(action.isAd ? L('supportAd') : L('supportPartner'))}</span>` : '';
     const statePill = opened ? `<span class="support-pill done">${escapeHtml(L('supportDone'))}</span>` : `<span class="support-pill">${escapeHtml(action.rewardLabel || L('supportReward'))}</span>`;
@@ -685,14 +713,16 @@ function renderTodayContractReminder() {
   if (!box) return;
   box.hidden = !(state.currentContract && state.currentContract.isLastDay);
 }
-function showArtifactToast(artifacts = []) {
+function showArtifactToast(artifacts = [], fromHistory = false) {
   const fresh = artifacts.filter((item) => item && !state.artifactQueue.some((queued) => queued.id === item.id));
   if (!fresh.length) return;
   if (!state.artifactQueue.length) {
     const active = document.activeElement;
     state.artifactReturnFocus = active instanceof HTMLElement && active !== document.body && active !== document.documentElement ? active : null;
   }
+  const alreadyOpen = state.artifactQueue.length > 0;
   state.artifactQueue.push(...fresh);
+  if (!fromHistory) saveNavigation(alreadyOpen, state.artifactQueue.slice());
   renderArtifactToast();
 }
 function setArtifactBackgroundInert(inert) {
@@ -718,9 +748,11 @@ function renderArtifactToast() {
   $('artifactToastClose')?.focus({ preventScroll: true });
   setStatus(L('artifactUnlockedStatus', { title: first.title }));
 }
-function hideArtifactToast() {
-  state.artifactQueue.shift();
-  if (state.artifactQueue.length) { renderArtifactToast(); return; }
+function hideArtifactToast({ fromHistory = false, dismissAll = false } = {}) {
+  if (!state.artifactQueue.length) return;
+  if (dismissAll) state.artifactQueue = []; else state.artifactQueue.shift();
+  if (state.artifactQueue.length) { saveNavigation(true, state.artifactQueue.slice()); renderArtifactToast(); return; }
+  if (!fromHistory && window.history.state?.kopilkaView?.artifacts?.length) window.history.back();
   const toast = $('artifactToast');
   if (toast) toast.hidden = true;
   setArtifactBackgroundInert(false);
@@ -757,16 +789,89 @@ function restoreQuickActionFocus() {
   else window.setTimeout(run, 0);
 }
 function renderAll() { applyStaticI18n(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderTodayContractReminder(); renderSettings(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); renderRecoveryNotice(); restoreQuickActionFocus(); }
-function switchTab(tab) { state.activeTab = tab; document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; }); document.querySelectorAll('.tab-bar button').forEach((b) => { const active = b.dataset.tab === tab; b.setAttribute('aria-selected', String(active)); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); const h = $(`heading-${tab}`); if (h) h.focus({ preventScroll: false }); }
+const navigationOwner = Math.random().toString(36).slice(2);
+function navigationState(artifacts = []) { return { owner: navigationOwner, tab: state.activeTab, artifacts }; }
+function saveNavigation(replace = false, artifacts = []) {
+  const current = { ...window.history.state, kopilkaView: navigationState(artifacts) };
+  window.history[replace ? 'replaceState' : 'pushState'](current, '');
+}
+function switchTab(tab, { record = true, focus = true } = {}) {
+  if (!['today', 'week', 'contract', 'settings', 'support', 'profile'].includes(tab)) return;
+  const changed = state.activeTab !== tab;
+  if (record && changed && !state.publicReadOnly) {
+    saveNavigation(true);
+    state.activeTab = tab;
+    saveNavigation();
+  } else state.activeTab = tab;
+  document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; });
+  document.querySelectorAll('.tab-bar button').forEach((b) => {
+    const active = b.dataset.tab === tab;
+    b.setAttribute('aria-selected', String(active)); b.tabIndex = active ? 0 : -1;
+    if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  if (focus) $(`heading-${tab}`)?.focus({ preventScroll: false });
+}
+function restoreNavigation(event) {
+  // The legal reader owns its own history entry and is registered first.
+  if (document.querySelector('.document-dialog[open]') || state.publicReadOnly) return;
+  const view = event.state?.kopilkaView;
+  if (view?.owner !== navigationOwner) return;
+  if (state.artifactQueue.length) hideArtifactToast({ fromHistory: true, dismissAll: true });
+  if (view.tab !== state.activeTab) switchTab(view.tab, { record: false });
+  if (view.artifacts?.length) showArtifactToast(view.artifacts, true);
+}
+function handleTabKey(event) {
+  if (state.busy || state.publicReadOnly || !event.target.closest('button[data-tab]')) return;
+  const tabs = [...document.querySelectorAll('.tab-bar button[data-tab]')];
+  const index = tabs.indexOf(event.target.closest('button[data-tab]'));
+  let next;
+  if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+  else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = tabs.length - 1;
+  else return;
+  event.preventDefault();
+  switchTab(tabs[next].dataset.tab, { focus: false }); tabs[next].focus();
+}
+// Foreground/return refresh is throttled; an idle open page notices a new local
+// date once a minute. Never replace an active editor, modal or settings draft.
+function localDay() {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: state.user?.timezone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+  catch (_) { return ''; }
+}
+let refreshedDay = '';
+async function refreshOnReturn(force = false) {
+  if (!state.token || !state.user || state.publicReadOnly || state.busy || state.refreshPending || document.hidden || state.historyEditingId || state.artifactQueue.length || document.querySelector('.document-dialog[open]') || $('appShell').hidden) return;
+  if (!force && Date.now() - state.lastRefresh < 60000 && refreshedDay === localDay()) return;
+  // Refresh only when the user isn't typing; settings and entry drafts stay in DOM.
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+  state.refreshPending = true;
+  const focused = document.activeElement;
+  const focusedId = focused?.id;
+  const quickType = focused?.dataset?.entryType;
+  try {
+    await withBusy('', loadData); refreshedDay = localDay(); state.refreshFailed = false;
+    if (!focused?.isConnected) {
+      const replacement = focusedId ? $(focusedId) : quickType ? document.querySelector(`button[data-entry-type="${quickType}"]`) : null;
+      replacement?.focus({ preventScroll: true });
+    }
+  }
+  catch (_) { state.lastRefresh = Date.now(); setStatus(L('refreshUnavailable'), 'error'); }
+  finally { state.refreshPending = false; }
+}
+
 async function loadData() {
   state.publicStatus = '';
   const goal = $('practiceGoal')?.value || 'calm';
   const me = await api('/api/me');
   rememberRecoveryNotice(me.recoveryNotice);
-  const historyQuery = state.historyDate ? `?date=${encodeURIComponent(state.historyDate)}&days=7` : '?days=7';
+  const followToday = !state.historyEditingId && state.historyDate === state.history?.todayDate;
+  const historyDate = followToday ? '' : state.historyDate;
+  const historyQuery = historyDate ? `?date=${encodeURIComponent(historyDate)}&days=7` : '?days=7';
   const [summary, week, history, current, product, profile, artifacts, support] = await Promise.all([api('/api/summary/today'), api('/api/entries?range=week'), api(`/api/history${historyQuery}`), api('/api/contracts/current'), api(`/api/product?goal=${encodeURIComponent(goal)}`), api('/api/profile'), api('/api/artifacts'), api(`/api/support/actions?source=${encodeURIComponent(supportSurface())}`)]);
   state.summary = summary; state.week = week; state.history = history; state.historyDate = history.selectedDate; state.currentContract = current.contract; state.user = me.user; state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || []; state.support = support;
   storage.set('kopilkaLocale', me.user.locale || 'ru');
+  state.lastRefresh = Date.now();
   renderAll();
 }
 
@@ -957,6 +1062,14 @@ async function loadHistory(date = state.historyDate, focusHeading = false) {
   renderHistory();
   if (focusHeading) $('selectedDayHeading')?.focus({ preventScroll: false });
 }
+function reconcileHistoryEntry(entry, deleted = false) {
+  if (!state.history || !entry || entry.entry_date !== state.history.selectedDate) return;
+  let entries = state.history.selectedEntries.filter((item) => item.id !== entry.id);
+  if (!deleted) entries.push(entry);
+  state.history.selectedEntries = entries;
+  const day = state.history.days?.find((item) => item.date === state.history.selectedDate);
+  if (day) { day.entryCount = entries.length; day.life = entries.reduce((sum, item) => sum + Number(item.life_points || 0), 0); day.titles = entries.map((item) => item.title); }
+}
 async function saveHistoryEntry(form) {
   const id = Number(form.dataset.historyEditForm);
   const note = new FormData(form).get('note') || '';
@@ -964,7 +1077,9 @@ async function saveHistoryEntry(form) {
     const data = await api(`/api/entries/${id}`, { method: 'PATCH', body: JSON.stringify({ note }) });
     state.summary = data.summary;
     state.week = data.week;
-    await loadHistory(state.historyDate, true);
+    reconcileHistoryEntry(data.entry);
+    state.historyEditingId = null;
+    await refreshAfterCommit([() => loadHistory(state.historyDate, true)]);
     renderSummary(); renderWeek();
     setStatus(L('historySaved'));
   });
@@ -975,10 +1090,42 @@ async function deleteHistoryEntry(id) {
     const data = await api(`/api/entries/${id}`, { method: 'DELETE', body: JSON.stringify({ confirm: true }) });
     state.summary = data.summary;
     state.week = data.week;
-    await loadHistory(state.historyDate, true);
-    renderSummary(); renderWeek();
+    reconcileHistoryEntry(state.history?.selectedEntries.find((item) => Number(item.id) === Number(id)), true);
+    state.historyEditingId = null;
+    await refreshAfterCommit([() => loadHistory(state.historyDate, true)]);
+    renderQuickActions(); renderSummary(); renderWeek();
     setStatus(L('historyDeleted'));
   });
+}
+async function creditSupportAction(actionId) {
+  const data = await api(`/api/support/actions/${encodeURIComponent(actionId)}/open`, { method: 'POST', body: JSON.stringify({ source: supportSurface() }) });
+  if (data.action) state.support.actions = state.support.actions.map((item) => String(item.id) === String(actionId) ? data.action : item);
+  if (data.badge) state.support.badge = data.badge;
+  if (data.summary) state.support.summary = data.summary;
+  renderSupportActions();
+}
+function openPlatformUrl(value) {
+  const url = new URL(value);
+  if (url.protocol !== 'https:' || url.username || url.password) throw new Error(L('supportOpenFailed'));
+  if (isVkMiniApp()) {
+    if (!window.vkBridge?.send) throw new Error(L('supportOpenFailed'));
+    return withTimeout(window.vkBridge.send('VKWebAppOpenURL', { url: url.href }), 10000, L('supportOpenFailed')).then((result) => {
+      if (result?.result !== true) throw new Error(L('supportOpenFailed'));
+    });
+  }
+  const tg = window.Telegram?.WebApp;
+  if (tg?.initData) {
+    if (url.hostname === 't.me' && tg.openTelegramLink) tg.openTelegramLink(url.href);
+    else if (tg.openLink) tg.openLink(url.href);
+    else throw new Error(L('supportOpenFailed'));
+    return Promise.resolve();
+  }
+  // Called before the first await, while the browser still has user activation.
+  const popup = window.open('about:blank', '_blank');
+  if (!popup) throw new Error(L('supportOpenFailed'));
+  try { popup.opener = null; popup.location.replace(url.href); }
+  catch (error) { popup.close(); throw error; }
+  return Promise.resolve();
 }
 async function openSupportAction(actionId) {
   if (state.busy) return;
@@ -1005,22 +1152,20 @@ async function openSupportAction(actionId) {
       // The server remains the idempotent reward authority. A failed/cancelled
       // bridge call must never reach the credit endpoint; repeats just copy.
       if (action.status === 'available') {
-        await api(`/api/support/actions/${encodeURIComponent(actionId)}/open`, { method: 'POST', body: JSON.stringify({ source: 'vk' }) });
-        state.support = await api('/api/support/actions?source=vk');
-        renderSupportActions();
+        try { await creditSupportAction(actionId); }
+        catch (_) { setStatus(`${L('copied')} ${L('supportCreditUnavailable')}`, 'error'); return; }
       }
       setStatus(L('copied'));
     });
   }
+  if (!action?.url) throw new Error(L('supportOpenFailed'));
   return withBusy(L('supportOpening'), async () => {
-    const data = await api(`/api/support/actions/${encodeURIComponent(actionId)}/open`, { method: 'POST', body: JSON.stringify({ source: supportSurface() }) });
-    state.support = await api(`/api/support/actions?source=${encodeURIComponent(supportSurface())}`);
-    renderSupportActions();
-    setStatus(L('supportCredited'));
-    const url = data.openUrl;
-    if (url) {
-      try { window.open(url, '_blank', 'noopener'); } catch (_) { window.location.href = url; }
-    }
+    await openPlatformUrl(action.url);
+    if (action.status === 'available') {
+      try { await creditSupportAction(actionId); }
+      catch (_) { setStatus(L('supportCreditUnavailable'), 'error'); return; }
+      setStatus(L('supportCredited'));
+    } else setStatus(L('supportOpened'));
   });
 }
 async function createEntry(type, note = $('entryNote').value.trim()) {
@@ -1028,34 +1173,40 @@ async function createEntry(type, note = $('entryNote').value.trim()) {
   await withBusy(L('saving'), async () => {
     const data = await api('/api/entries', { method: 'POST', body: JSON.stringify({ type, note }) });
     state.summary = data.summary; state.week = data.week; awardedArtifacts = data.awardedArtifacts || [];
-    if (awardedArtifacts.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts;
-    await Promise.all([refreshProduct(), loadHistory()]);
-    $('entryNote').value = '';
-    if (type === 'gratitude' && $('gratitudeNote')) $('gratitudeNote').value = '';
+    reconcileHistoryEntry(data.entry);
+    const field = $(type === 'gratitude' ? 'gratitudeNote' : 'entryNote');
+    if (field && field.value.trim() === note) field.value = '';
+    await refreshAfterCommit([refreshProduct, () => state.historyEditingId ? undefined : loadHistory(), async () => {
+      if (awardedArtifacts.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts;
+    }]);
     renderAll();
   });
   if (awardedArtifacts.length) showArtifactToast(awardedArtifacts);
   else setStatus(type === 'gratitude' ? L('gratitudeSavedStatus') : L('entrySaved'));
 }
-async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshProduct(); renderAll(); setStatus(L('contractCreated')); }); }
+async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshAfterCommit([refreshProduct]); renderAll(); setStatus(L('contractCreated')); }); }
 async function closeContract(status) {
   let awardedArtifacts = [];
   await withBusy(L('closingContract'), async () => {
     const data = await api(`/api/contracts/${state.currentContract.id}/close`, { method: 'POST', body: JSON.stringify({ status, resultNote: '' }) });
     state.currentContract = null; state.summary = data.summary; state.week = data.week; awardedArtifacts = data.awardedArtifacts || [];
-    if (awardedArtifacts.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts;
-    await Promise.all([refreshProduct(), loadHistory()]);
+    await refreshAfterCommit([refreshProduct, () => state.historyEditingId ? undefined : loadHistory(), async () => {
+      if (awardedArtifacts.length) state.artifacts = (await api('/api/artifacts')).artifacts || state.artifacts;
+    }]);
     renderAll();
   });
   if (awardedArtifacts.length) showArtifactToast(awardedArtifacts);
   else setStatus(L('contractClosed'));
 }
-async function saveSettings(event) { event.preventDefault(); const payload = { timezone: $('timezone').value.trim(), remindersEnabled: $('remindersEnabled').checked, eveningReminderTime: $('eveningReminderTime').value || '20:00' }; return withBusy(L('savingSettings'), async () => { const data = await api('/api/settings/reminders', { method: 'POST', body: JSON.stringify(payload) }); state.user = data.user; renderAll(); setStatus(L('settingsSaved')); }); }
+async function saveSettings(event) { event.preventDefault(); const payload = { timezone: $('timezone').value.trim(), remindersEnabled: $('remindersEnabled').checked, eveningReminderTime: $('eveningReminderTime').value || '20:00' }; return withBusy(L('savingSettings'), async () => { const data = await api('/api/settings/reminders', { method: 'POST', body: JSON.stringify(payload) }); state.user = data.user; state.settingsDirty = false; await refreshAfterCommit([loadData]); renderAll(); setStatus(L('settingsSaved')); }); }
 function withTimeout(promise, ms, message) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms))
-  ]);
+  let timer;
+  return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms); })]).finally(() => clearTimeout(timer));
+}
+// A committed mutation must not be presented as failed because a read failed.
+async function refreshAfterCommit(tasks) {
+  const results = await Promise.allSettled(tasks.map((task) => Promise.resolve().then(task)));
+  if (results.some((result) => result.status === 'rejected')) { state.refreshFailed = true; state.lastRefresh = 0; }
 }
 async function enableVkReminders() {
   clientLog('vk_reminder_click', `inVk=${isVkMiniApp()} hasBridge=${Boolean(window.vkBridge?.send)}`);
@@ -1087,7 +1238,15 @@ async function enableVkReminders() {
   renderAll();
   setStatus(L('vkReminderAllowed'));
 }
-async function setLanguage(lang) { const normalized = I18N.normalizeLocale(lang); storage.set('kopilkaLocale', normalized); if (state.token) { try { const data = await api('/api/settings/locale', { method: 'POST', body: JSON.stringify({ locale: normalized }) }); state.user = data.user; } catch (e) { /* keep local preference */ } } await loadData(); }
+async function setLanguage(lang) {
+  return withBusy(L('savingSettings'), async () => {
+    const normalized = I18N.normalizeLocale(lang);
+    if (state.token) { const data = await api('/api/settings/locale', { method: 'POST', body: JSON.stringify({ locale: normalized }) }); state.user = data.user; }
+    storage.set('kopilkaLocale', normalized);
+    await refreshAfterCommit([loadData]);
+    renderAll(); setStatus(L('settingsSaved'));
+  });
+}
 async function cleanupDemo() { if (!state.user?.isDemo) { setStatus(L('notDemo'), 'error'); return; } const id = state.user.id; return withBusy(L('deletingDemo'), async () => { await api(`/api/dev/demo-user/${id}`, { method: 'DELETE' }); storage.remove('kopilkaToken'); state.token = ''; state.user = null; state.summary = null; state.week = null; state.currentContract = null; state.support = null; renderAll(); setStatus(L('demoDeleted')); await authenticate(); }); }
 async function loadPendingMerge() {
   const mergeToken = storage.get('kopilkaVkMergeToken');
@@ -1113,8 +1272,8 @@ async function confirmAccountMerge() {
     state.user = data.user;
     state.summary = data.summary;
     state.week = data.week;
-    await loadData();
-    switchTab('settings');
+    await refreshAfterCommit([loadData]);
+    renderAll(); switchTab('settings');
     setStatus(L('mergeDone'));
   });
 }
@@ -1124,8 +1283,30 @@ function cancelAccountMerge() {
   renderSettings();
   setStatus(L('mergeCancelled'));
 }
+function keepFocusedControlVisible(event) {
+  const control = event.target;
+  if (!control?.closest?.('.main-content') || !control.matches('button,input,textarea,select,a')) return;
+  const nav = document.querySelector('.tab-bar');
+  if (!nav || nav.hidden || !nav.getClientRects().length) return;
+  const rect = control.getBoundingClientRect();
+  const top = nav.getBoundingClientRect().top;
+  if (rect.bottom > top - 8 && rect.top < window.innerHeight) {
+    window.scrollBy({ top: rect.bottom - top + 8, behavior: 'instant' });
+  }
+}
 function bindEvents() {
+  document.addEventListener('focusin', keepFocusedControlVisible);
+  $('settingsForm').addEventListener('input', () => { state.settingsDirty = true; });
+  $('settingsForm').addEventListener('change', () => { state.settingsDirty = true; });
   window.addEventListener('message', (event) => { void receiveVkOAuthHandoff(event); });
+  document.querySelector('.tab-bar').addEventListener('keydown', handleTabKey);
+  document.querySelectorAll('.tab-bar button').forEach((b) => { b.tabIndex = b.dataset.tab === state.activeTab ? 0 : -1; });
+  saveNavigation(true);
+  window.addEventListener('popstate', restoreNavigation);
+  window.addEventListener('focus', () => { void refreshOnReturn(); });
+  window.addEventListener('pageshow', () => { void refreshOnReturn(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) void refreshOnReturn(); });
+  window.setInterval(() => { if (refreshedDay !== localDay() || state.refreshFailed) void refreshOnReturn(); }, 60000);
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
   $('historyDate')?.addEventListener('change', async (event) => { if (state.busy || !event.target.value) return; try { await withBusy(L('historyLoading'), () => loadHistory(event.target.value, true)); } catch (e) { setStatus(e.message, 'error'); renderHistory(); } });
   $('historyPrevious')?.addEventListener('click', async () => { if (state.busy || !state.history?.previousDate) return; try { await withBusy(L('historyLoading'), () => loadHistory(state.history.previousDate, true)); } catch (e) { setStatus(e.message, 'error'); } });
@@ -1393,7 +1574,7 @@ async function renderPublicProfile(code, options = {}) {
   try {
     const { profile } = await api(`/api/public/${encodeURIComponent(code)}`);
     if (!profile) throw new Error('not found');
-    const readOnly = options.readOnly !== false;
+    const readOnly = true; // never mix the visitor's private controls with another owner's data
     setPublicReadOnlyMode(readOnly);
     const n = profile.activeReferred || 0;
     state.publicStatus = `${L('publicProfileIntro')} ${profile.firstName}`;
@@ -1401,7 +1582,7 @@ async function renderPublicProfile(code, options = {}) {
     if (status) status.textContent = state.publicStatus;
     $('appShell').hidden = false;
     $('loginScreen').hidden = true;
-    document.querySelectorAll('.screen-panel').forEach((p) => { p.hidden = p.id !== 'tab-profile'; });
+    switchTab('profile', { record: false, focus: false });
     if ($('profileNameHeading')) $('profileNameHeading').textContent = profile.firstName;
     const heart = document.querySelector('.badge-heart');
     const count = document.querySelector('.badge-heart-count');
@@ -1421,8 +1602,11 @@ async function renderPublicProfile(code, options = {}) {
     statsBox.innerHTML = `<h2>${escapeHtml(L('publicToday'))}: ${today.todayLife || 0} ${escapeHtml(L('life'))}</h2><h2>${escapeHtml(L('publicWeek'))}: ${week.weekLife || 0} ${escapeHtml(L('life'))}, ${week.activeDays || 0} ${escapeHtml(L('publicActiveDays'))}</h2><p class="soft-note">${escapeHtml(L('publicLoginHint'))}</p><button type="button" id="publicLoginCta">${escapeHtml(L('publicLoginCta'))}</button>`;
     const cta = $('publicLoginCta');
     if (cta) cta.addEventListener('click', async () => {
-      if (isVkMiniApp() || window.Telegram?.WebApp?.initData) { await start(); return; }
-      await showLoginScreen();
+      try {
+        if (state.token) { await withBusy(L('connecting'), loadData); switchTab('today', { record: false }); return; }
+        if (isVkMiniApp() || window.Telegram?.WebApp?.initData) { await start(); switchTab('today', { record: false }); return; }
+        await showLoginScreen();
+      } catch (error) { setStatus(userSafeErrorMessage(error), 'error'); }
     });
     if (status) status.textContent = state.publicStatus;
     return true;
@@ -1481,7 +1665,7 @@ async function renderPublicProfile(code, options = {}) {
   if (publicCode) {
     captureRefCode();
     if (state.token) {
-      try { await start(); await renderPublicProfile(publicCode, { readOnly: false }); applyStaticI18n(); setPublicReadOnlyMode(false); return; } catch (_) { /* fall through to read-only public profile */ }
+      try { await start(); if (await renderPublicProfile(publicCode, { readOnly: true })) { applyStaticI18n(); setPublicReadOnlyMode(true); } return; } catch (_) { /* fall through to read-only public profile */ }
     }
     if (await renderPublicProfile(publicCode, { readOnly: true })) { applyStaticI18n(); setPublicReadOnlyMode(true); return; }
   }

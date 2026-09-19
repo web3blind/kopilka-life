@@ -17,9 +17,9 @@ function entryHint(type, locale) {
 function getUserTimezone(userId) { return getDb().prepare('SELECT timezone FROM users WHERE id = ?').get(userId)?.timezone || 'Asia/Novosibirsk'; }
 function getUserLocale(userId) { return normalizeLocale(getDb().prepare('SELECT locale FROM users WHERE id = ?').get(userId)?.locale); }
 function todayForUser(userId, now = new Date()) { return localDateString(now, getUserTimezone(userId)); }
-function sanitizeEntryNote(note) {
+function sanitizeEntryNote(note, maxLength = ENTRY_NOTE_MAX_LENGTH) {
   const cleanNote = sanitizeText(note, { maxLength: null });
-  if (cleanNote.length > ENTRY_NOTE_MAX_LENGTH) throw new Error('error.entryNoteTooLong');
+  if (cleanNote.length > maxLength) throw new Error('error.entryNoteTooLong');
   return cleanNote;
 }
 function createEntry(userId, type, note = '', locale) {
@@ -111,9 +111,11 @@ function ownedEditableEntry(userId, entryId) {
 }
 function updateEntryNote(userId, entryId, note) {
   const db = getDb();
-  const cleanNote = sanitizeEntryNote(note);
   return db.transaction(() => {
     const entry = ownedEditableEntry(userId, entryId);
+    // Merges can combine valid notes beyond the normal creation limit. Allow
+    // corrections without forcing deletion, but reject additional growth.
+    const cleanNote = sanitizeEntryNote(note, Math.max(ENTRY_NOTE_MAX_LENGTH, (entry.note || '').length));
     db.prepare('UPDATE entries SET note = ? WHERE id = ? AND user_id = ?').run(cleanNote, entry.id, userId);
     return { ...db.prepare('SELECT * FROM entries WHERE id = ? AND user_id = ?').get(entry.id, userId), editable: true };
   })();

@@ -1,0 +1,2 @@
+ALTER TABLE reminders ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE reminders ADD COLUMN retry_after TEXT;

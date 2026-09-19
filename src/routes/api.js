@@ -266,7 +266,10 @@ router.post('/account/merge-vk/confirm', authRequired, (req, res) => {
     res.json({ user: publicUser(result.user), preview: result.preview, summary: getSummary(req.user.id), week: getWeekSummary(req.user.id) });
   } catch (error) {
     console.error('[account/merge-vk/confirm] reject:', error && error.message ? error.message : String(error));
-    if (error.preview) return res.status(409).json({ error: 'Слияние пока нельзя выполнить: есть конфликт активных договоров.', preview: error.preview });
+    if (error.preview) {
+      const reasons = error.preview.blocking.map((reason) => t(req.locale, `error.merge.${reason}`));
+      return res.status(409).json({ error: reasons.join(' '), preview: error.preview });
+    }
     res.status(400).json({ error: 'Не удалось объединить аккаунты.' });
   }
 });

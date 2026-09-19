@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
   <link rel="apple-touch-icon" href="/assets/icon-150.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260915-inapp-docs">
+  <link rel="stylesheet" href="/styles.css?v=20260919-frontend-quality">
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="skipToContent">Перейти к содержимому</a>
@@ -25,7 +25,7 @@
         <p id="loginTelegramHint" class="field-hint" data-i18n="loginTelegramHint">Кнопка входа через Telegram появится здесь.</p>
         <button id="vkLoginButton" type="button" class="login-button secondary" data-i18n="loginVkButton">Войти через VK ID</button>
       </section>
-      <ul class="landing-benefits" data-login-landing-only aria-label="Чем помогает Копилка жизни">
+      <ul class="landing-benefits" data-login-landing-only aria-label="Чем помогает Копилка жизни" data-i18n-aria="landingBenefitsLabel">
         <li><strong data-i18n="landingBenefitFastTitle">Быстрые отметки</strong><span data-i18n="landingBenefitFastText">Один клик вместо длинного дневника.</span></li>
         <li><strong data-i18n="landingBenefitSoftTitle">Без оценки себя</strong><span data-i18n="landingBenefitSoftText">Тихий день не считается провалом.</span></li>
         <li><strong data-i18n="landingBenefitWeekTitle">Недельный взгляд</strong><span data-i18n="landingBenefitWeekText">Видно, что реально поддерживало тебя.</span></li>
@@ -33,10 +33,10 @@
       </ul>
     </div>
     <p id="loginStatus" class="status-region" role="status" aria-live="polite"></p>
-    <p class="soft-note"><a href="/privacy.html">Политика конфиденциальности</a> · <a href="/terms.html">Условия использования</a> · <a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме</a></p>
+    <p class="soft-note"><a href="/privacy.html" data-i18n="legalPrivacy">Политика конфиденциальности</a> · <a href="/terms.html" data-i18n="legalTerms">Условия использования</a> · <a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме</a></p>
   </section>
   <div class="app-shell" id="appShell" hidden>
-    <header class="top-card" aria-label="Статус подключения">
+    <header class="top-card" aria-label="Статус подключения" data-i18n-aria="connectionLabel">
       <p class="eyebrow" data-i18n="appName">Копилка жизни</p>
       <p id="connectionStatus">Подключаемся мягко и без спешки…</p>
     </header>
@@ -57,8 +57,8 @@
           <p data-i18n="vkReminderPromptText">Можно разрешить сообщения от сообщества «Копилка жизни». Тогда вечером VK сможет тихо напомнить зайти. Личные записи в сообщения не отправляются.</p>
           <button type="button" class="secondary" data-enable-vk-reminders data-i18n="vkReminderEnable">Включить напоминания в VK</button>
         </section>
-        <section class="summary-card" aria-label="Баланс ЖИЗНИ">
-          <p class="big-number"><span id="totalLife">0</span> <span class="life-unit">ЖИЗНЬ</span></p>
+        <section class="summary-card balance-summary" aria-label="Баланс ЖИЗНИ" data-i18n-aria="balanceLabel">
+          <p class="big-number"><span id="totalLife">0</span> <span class="life-unit" data-i18n="life">ЖИЗНЬ</span></p>
           <p><span data-i18n="todayAdded">Сегодня добавлено: </span><strong id="todayLife">0</strong><span data-i18n="todayAddedNote">. Это видимый след жизни и заботы, не оценка тебя.</span></p>
         </section>
         <form id="entryForm" class="entry-form">
@@ -67,7 +67,7 @@
             <div id="quickActions" class="quick-action-grid"></div>
           </fieldset>
           <label for="entryNote" data-i18n="noteLabel">Заметка к записи, если хочется</label>
-          <textarea id="entryNote" name="note" rows="2" maxlength="2000" placeholder="Не обязательно" aria-describedby="entryNoteHint"></textarea>
+          <textarea id="entryNote" data-i18n-placeholder="notePlaceholder" name="note" rows="2" maxlength="2000" placeholder="Не обязательно" aria-describedby="entryNoteHint"></textarea>
           <p id="entryNoteHint" class="field-hint" data-i18n="noteHint">Заметку можно оставить пустой или написать до 2000 символов. Быстрое пополнение работает одним нажатием.</p>
         </form>
         <section class="summary-card" aria-labelledby="dailyHintHeading">
@@ -92,7 +92,7 @@
           <p id="gratitudeNoteHint" class="field-hint" data-i18n="gratitudeNoteHint">Можно вспомнить что-то небольшое. Выбери подходящий пример и допиши своими словами.</p>
           <details id="gratitudeHints" class="hint-spoiler">
             <summary data-i18n="gratitudeHintsSummary">Подсказки</summary>
-            <div class="hint-button-row" aria-label="Подсказки благодарности">
+            <div class="hint-button-row" aria-label="Подсказки благодарности" data-i18n-aria="gratitudeHintsLabel">
               <button type="button" class="secondary" data-gratitude-hint="родителям — за жизнь">родителям — за жизнь</button>
               <button type="button" class="secondary" data-gratitude-hint="за спокойный вечер">за спокойный вечер</button>
               <button type="button" class="secondary" data-gratitude-hint="другу — за то, что выслушал">другу — за то, что выслушал</button>
@@ -119,7 +119,7 @@
           <h2 id="historyPickerHeading" data-i18n="historyPickerHeading">Выбрать день</h2>
           <label for="historyDate" data-i18n="historyDateLabel">Дата</label>
           <input id="historyDate" type="date" name="historyDate">
-          <div class="history-nav" aria-label="Навигация по дням">
+          <div class="history-nav" aria-label="Навигация по дням" data-i18n-aria="historyNavLabel">
             <button id="historyPrevious" type="button" class="secondary" data-i18n="historyPrevious">Предыдущий день</button>
             <button id="historyToday" type="button" class="secondary" data-i18n="historyToday">Сегодня</button>
             <button id="historyNext" type="button" class="secondary" data-i18n="historyNext">Следующий день</button>
@@ -131,11 +131,11 @@
           <ul id="selectedDayEntries" class="plain-list history-entry-list"></ul>
         </section>
         <section aria-labelledby="historyDaysHeading">
-          <h2 id="historyDaysHeading" data-i18n="historyDaysHeading">Последние семь дней до выбранной даты</h2>
+          <h2 id="historyDaysHeading" data-i18n="historyDaysHeading">Семь дней по выбранную дату</h2>
           <ul id="historyDays" class="plain-list"></ul>
         </section>
-        <section class="summary-card" aria-label="Итоги текущей недели">
-          <p><span data-i18n="weekLifeLabel">За текущую неделю: </span><strong id="weekLife">0</strong> ЖИЗНЬ.</p>
+        <section class="summary-card" aria-label="Итоги текущей недели" data-i18n-aria="weekSummaryLabel">
+          <p><span data-i18n="weekLifeLabel">За текущую неделю: </span><strong id="weekLife">0</strong> <span data-i18n="life">ЖИЗНЬ</span>.</p>
           <p><span data-i18n="weekDaysLabel">Дней с записями в текущей неделе: </span><strong id="activeDays">0</strong><span data-i18n="weekDaysNote">. Тихие дни не считаются провалом.</span></p>
         </section>
         <h2 data-i18n="weekDaysHeading">Дни текущей недели</h2>
@@ -169,7 +169,7 @@
           <label for="contractTitle" data-i18n="contractTitle">Название цели</label>
           <input id="contractTitle" name="title" required autocomplete="off">
           <label for="contractTarget" data-i18n="contractTarget">Критерий выполнения</label>
-          <textarea id="contractTarget" name="targetValue" rows="2" required placeholder="Например: лечь до 23:30 минимум 5 дней из 7"></textarea>
+          <textarea id="contractTarget" data-i18n-placeholder="contractTargetPlaceholder" name="targetValue" rows="2" required placeholder="Например: лечь до 23:30 минимум 5 дней из 7"></textarea>
           <label for="stakeAmount" data-i18n="contractStakeAmount">Сумма фонда заботы</label>
           <input id="stakeAmount" name="stakeAmount" inputmode="decimal" aria-describedby="stakeHint">
           <p id="stakeHint" class="field-hint" data-i18n="contractStakeHint">Не обязательно. Приложение не хранит и не переводит деньги. Это только мягкое напоминание, если сумма помогает договору.</p>
@@ -202,7 +202,7 @@
         </form>
         <section class="summary-card" aria-labelledby="languageHeading">
           <h2 id="languageHeading" data-i18n="languageHeading">Язык</h2>
-          <div class="language-switch" role="group" aria-label="Язык">
+          <div class="language-switch" role="group" aria-label="Язык" data-i18n-aria="languageHeading">
             <button id="lang-ru" type="button" data-lang="ru">Русский</button>
             <button id="lang-en" type="button" data-lang="en">English</button>
           </div>
@@ -226,7 +226,7 @@
         <section class="summary-card support-badge" aria-labelledby="supportBadgeHeading">
           <h2 id="supportBadgeHeading" data-i18n="supportBadgeTitle">Светлячок поддержки</h2>
           <p class="support-firefly" aria-hidden="true">✦</p>
-          <p><strong id="supportBadgePoints">0</strong> <span data-i18n="supportBadgeUnit">огоньков поддержки</span></p>
+          <p><span data-i18n="supportBadgeUnit">Огоньки поддержки:</span> <strong id="supportBadgePoints">0</strong></p>
           <p class="soft-note" data-i18n="supportBadgeHint">Это отдельный бейдж. Он не меняет ЖИЗНЬ и не оценивает тебя.</p>
         </section>
         <section class="summary-card" aria-labelledby="supportActionsHeading">
@@ -241,12 +241,12 @@
         <section class="summary-card profile-hero" aria-labelledby="profileNameHeading">
           <h2 id="profileNameHeading" class="profile-name">—</h2>
           <div class="badge-heart" aria-label=""><span class="badge-heart-count">0</span></div>
-          <p class="soft-note" data-i18n="profileBadgeHint">Сердце заботы растёт с каждым человеком, которому ты помог начать.</p>
+          <p data-own-profile class="soft-note" data-i18n="profileBadgeHint">Сердце заботы растёт с каждым человеком, которому ты помог начать.</p>
         </section>
         <section class="summary-card" aria-labelledby="partnerHeading">
           <h2 id="partnerHeading" data-i18n="partnerHeading">Партнёрская программа</h2>
-          <p data-i18n="partnerIntro">Пригласи человека. Когда он сделает первое действие, ты получишь +1 ЖИЗНЬ — мягко и один раз.</p>
-          <p class="soft-note"><span data-i18n="partnerInvited">Приглашено всего:</span> <strong id="partnerTotal">0</strong> · <span data-i18n="partnerActive">активных:</span> <strong id="partnerActive">0</strong></p>
+          <p data-own-profile data-i18n="partnerIntro">Пригласи человека. Когда он сделает первое действие, ты получишь +1 ЖИЗНЬ — мягко и один раз.</p>
+          <p data-own-profile class="soft-note"><span data-i18n="partnerInvited">Приглашено всего:</span> <strong id="partnerTotal">0</strong> · <span data-i18n="partnerActive">активных:</span> <strong id="partnerActive">0</strong></p>
           <label for="refLink" data-i18n="refLinkLabel">Твоя реферальная ссылка</label>
           <input id="refLink" name="refLink" readonly aria-describedby="refLinkHint">
           <p id="refLinkHint" class="field-hint" data-i18n="refLinkHint">По этой ссылке переход и вход считаются твоим приглашением.</p>
@@ -284,8 +284,8 @@
     </section>
 
     <p id="statusRegion" class="status-region" role="status" aria-live="polite"></p>
-    <p class="soft-note legal-links"><a href="/privacy.html">Политика конфиденциальности</a> · <a href="/terms.html">Условия использования</a> · <a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме</a></p>
-    <nav class="tab-bar" aria-label="Разделы Копилки жизни" role="tablist">
+    <p class="soft-note legal-links"><a href="/privacy.html" data-i18n="legalPrivacy">Политика конфиденциальности</a> · <a href="/terms.html" data-i18n="legalTerms">Условия использования</a> · <a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме</a></p>
+    <nav class="tab-bar" aria-label="Разделы Копилки жизни" data-i18n-aria="navLabel" role="tablist">
       <button id="tab-button-today" type="button" role="tab" data-tab="today" aria-controls="tab-today" aria-selected="true" aria-current="page" data-i18n="tabToday">Сегодня</button>
       <button id="tab-button-week" type="button" role="tab" data-tab="week" aria-controls="tab-week" aria-selected="false" data-i18n="tabWeek">История</button>
       <button id="tab-button-contract" type="button" role="tab" data-tab="contract" aria-controls="tab-contract" aria-selected="false" data-i18n="tabContract">Договор</button>
@@ -311,7 +311,7 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/i18n.js?v=20260915-native-copy"></script>
+  <script src="/i18n.js?v=20260919-frontend-quality"></script>
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   <script src="/vendor/vk-bridge-3.0.2.min.js?v=20260820"></script>
   <script>
@@ -323,7 +323,7 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/document-navigation.js?v=20260915-inapp-docs"></script>
-  <script src="/app.js?v=20260915-native-copy"></script>
+  <script src="/document-navigation.js?v=20260919-frontend-quality"></script>
+  <script src="/app.js?v=20260919-frontend-quality"></script>
 </body>
 </html>

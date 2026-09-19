@@ -11,6 +11,10 @@ function normalizeLocale(locale) {
 
 // Short shared strings (UI labels, errors, bot messages, close actions, weekly review).
 const STRINGS = {
+  'error.merge.active_contract_conflict': { ru: 'В обоих аккаунтах есть активный договор. Сначала заверши один из них.', en: 'Both accounts have an active contract. Close one before merging.' },
+  'error.merge.source_telegram_conflict': { ru: 'Этот VK-аккаунт уже связан с другим Telegram-аккаунтом. Объединение остановлено, чтобы сохранить доступ.', en: 'This VK account is already linked to another Telegram account. Merging is blocked to preserve access.' },
+  'error.merge.primary_vk_conflict': { ru: 'Текущая Копилка уже связана с другим VK-аккаунтом. Заменять эту привязку нельзя.', en: 'Your Life Harbor is already linked to another VK account. That identity cannot be replaced.' },
+  'error.merge.support_metadata_conflict': { ru: 'В аккаунтах есть несовместимые сведения о действиях поддержки. Объединение остановлено, чтобы сохранить данные.', en: 'The accounts have conflicting support-action records. Merging is blocked to preserve the data.' },
   // ---- entry type titles + hints ----
   'entry.sleep.title': { ru: 'Нормальный сон', en: 'Good sleep' },
   'entry.sleep.hint': { ru: 'выспался или лёг вовремя', en: 'slept well or went to bed on time' },

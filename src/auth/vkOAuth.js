@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const config = require('../config');
 const { getDb } = require('../db');
+const { fetchVkJson } = require('../vkMessages');
 
 function randomBase64Url(bytes = 32) {
   return crypto.randomBytes(bytes).toString('base64url');
@@ -146,12 +147,11 @@ async function exchangeCode({ code, deviceId, state, codeVerifier }) {
     state,
   });
   if (config.vkOAuthClientSecret) body.set('client_secret', config.vkOAuthClientSecret);
-  const res = await fetch(config.vkOAuthTokenUrl, {
+  const { res, data } = await fetchVkJson(config.vkOAuthTokenUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body,
   });
-  const data = await res.json().catch(() => ({}));
   const providerUserId = String(data.user_id || '');
   if (!res.ok || !/^[1-9]\d{0,19}$/.test(providerUserId)) {
     const message = data.error_description || data.error || (res.ok ? 'VK OAuth provider identity is invalid' : `VK OAuth exchange failed (${res.status})`);

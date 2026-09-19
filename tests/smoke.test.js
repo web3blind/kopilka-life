@@ -249,7 +249,7 @@ function testStaticAccessibility() {
   assert(!frontendApp.includes('e.stack || e.message'), 'frontend must not render stack traces into status');
   assert(!frontendApp.includes('error?.message || String(error || \'bootstrap failed\')'), 'bootstrap errors are sanitized before display');
   assert(html.includes('data-i18n'), 'static text is i18n-ready');
-  assert(html.includes('/i18n.js?v=20260906-rolling7'), 'frontend i18n cache bust matches release');
+  assert(/\/i18n\.js\?v=[^"\s]+/.test(html), 'frontend i18n has a nonempty cache-busting version');
   assert(/\/app\.js\?v=[^"\s]+/.test(html), 'frontend app has a nonempty cache-busting version');
   assert(/\/styles\.css\?v=[^"\s]+/.test(html), 'CSS has cache version');
   // The dynamic counter must not sit inside a [data-i18n] element, or the

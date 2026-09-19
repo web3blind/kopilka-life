@@ -45,7 +45,7 @@ function upsertTelegramUser(tgUser, refCode, timezone) {
   const existing = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
   if (existing) {
     ensureRefCode(existing.id);
-    db.prepare('UPDATE users SET first_name = ?, username = ?, locale = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(tgUser.first_name || '', tgUser.username || '', locale, existing.id);
+    db.prepare('UPDATE users SET first_name = ?, username = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(tgUser.first_name || '', tgUser.username || '', existing.id);
     return db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
   }
   const referrer = resolveRefCode(refCode);
@@ -71,7 +71,7 @@ function upsertVkUser(vkId, refCode, timezone, locale = 'ru', verifiedFirstName 
     ensureRefCode(existing.id);
     // Linked Telegram accounts retain their Telegram names; failed lookup retains the existing name.
     const name = existing.telegram_id === `vk:${vkIdText}` && firstName ? firstName : existing.first_name;
-    db.prepare('UPDATE users SET first_name = ?, locale = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(name, normalizeLocale(locale), existing.id);
+    db.prepare('UPDATE users SET first_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(name, existing.id);
     return db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
   }
   const referrer = resolveRefCode(refCode);
@@ -86,18 +86,23 @@ function userHasOwnedData(userId) {
   const entries = db.prepare('SELECT COUNT(*) AS count FROM entries WHERE user_id = ?').get(userId).count;
   const contracts = db.prepare('SELECT COUNT(*) AS count FROM weekly_contracts WHERE user_id = ?').get(userId).count;
   const reminders = db.prepare('SELECT COUNT(*) AS count FROM reminders WHERE user_id = ?').get(userId).count;
-  return entries + contracts + reminders > 0;
+  const artifacts = db.prepare('SELECT COUNT(*) AS count FROM user_artifacts WHERE user_id = ?').get(userId).count;
+  const supportActions = db.prepare('SELECT COUNT(*) AS count FROM user_support_actions WHERE user_id = ?').get(userId).count;
+  const referrals = db.prepare('SELECT COUNT(*) AS count FROM users WHERE referrer_id = ?').get(userId).count;
+  return entries + contracts + reminders + artifacts + supportActions + referrals > 0;
 }
 function linkVkUser(userId, vkId) {
   const db = getDb();
   const vkIdText = String(vkId);
   const current = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   if (!current) throw new Error('user not found');
+  if (current.vk_id && current.vk_id !== vkIdText) throw new Error('К этому аккаунту уже привязан другой VK. Сначала обратитесь в поддержку.');
   const linked = db.prepare('SELECT * FROM users WHERE vk_id = ?').get(vkIdText);
   const linkTransaction = db.transaction(() => {
     if (linked && linked.id !== userId) {
-      const isDisposableVkOnly = String(linked.telegram_id || '').startsWith('vk:') && !userHasOwnedData(linked.id);
+      const isDisposableVkOnly = linked.telegram_id === `vk:${vkIdText}` && !userHasOwnedData(linked.id);
       if (!isDisposableVkOnly) throw new Error('Этот VK уже привязан к другому аккаунту. Войдите через VK отдельно или напишите поддержке.');
+      db.prepare('UPDATE users SET vk_messages_allowed = ?, vk_messages_allowed_at = ? WHERE id = ?').run(linked.vk_messages_allowed, linked.vk_messages_allowed_at, userId);
       db.prepare('DELETE FROM users WHERE id = ?').run(linked.id);
     }
     db.prepare('UPDATE users SET vk_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(vkIdText, userId);
@@ -127,4 +132,4 @@ function deleteDemoUser(userId) {
   getDb().prepare('DELETE FROM users WHERE id = ? AND is_demo = 1').run(userId);
   return true;
 }
-module.exports = { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, updateVkMessagesAllowed, deleteDemoUser, ensureRefCode, resolveRefCode };
+module.exports = { publicUser, upsertTelegramUser, upsertVkUser, linkVkUser, createDemoUser, getUserById, updateLocale, updateSettings, updateVkMessagesAllowed, deleteDemoUser, ensureRefCode, resolveRefCode, userHasOwnedData };

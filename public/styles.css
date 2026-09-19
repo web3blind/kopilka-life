@@ -36,6 +36,7 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{scroll-behavior:smooth;background:var(--bg-0);color-scheme:only light}
+html:has(#appShell:not([hidden]) .tab-bar:not([hidden])){scroll-padding-bottom:calc(var(--measured-nav-height,var(--nav-height)) + env(safe-area-inset-bottom) + 1rem)}
 body{
   margin:0;
   min-width:320px;
@@ -68,7 +69,7 @@ button,.button-like{
   min-height:46px;
   border:1px solid rgba(139,79,31,.28);
   border-radius:999px;
-  background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 58%,var(--accent-3) 100%);
+  background:linear-gradient(135deg,#743e18 0%,#8b4f1f 58%,#955624 100%);
   color:#fff;
   padding:.78rem 1.08rem;
   cursor:pointer;
@@ -134,8 +135,7 @@ legend{font-weight:950;margin-bottom:.72rem;font-size:1.05rem;color:#3a2416}
   overflow:hidden;
   min-height:84px;
   background:
-    radial-gradient(circle at 14% 18%, rgba(255,255,255,.92), transparent 5rem),
-    linear-gradient(135deg,#7a4319 0%,#b66f39 55%,#edbb73 100%);
+    linear-gradient(135deg,#633312 0%,#743e18 55%,#814719 100%);
   color:#fff;
   border-color:rgba(255,230,196,.55);
   box-shadow:0 18px 42px rgba(101,52,16,.24);
@@ -259,7 +259,7 @@ h3{letter-spacing:-.015em}
 }
 .summary-card h1,.summary-card h2,.summary-card h3,.card-form h1,.card-form h2,.card-form h3,.contract-box h1,.contract-box h2,.contract-box h3{color:#2a160b}
 .summary-card .soft-note,.card-form .soft-note,.contract-box .soft-note{color:var(--muted)}
-.summary-card[aria-label="Баланс ЖИЗНИ"]{
+.balance-summary{
   overflow:hidden;
   background:
     radial-gradient(circle at 82% 18%, rgba(201,77,77,.18), transparent 7.2rem),
@@ -267,7 +267,7 @@ h3{letter-spacing:-.015em}
   border-color:rgba(201,169,134,.9);
   box-shadow:var(--shadow);
 }
-.summary-card[aria-label="Баланс ЖИЗНИ"]::before{
+.balance-summary::before{
   content:"";
   position:absolute;
   right:1.05rem;
@@ -378,7 +378,7 @@ h3{letter-spacing:-.015em}
 .card-form button[type="submit"]{margin-top:1rem;width:100%}
 .close-actions{display:flex;flex-wrap:wrap;gap:.62rem;margin-top:.9rem}.close-actions button{flex:1 1 13rem}
 .checkbox-label{display:flex;align-items:center;gap:.65rem;font-weight:780}.checkbox-label input{width:1.22rem;height:1.22rem;flex:0 0 auto;margin:0;accent-color:var(--accent)}
-.language-switch{display:grid;grid-template-columns:1fr 1fr;gap:.62rem}.language-switch button[aria-pressed="true"]{background:linear-gradient(135deg,var(--success),#5f9678);color:#fff;border-color:#5f9678}
+.language-switch{display:grid;grid-template-columns:1fr 1fr;gap:.62rem}.language-switch button[aria-pressed="true"]{background:linear-gradient(135deg,#285640,#39715a);color:#fff;border-color:#39715a}
 .profile-hero{
   text-align:center;
   overflow:hidden;
@@ -395,7 +395,7 @@ h3{letter-spacing:-.015em}
   transform:rotate(-2deg);
 }
 .badge-heart::before{content:"❤";position:absolute;font-size:4.5rem;opacity:.22;transform:rotate(2deg)}
-.badge-heart-count{position:relative;font-size:2.3rem;font-weight:1000;text-shadow:0 2px 8px rgba(92,20,20,.25)}
+.badge-heart-count{color:#3b1712;position:relative;font-size:2.3rem;font-weight:1000;text-shadow:0 2px 8px rgba(92,20,20,.25)}
 .badge-heart[data-size="large"]{width:8rem;height:8rem}.badge-heart[data-size="xlarge"]{width:9rem;height:9rem}
 #refLink{font-weight:750;font-size:.95rem;background:#fff;overflow:hidden;text-overflow:ellipsis}
 .support-badge{text-align:center;background:radial-gradient(circle at 50% 12%,rgba(255,232,142,.28),transparent 8rem),linear-gradient(180deg,#fff,#fff2df);color:#2a160b}
@@ -443,14 +443,17 @@ h3{letter-spacing:-.015em}
 .artifact-dialog-card{
   width:min(calc(100% - .6rem),500px);
   position:relative;
-  overflow:hidden;
+  max-height:calc(100vh - 2rem);
+  max-height:calc(100dvh - 2rem);
+  overflow:auto;
+  overscroll-behavior:contain;
   display:grid;
   justify-items:center;
   gap:.72rem;
   padding:1.35rem 1.2rem 1.55rem;
   border-radius:36px;
   border:1px solid rgba(255,230,196,.9);
-  background:radial-gradient(circle at 50% 10%,rgba(255,248,222,.72),transparent 9rem),linear-gradient(145deg,#6d3513,#ad622e 52%,#f0bd77);
+  background:linear-gradient(145deg,#633312,#743e18 52%,#814719);
   color:#fff;
   text-align:center;
   box-shadow:0 30px 80px rgba(27,13,5,.50),0 0 0 1px rgba(255,255,255,.18) inset;
@@ -532,7 +535,7 @@ h3{letter-spacing:-.015em}
   .tab-bar button{font-size:.76rem;min-height:3.15rem;padding:.3rem .24rem}
   .tab-count{right:.22rem;top:.12rem}
   .top-card::before{right:.8rem}.eyebrow,#connectionStatus{margin-right:3.6rem}
-  .artifact-card{grid-template-columns:4.8rem 1fr}.artifact-card img{width:4.8rem;height:4.8rem;border-radius:18px}.artifact-dialog-card{max-height:calc(100vh - 2rem);overflow:auto;padding:1rem .95rem}.artifact-dialog-card img{width:min(10rem,54vw);height:min(10rem,54vw);border-radius:24px}.artifact-toast h2{font-size:1.34rem}.artifact-toast p{max-width:100%}
+  .artifact-card{grid-template-columns:4.8rem 1fr}.artifact-card img{width:4.8rem;height:4.8rem;border-radius:18px}.artifact-dialog-card{padding:1rem .95rem}.artifact-dialog-card img{width:min(10rem,54vw);height:min(10rem,54vw);border-radius:24px}.artifact-toast h2{font-size:1.34rem}.artifact-toast p{max-width:100%}
 }
 @media (min-width:820px){
   .app-shell{width:min(760px, calc(100% - 2rem))}
