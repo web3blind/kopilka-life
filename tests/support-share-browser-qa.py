@@ -24,13 +24,17 @@ def launch(user):
     return urllib.parse.urlencode(p)
 
 
-BRIDGE = '''window.copyCalls=[];window.copyMode='pending';window.vkBridge={
+BRIDGE = '''window.copyCalls=[];window.copyMode='pending';window.shareMode='success';window.vkBridge={
  send(method,params){
   if(method==='VKWebAppCopyText'){
    window.copyCalls.push(params);
    if(window.copyMode==='reject')return Promise.reject({error_data:{error_code:4}});
    if(window.copyMode==='false')return Promise.resolve({result:false});
    return new Promise(resolve=>window.resolveCopy=resolve);
+  }
+  if(method==='VKWebAppShare'){
+   if(window.shareMode==='reject')return Promise.reject({error_data:{error_code:4}});
+   return Promise.resolve({result:true});
   }
   return Promise.resolve({});
  },subscribe(){},supports(){return true}
@@ -70,6 +74,24 @@ def main():
                         page.on('request', lambda r: posts.append(r.url) if r.method=='POST' and '/support/actions/' in r.url else None)
                         page.goto(BASE+'/?'+launch(710081))
                         page.wait_for_function("document.querySelector('#connectionStatus').textContent.includes('Подключено')")
+                        page.locator('#tab-button-profile').click()
+                        profile_copy = page.get_by_role('button', name='Копировать ссылку', exact=True).first
+                        page.evaluate("window.copyMode='pending'; window.clipboardCalls=0; Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{window.clipboardCalls+=1;throw new Error('platform clipboard must not be used')}}})")
+                        profile_copy.click(); page.wait_for_function('typeof window.resolveCopy===\"function\"')
+                        assert page.evaluate("window.copyCalls.at(-1).text.startsWith('https://vk.com/app54723764#ref=')")
+                        page.evaluate('window.resolveCopy({result:true})')
+                        page.wait_for_function("!document.querySelector('body').matches('[aria-busy=true]')")
+                        assert page.evaluate('window.clipboardCalls') == 0
+                        assert page.locator('#shareFallback').is_hidden()
+
+                        page.evaluate("window.shareMode='reject'; window.copyMode='pending'; delete window.resolveCopy")
+                        page.get_by_role('button', name='Поделиться реферальной ссылкой', exact=True).click()
+                        page.wait_for_function('typeof window.resolveCopy===\"function\"')
+                        page.evaluate('window.resolveCopy({result:true})')
+                        page.wait_for_function("!document.querySelector('body').matches('[aria-busy=true]')")
+                        assert page.evaluate('window.clipboardCalls') == 0
+                        assert page.locator('#shareFallback').is_hidden()
+
                         page.locator('#tab-button-support').click()
                         card = page.get_by_role('article', name='Поделиться Копилкой', exact=True)
                         button = card.get_by_role('button', name='Копировать ссылку', exact=True)
@@ -104,7 +126,7 @@ def main():
                         assert page.url==start_url and len(ctx.pages)==1
                         assert page.evaluate('window.documentMarker===window.markerBefore')
                         assert not errors,errors
-                        print('PASS native VK copy success/reject/false/missing; no navigation, no early credit, repeat copy without duplicate reward; JS errors=0')
+                        print('PASS native VK profile/fallback/support copy; no platform clipboard/navigation/early credit; repeat copy without duplicate reward; JS errors=0')
                     finally:
                         ctx.close();browser.close()
             finally:

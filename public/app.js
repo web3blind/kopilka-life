@@ -1382,11 +1382,17 @@ function bindEvents() {
   if (copyBtn) copyBtn.addEventListener('click', async () => {
     const link = $('refLink')?.value;
     if (!link) return;
+    if ($('shareFallback')) $('shareFallback').hidden = true;
     if (await copyText(link)) setStatus(L('copied'));
     else showManualShare(link, 'copyFailed');
   });
   async function copyText(value) {
     try {
+      if (isVkMiniApp()) {
+        if (!window.vkBridge?.send) return false;
+        const result = await withTimeout(window.vkBridge.send('VKWebAppCopyText', { text: value }), 10000, 'VK copy timeout');
+        return result?.result === true;
+      }
       if (!navigator.clipboard?.writeText) return false;
       await navigator.clipboard.writeText(value);
       return true;
