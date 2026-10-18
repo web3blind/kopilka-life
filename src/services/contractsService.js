@@ -3,6 +3,26 @@ const { localDateInTimeZone, weekRangeForTimeZone } = require('../utils/timezone
 const { normalizeLocale, t } = require('../i18n');
 const { sanitizeText } = require('../utils/sanitize');
 const CLOSE_POINTS = { completed: 10, not_completed_donated: 3, too_hard: 0, cancelled: 0 };
+function contractText(value, maxLength, lengthError) {
+  if (value == null) return '';
+  if (typeof value !== 'string') throw new Error('error.contractTextType');
+  // Validate raw input too: markup/whitespace must not hide an oversized value.
+  if (value.length > maxLength) throw new Error(lengthError);
+  const clean = sanitizeText(value, { maxLength: 0 });
+  // Link neutralization can expand text. Reject rather than truncate that result.
+  if (clean.length > maxLength) throw new Error(lengthError);
+  return clean;
+}
+function contractStake(value) {
+  if (value == null) return '';
+  if (typeof value !== 'string' && typeof value !== 'number') throw new Error('error.contractStakeInvalid');
+  const raw = String(value);
+  if (raw.length > 40) throw new Error('error.contractStakeTooLong');
+  const clean = raw.trim();
+  // This is a symbolic intention, not money: preserve decimal precision as text.
+  if (clean && !/^\d+(?:[.,]\d+)?$/.test(clean)) throw new Error('error.contractStakeInvalid');
+  return clean.replace(',', '.');
+}
 function userTimeZone(userId) { return getDb().prepare('SELECT timezone FROM users WHERE id = ?').get(userId)?.timezone || 'Asia/Novosibirsk'; }
 function userLocale(userId) { return normalizeLocale(getDb().prepare('SELECT locale FROM users WHERE id = ?').get(userId)?.locale); }
 function getCurrentContract(userId) {
@@ -14,7 +34,14 @@ function getCurrentContract(userId) {
 function getLatestContract(userId) { return getDb().prepare('SELECT * FROM weekly_contracts WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1').get(userId) || null; }
 function createContract(userId, input) {
   if (getCurrentContract(userId)) throw new Error('error.contractExists');
-  if (!input.title || !input.targetValue) throw new Error('error.contractFields');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('error.contractInputType');
+  const cleanTitle = contractText(input.title, 120, 'error.contractTitleTooLong');
+  const cleanTarget = contractText(input.targetValue, 300, 'error.contractTargetTooLong');
+  const cleanStake = contractStake(input.stakeAmount);
+  const cleanReward = contractText(input.rewardDescription, 300, 'error.contractRewardTooLong');
+  const cleanFund = contractText(input.fundDescription, 300, 'error.contractFundTooLong');
+  const cleanCurrency = contractText(input.stakeCurrency, 20, 'error.contractCurrencyTooLong') || 'RUB';
+  if (!cleanTitle || !cleanTarget) throw new Error('error.contractFields');
   const timeZone = userTimeZone(userId);
   const now = new Date();
   const today = localDateInTimeZone(now, timeZone);
@@ -22,13 +49,7 @@ function createContract(userId, input) {
   if (today >= weekEnd) {
     ({ weekStart, weekEnd } = weekRangeForTimeZone(timeZone, new Date(now.getTime() + 24 * 60 * 60 * 1000)));
   }
-  const cleanTitle = sanitizeText(input.title, { maxLength: 120 });
-  const cleanTarget = sanitizeText(input.targetValue, { maxLength: 300 });
-  const cleanStake = sanitizeText(String(input.stakeAmount || ''), { maxLength: 40 });
-  const cleanReward = sanitizeText(String(input.rewardDescription || ''), { maxLength: 300 });
-  const cleanFund = sanitizeText(String(input.fundDescription || ''), { maxLength: 300 });
-  if (!cleanTitle || !cleanTarget) throw new Error('error.contractFields');
-  const info = getDb().prepare('INSERT INTO weekly_contracts (user_id, title, target_value, week_start, week_end, stake_amount, stake_currency, reward_description, fund_description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(userId, cleanTitle, cleanTarget, weekStart, weekEnd, cleanStake, String(input.stakeCurrency || 'RUB').slice(0, 20), cleanReward, cleanFund);
+  const info = getDb().prepare('INSERT INTO weekly_contracts (user_id, title, target_value, week_start, week_end, stake_amount, stake_currency, reward_description, fund_description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(userId, cleanTitle, cleanTarget, weekStart, weekEnd, cleanStake, cleanCurrency, cleanReward, cleanFund);
   const contract = getDb().prepare('SELECT * FROM weekly_contracts WHERE id = ?').get(info.lastInsertRowid);
   return { ...contract, isLastDay: false, isOver: false };
 }
@@ -40,7 +61,7 @@ function closeContract(userId, contractId, status, resultNote = '') {
   const points = CLOSE_POINTS[status];
   const entryDate = localDateInTimeZone(new Date(), userTimeZone(userId));
   const lang = userLocale(userId);
-  const cleanResult = sanitizeText(resultNote, { maxLength: 500 });
+  const cleanResult = contractText(resultNote, 500, 'error.contractResultTooLong');
   db.transaction(() => {
     db.prepare('UPDATE weekly_contracts SET status = ?, result_note = ?, closed_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?').run(status, cleanResult, contractId, userId);
     if (points > 0) db.prepare("INSERT INTO entries (user_id, type, title, note, life_points, entry_date) VALUES (?, 'weekly_contract', ?, ?, ?, ?)").run(userId, status === 'completed' ? t(lang, 'contractEntry.completed') : t(lang, 'contractEntry.honest'), cleanResult, points, entryDate);

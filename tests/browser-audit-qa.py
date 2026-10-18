@@ -372,6 +372,25 @@ def run():
             bridge_vk_page.add_init_script(f"localStorage.setItem('kopilkaToken',{json.dumps(cached_a['token'])}); window.vkBridge={{send(method){{return Promise.resolve(method==='VKWebAppGetLaunchParams'?{json.dumps(bridge_params)}:{{}});}}}};")
             bridge_vk_page.goto(BASE_URL, wait_until="domcontentloaded")
             wait_ready(bridge_vk_page)
+            require(bridge_vk_page.locator('#appIpAttribution').is_hidden() and bridge_vk_page.locator('#loginIpAttribution').is_hidden(), 'VK Mini App exposes IP attribution in its interface')
+            require(bridge_vk_page.locator('#installAppSection').is_hidden(), 'VK Mini App exposes website install offer')
+            policy = context.request.get(BASE_URL + '/privacy.html')
+            require(policy.status == 200 and 'https://db-ip.com' in policy.text(), 'DB-IP link attribution must remain accessible in the privacy policy')
+            bridge_vk_page.evaluate("switchTab('profile')")
+            require(bridge_vk_page.locator('#accountLinksSection').count() == 1 and bridge_vk_page.locator('#accountLinksSection').evaluate('(element) => element.hidden'), 'VK profile exposes cross-platform account-linking card')
+            require(bridge_vk_page.locator('#linkTelegramAccount').is_hidden() and bridge_vk_page.locator('#linkGoogleAccount').is_hidden(), 'VK profile exposes off-platform account linking')
+            require(bridge_vk_page.locator('#appShell a[href^="https://t.me"]:visible').count() == 0, 'VK UI exposes Telegram link')
+            external_gate = bridge_vk_page.evaluate('''async () => {
+              state.support.actions.push({id:999999, slug:'qa-external', url:'https://example.org/', title:'External', description:'fixture', status:'available'});
+              renderSupportActions();
+              let blocked = false;
+              try { await openPlatformUrl('https://example.org/'); } catch (_) { blocked = true; }
+              return {hidden:!document.querySelector('[data-support-action-id="999999"]'), blocked, vk:vkInternalUrl('https://vk.com/club1')};
+            }''')
+            require(external_gate == {'hidden': True, 'blocked': True, 'vk': True}, f'VK external destination not filtered: {external_gate}')
+            bridge_vk_page.evaluate("showLoginScreen({landing:false})")
+            require(bridge_vk_page.locator('#emailLoginForm').is_hidden() and bridge_vk_page.locator('#googleLoginButton').is_hidden() and bridge_vk_page.locator('#telegramLoginButton').is_hidden(), 'VK login fallback exposes another provider')
+            require(bridge_vk_page.locator('#vkLoginButton').is_visible(), 'VK login fallback lacks VK retry')
             bridge_token = bridge_vk_page.evaluate("localStorage.getItem('kopilkaToken')")
             bridge_user = bridge_vk_page.evaluate("state.user.id")
             require(bridge_user != cached_a["user"]["id"] and str(database_identity(bridge_user, "vk_id")) == str(bridge_vk_id), "cached account A won over current verified VK Bridge user B")
@@ -603,8 +622,9 @@ def run():
             page.locator(f'[data-history-edit-form="{entry_id}"]').evaluate("form => form.requestSubmit()")
             page.wait_for_function("document.querySelector('#statusRegion').textContent.includes('исправлена')")
             require("Исправленная заметка" in page.locator("#selectedDayEntries").inner_text(), "edited history note was not rendered")
-            page.once("dialog", lambda dialog: dialog.accept())
             page.locator(f'[data-history-delete="{entry_id}"]').click()
+            page.locator('#historyDeleteDialog').wait_for(state='visible')
+            page.locator('#historyDeleteDialog [data-history-delete-choice="confirm"]').click()
             page.wait_for_function("document.querySelector('#statusRegion').textContent.includes('удалена')")
             require("Исправленная заметка" not in page.locator("#selectedDayEntries").inner_text(), "deleted daily entry remained in history")
             evidence.append(["history-edit-delete", selected_date, "passed"])
@@ -792,8 +812,9 @@ def run():
                 require(oauth_popup.is_closed() or oauth_popup.url.startswith(BASE_URL), "OAuth popup neither acknowledged/closed nor returned safely to the app origin")
             host_page.close()
             host_page = None
-            blocked_page = context.new_page()
-            blocked_page.add_init_script("window.open=()=>null; localStorage.removeItem('kopilkaToken');")
+            blocked_context = browser.new_context()
+            blocked_page = blocked_context.new_page()
+            blocked_page.add_init_script("window.open=()=>null;")
             blocked_page.goto(BASE_URL, wait_until="domcontentloaded")
             blocked_page.locator("#loginScreen").wait_for(state="visible", timeout=20_000)
             blocked_page.locator("#vkLoginButton").click()
@@ -804,6 +825,7 @@ def run():
             fallback_copy = blocked_page.locator("#loginStatus").inner_text()
             require("Если" in fallback_copy or "If" in fallback_copy, "popup-blocked fallback must explain the first-party link")
             blocked_page.close()
+            blocked_context.close()
 
             oauth_provider.user_id = 770_000_000 + os.getpid()
             attack_target_tg_id = 910_000_000 + os.getpid()
@@ -847,7 +869,8 @@ def run():
             expired_intent = attack_a_page.evaluate("""async () => fetch('/api/auth/vk-oauth/intent', {method:'POST',headers:{'content-type':'application/json',authorization:['Bearer',localStorage.getItem('kopilkaToken')].join(' ')},body:JSON.stringify({action:'link',timezone:'UTC',locale:'ru'})}).then(r=>r.json())""")
             attack_a_page.evaluate("token => { state.token=token; localStorage.setItem('kopilkaToken',token); }", expired_session_token(attack_target_id))
             attack_a_page.goto(expired_intent["launchUrl"], wait_until="domcontentloaded")
-            wait_ready(attack_a_page)
+            attack_a_page.locator('#loginScreen').wait_for(state='visible', timeout=20_000)
+            require(attack_a_page.locator('#appShell').is_hidden(), "expired target session exposed the authenticated app shell")
             require(database_identity(attack_target_id, "vk_id") is None, "expired target session finalized OAuth linking before platform renewal")
             require(latest_link_proof_consumed(attack_target_id) is None, "expired target session consumed the verified link proof")
             attack_a_page.close()
@@ -863,7 +886,7 @@ def run():
             legitimate_page.goto(BASE_URL, wait_until="domcontentloaded")
             wait_ready(legitimate_page)
             legitimate_internal_id = legitimate_page.evaluate("state.user.id")
-            legitimate_page.locator("#tab-button-settings").click()
+            legitimate_page.locator("#tab-button-profile").click()
             legitimate_page.locator("#linkVkAccount").click()
             for _ in range(100):
                 if str(database_identity(legitimate_internal_id, "vk_id")) == str(oauth_provider.user_id):
@@ -897,7 +920,7 @@ def run():
             link_page.goto(BASE_URL, wait_until="domcontentloaded")
             wait_ready(link_page)
             link_internal_id = link_page.evaluate("fetch('/api/me',{headers:{authorization:['Bearer',localStorage.getItem('kopilkaToken')].join(' ')}}).then(r=>r.json()).then(x=>x.user.id)")
-            link_page.locator("#tab-button-settings").click()
+            link_page.locator("#tab-button-profile").click()
             link_page.locator("#linkVkAccount").click()
             for _ in range(100):
                 if link_page.locator("#accountMergePrompt").is_visible() or link_page.locator("#vkLinkStatus a").count():
@@ -911,9 +934,26 @@ def run():
             link_page.locator("#accountMergePrompt").wait_for(state="visible", timeout=20_000)
             require(link_page.evaluate("state.pendingMerge && Boolean(state.pendingMerge.mergeToken)"), "VK OAuth link did not preserve the server-authorized merge context")
             require(str(database_identity(link_internal_id, "telegram_id")) == str(link_user_id), "VK OAuth link flow changed the initiating Telegram identity before confirmation")
+            # The occupied VK account already has a dated entry. Confirm in the actual
+            # UI, then check preserved history and both old sessions' invalidation.
+            require(link_page.locator('#confirmAccountMerge').is_visible(),
+                    f"merge confirmation unavailable: {link_page.locator('#accountMergePrompt').inner_text()}")
+            require(link_page.locator('#mergeAccountsHeading').count() == 1 and
+                    link_page.locator('#cancelAccountMerge').is_visible(), "merge preview lacks accessible heading/cancel")
+            old_link_token = link_page.evaluate("localStorage.getItem('kopilkaToken')")
+            link_page.locator('#confirmAccountMerge').click()
+            link_page.wait_for_function("!state.pendingMerge && state.user && state.user.vkLinked", timeout=20_000)
+            require(database_entry_count(link_internal_id, 'joy') >= 1, "occupied VK history was not preserved in merged account")
+            require(str(database_identity(link_internal_id, 'vk_id')) == str(OAUTH_VK_USER_ID), "VK identity not merged into Telegram account")
+            old_response = context.request.get(f'{BASE_URL}/api/me', headers={'Authorization': f'Bearer {old_link_token}'})
+            require(old_response.status == 401, f'merge did not revoke initiating browser session: {old_response.status}')
+            new_link_token = link_page.evaluate("localStorage.getItem('kopilkaToken')")
+            require(new_link_token and new_link_token != old_link_token, "merged browser did not receive a fresh session")
+            new_response = context.request.get(f'{BASE_URL}/api/me', headers={'Authorization': f'Bearer {new_link_token}'})
+            require(new_response.ok and new_response.json()['user']['id'] == link_internal_id, "merged browser cannot access survivor")
             link_page.close()
             link_page = None
-            evidence.append(["cross-site-vk-oauth", "signed fresh+expired immediate auth", "third-party cookies blocked", f"OAuth completion: {'popup handoff' if popup_opened else 'first-party top-level fallback'}", "local provider stand-in", "foreign-origin+mismatched-source rejected", "popup-blocked link", "link/merge context", "passed"])
+            evidence.append(["cross-site-vk-oauth", "signed fresh+expired immediate auth", "third-party cookies blocked", f"OAuth completion: {'popup handoff' if popup_opened else 'first-party top-level fallback'}", "local provider stand-in", "foreign-origin+mismatched-source rejected", "popup-blocked link", "explicit merge/old token revoked/history retained", "passed"])
 
             init_data = telegram_init_data(990001)
             renewal_auth_response = context.request.post(f"{BASE_URL}/api/auth/telegram", data={"initData": init_data, "timezone": "UTC"})

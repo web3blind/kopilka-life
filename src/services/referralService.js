@@ -1,6 +1,6 @@
 const { getDb } = require('../db');
 const { localDateInTimeZone } = require('../utils/timezone');
-const { ensureRefCode, getUserById } = require('./usersService');
+const { ensureRefCode, getUserById, resolveRefCode } = require('./usersService');
 const { getSummary, getLast7DaysSummary } = require('./entriesService');
 
 function userTimeZone(userId) { return getDb().prepare('SELECT timezone FROM users WHERE id = ?').get(userId)?.timezone || 'Asia/Novosibirsk'; }
@@ -32,7 +32,8 @@ function profileStats(userId) {
   };
 }
 function publicProfileByCode(code) {
-  const row = getDb().prepare('SELECT * FROM users WHERE ref_code = ? COLLATE NOCASE AND is_demo = 0').get(String(code || '').trim().toUpperCase());
+  const resolved = resolveRefCode(code);
+  const row = resolved && getDb().prepare('SELECT * FROM users WHERE id = ? AND is_demo = 0').get(resolved.id);
   if (!row) return null;
   const firstName = row.first_name || row.username || 'Life Harbor user';
   const today = getSummary(row.id);

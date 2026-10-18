@@ -5,11 +5,13 @@ function sign(payload) {
   return crypto.createHmac('sha256', config.sessionSecret).update(payload).digest('base64url');
 }
 
-function createMergeToken({ primaryUserId, sourceUserId, vkId }, now = Date.now()) {
+function createMergeToken({ primaryUserId, sourceUserId, vkId, authenticatedUserId, sessionHash = '' }, now = Date.now()) {
   const payload = Buffer.from(JSON.stringify({
     primaryUserId: Number(primaryUserId),
     sourceUserId: Number(sourceUserId),
     vkId: String(vkId),
+    authenticatedUserId: Number(authenticatedUserId || primaryUserId),
+    sessionHash,
     iat: now
   })).toString('base64url');
   return `${payload}.${sign(payload)}`;
@@ -24,7 +26,7 @@ function verifyMergeToken(token, { maxAgeMs = 30 * 60 * 1000 } = {}) {
   const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
   if (!data.primaryUserId || !data.sourceUserId || !data.vkId || !data.iat) throw new Error('merge token invalid');
   if (Date.now() - Number(data.iat) > maxAgeMs) throw new Error('merge token expired');
-  return { primaryUserId: Number(data.primaryUserId), sourceUserId: Number(data.sourceUserId), vkId: String(data.vkId) };
+  return { primaryUserId: Number(data.primaryUserId), sourceUserId: Number(data.sourceUserId), vkId: String(data.vkId), authenticatedUserId: Number(data.authenticatedUserId || data.primaryUserId), sessionHash: data.sessionHash || '' };
 }
 
 module.exports = { createMergeToken, verifyMergeToken };

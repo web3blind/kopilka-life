@@ -3,7 +3,32 @@
 VK Mini App, Telegram Mini App, сайт и бот на одной учётной записи: vanilla HTML/CSS/JS, Node.js/Express, SQLite и Telegram webhook.
 Интерфейс RU/EN содержит шесть вкладок: «Сегодня», «История», «Договор», «Настройки», «Полезное», «Профиль».
 
-Во вкладке «Профиль» доступны обычное распространение публичного профиля и открытие нативного редактора истории: Telegram Mini App использует `WebApp.shareToStory`, VK Mini App — `VKWebAppShowStoryBox`. Серверная PNG-карточка `/api/story-card/:code.png?platform=telegram|vk` строится только из публичной проекции профиля; публикацию всегда отдельно подтверждает пользователь в редакторе платформы. `#ref=CODE` остаётся реферальным запуском, а `#profile=CODE` после signed platform auth показывает публичный профиль владельца, не подменяя identity получателя.
+Во вкладке «Профиль» доступны обычное распространение публичного профиля и открытие нативного редактора истории: Telegram Mini App использует `WebApp.shareToStory`, VK Mini App — `VKWebAppShowStoryBox`. Серверная PNG-карточка `/api/story-card/:code.png?platform=telegram|vk` строится только из публичной проекции профиля; публикацию всегда отдельно подтверждает пользователь в редакторе платформы. В VK повторное открытие редактора блокируется на время подготовки изображения и ожидания ответа платформы; после успеха, отмены или ошибки кнопка снова доступна. `#ref=CODE` остаётся реферальным запуском, а `#profile=CODE` после signed platform auth показывает публичный профиль владельца, не подменяя identity получателя.
+
+## Интерфейс и документы
+
+При обычном распространении ссылки через `VKWebAppShare` ожидание ответа временно подавляет автоматическое обновление при возврате, но не дольше 30 секунд. Потерянный ответ не останавливает последующие обновления навсегда. Ответ предыдущего запроса не меняет статус более нового запроса. Этот предел не означает успешную отправку и не запускает повторную отправку или другой способ распространения.
+
+Несохранённая заметка в «Истории» защищена решением «Сохранить / Отбросить изменения / Отмена» перед сменой даты или редактора. Отмена сохраняет текст, выделение и фокус; перерисовка и смена языка не сбрасывают редактор. Если заметка сохранена, но последующее обновление не удалось, интерфейс сообщает об этом отдельно и повтор не отправляет заметку снова. Черновик не сохраняется в localStorage: выход, смена аккаунта и объединение очищают приватное состояние; предупреждение браузера перед перезагрузкой зависит от поддержки платформы и не является восстановлением после сбоя.
+
+Поля договора показывают текущую длину и допустимый максимум: название 120, критерий 300, сумма 40, валюта 20, подарок 300 и фонд заботы 300 символов. Счётчики обновляются при вводе, выборе шаблона, сбросе и смене языка; пределы и серверная проверка не изменены. Длина считается так же, как HTML `maxlength` (UTF-16).
+
+У экспортируемых изображений историй VK есть тёмные верхняя и нижняя подложки для белых надписей платформы. Они применяются к картине дня и публичной PNG-карточке; изображение для Telegram и картина внутри приложения не меняются. Положение надписей нативного редактора определяется VK, поэтому подложки не гарантируют контраст произвольно перемещённого текста вне этих зон.
+
+Отклонение JSON больше 64KiB возвращает HTTP 413 с кодом `PAYLOAD_TOO_LARGE` и понятным сообщением RU/EN. Язык берётся из проверенной активной сессии; без неё используется русский. Отклонённый запрос ничего не сохраняет.
+
+
+Сообщения объявляются через `role=status` без переноса фокуса. У здорового статуса «Готово» есть кнопка закрытия; ошибки, активное сохранение и предупреждение о неудачном обновлении она не скрывает. Сохранение заметки сохраняет позицию истории; смена языка обновляет подписи открытого редактора, не заменяя черновик. Диалог наград блокирует прокрутку фона и восстанавливает её при закрытии. Отдельное сообщение «Открыт новый артефакт» исчезает через пять секунд, как сообщение об успешном пополнении, в том числе после перехода на другую вкладку. Таймер не закрывает сам диалог награды и не скрывает более новую ошибку или предупреждение. При сокращении окна, в том числе при появлении клавиатуры, активное поле прокручивается в видимую область. В очень низком окне приоритет — не скрывать верх поля; свободного места над нижней навигацией может не хватить для всего поля.
+
+В английском интерфейсе политика и условия открываются из `/privacy.en.html` и `/terms.en.html`; русские оригиналы сохранены. Reader пересылает только разрешённые параметры языка, не подпись запуска и не произвольный URL возврата.
+
+Часовой пояс выбирается по локализованному названию и текущему смещению UTC; сервер сохраняет точный IANA-идентификатор. Неверное значение отклоняется до изменения настроек и напоминаний. Счётчик «Полезное» показывает оставшиеся действия для зачёта, не непрочитанные карточки.
+
+## Ранний запуск / Startup recovery
+
+`public/startup.js` — канонический исходник защитного скрипта, независимого от основного клиента. Его копия встроена в HTML до вторичных ресурсов: зависший запрос JS или CSS не должен блокировать первоначальный экран восстановления. После изменения исходника выполни `node tests/startup-critical.test.js --sync`; обычный тест проверяет совпадение встроенной копии. CSS загружается без блокировки первого отображения, а экран восстановления имеет минимальные встроенные стили. Статический экран загрузки содержит кнопку повторной загрузки, даже если основной скрипт не загрузился; при появлении интерфейса он скрывается. Ранние события отправляются в существующий `/api/client-log` только как ограниченный набор маркеров: без URL, launch-параметров, токенов, заметок или текста исключений.
+
+Для VK-запуска предусмотрена ограниченная проверка поздно появившегося нативного iOS-обработчика Init, если SDK ранее выбрал ненативный транспорт. Vendor SDK и проверка подписанной личности не заменяются. Это защитный механизм, а не подтверждение устранения отказа на конкретном iPhone. Connected regression: `python3 tests/run-browser-qa.py startup-recovery-browser-qa.py` на временной БД и отдельном QA Chromium.
 
 ## Локальный запуск / Local run
 
@@ -25,6 +50,7 @@ npm run dev
 - Backend-словарь: `src/i18n.js` (категории, подсказки, шаблоны, практики, разбор, ошибки, сообщения бота).
 - Frontend-словарь: `public/i18n.js` (статические тексты оболочки и кнопки быстрых действий).
 - Бот отправляет `/start` и напоминания на языке пользователя.
+- В настройках VK разрешение сообщений от сообщества и сохранённое включение вечерних напоминаний — разные состояния. После выключения и сохранения статус показывает, что напоминания выключены, даже если сообщения от сообщества по-прежнему разрешены. Изменение выключателя применяется кнопкой сохранения.
 
 ## Проверки / Checks
 
@@ -40,7 +66,7 @@ Smoke tests покрывают:
 - entries/balance/contracts;
 - продуктовый слой MVP: подсказки дня, шаблоны договоров, недельный разбор, практики под цель, Compass/happy alignment без абстрактной кнопки “Достаточно на сегодня”;
 - **i18n RU/EN**: локализованные категории, шаблоны, практики и разбор для EN-пользователя;
-- timezone-aware reminders и duplicate protection;
+- timezone-aware reminders and per-channel/per-browser durable retry and duplicate protection; authenticated Settings opt-in Web Push on HTTPS/localhost (no automatic permission prompt, e-mail delivery not included). Configure stable VAPID keys in protected deployment; each browser enables separately, and merge revokes subscriptions until they opt in again;
 - bounded app sessions, одноразовый server-side VK OAuth state/PKCE и browser binding;
 - webhook secret, durable `update_id` dedup/retry и `/start`/inline-query dry-run без реальных отправок;
 - user-scoped History API, даты/timezone, edit/delete и сохранение уже встреченных персонажей;
@@ -48,31 +74,32 @@ Smoke tests покрывают:
 - demo cleanup cascade;
 - базовые DOM/accessibility требования.
 
-## Локальный browser QA через audited CDP relay
+## Локальные браузерные проверки
 
-QA не использует production-токены и не открывает VK. Нужен уже запущенный loopback relay `127.0.0.1:18800` и Python Playwright:
+Нужны Python Playwright и отдельный тестовый Chromium с CDP (интерфейсом управления браузером). Используй чистую копию репозитория без рабочего `.env`, реальных учётных данных и пользовательской БД. Для тестов не нужен браузер с выполненным входом в VK или Telegram.
+
+В одном терминале запусти отдельный браузер с временным профилем:
 
 ```bash
-/home/assistent/.hermes/scripts/chip-relay-default.sh health
-rm -f /tmp/kopilka-life-browser-qa.sqlite*
-PORT=3119 APP_BASE_URL=http://127.0.0.1:3119 WEBAPP_URL=http://127.0.0.1:3119 \
-  DB_PATH=/tmp/kopilka-life-browser-qa.sqlite NODE_ENV=test DEV_AUTH_ENABLED=true \
-  SCHEDULER_ENABLED=false BOT_TOKEN=test-bot-token BOT_USERNAME=HarborLifeBot \
-  SESSION_SECRET=browser-qa-session-secret SESSION_MAX_AGE_SECONDS=3600 \
-  VK_APP_ID=54723764 VK_SECURE_KEY=browser-qa-vk-secure-key \
-  VK_OAUTH_CLIENT_ID=54723764 VK_OAUTH_CLIENT_SECRET=browser-qa-oauth-secret \
-  VK_OAUTH_AUTHORIZE_URL=http://localhost:4119/authorize VK_OAUTH_TOKEN_URL=http://localhost:4119/token \
-  TELEGRAM_WEBHOOK_SECRET=browser_qa_webhook_secret_123456 node src/server.js
-
-# В другом терминале:
-KOPILKA_QA_BASE_URL=http://127.0.0.1:3119 KOPILKA_QA_CDP_URL=http://127.0.0.1:18800 \
-  KOPILKA_QA_OAUTH_PROVIDER_URL=http://localhost:4119 \
-  DB_PATH=/tmp/kopilka-life-browser-qa.sqlite BOT_TOKEN=test-bot-token \
-  SESSION_SECRET=browser-qa-session-secret VK_SECURE_KEY=browser-qa-vk-secure-key \
-  python3 tests/browser-audit-qa.py
+QA_PROFILE=$(mktemp -d "${TMPDIR:-/tmp}/kopilka-chromium.XXXXXX")
+chromium --headless=new --no-sandbox --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9222 --user-data-dir="$QA_PROFILE"
 ```
 
-После остановки локального сервера удалить только `/tmp/kopilka-life-browser-qa.sqlite*`. Скрипт поднимает локальный provider stand-in на указанном loopback-порту, включает через CDP блокировку third-party cookies и закрывает только task-origin/provider вкладки. Signed Telegram/VK fixtures и OAuth stand-in проверяют локальную механику и identity, но не считаются live platform auth.
+В другом терминале, из корня чистой копии проекта:
+
+```bash
+KOPILKA_QA_CDP_URL=http://127.0.0.1:9222 python3 tests/run-browser-qa.py
+KOPILKA_QA_CDP_URL=http://127.0.0.1:9222 python3 tests/run-browser-qa.py region-browser-qa.py
+KOPILKA_QA_CDP_URL=http://127.0.0.1:9222 python3 tests/run-browser-qa.py link-matrix-browser-qa.py
+python3 tests/referral-privacy-browser-qa.py
+python3 tests/talkback-quick-feedback-browser-qa.py
+python3 tests/gratitude-hints-cursor-browser-qa.py
+```
+
+После проверок останови только тестовый Chromium и удали его временный профиль. Runner создаёт временную SQLite и завершает свой сервер при выходе. Проверки выполняй последовательно: часть сценариев использует фиксированные loopback-порты. Нативные SDK, доставка писем, ответы Google/VK, clipboard и системное меню отправки моделируются там, где это предусмотрено конкретным сценарием. Эти проверки не доказывают работу реального TalkBack, конкретного iPhone или живого провайдера входа.
+
+Внутренние планы, снимки карточек VK Testers и временные доказательства не входят в исходники. Обзор изменений для пользователей и технические примечания — в [CHANGELOG.md](CHANGELOG.md).
 
 ## Production webhook
 
@@ -85,7 +112,7 @@ TELEGRAM_WEBHOOK_SECRET=<случайная строка A-Z/a-z/0-9/_/-, 1–25
 WEBAPP_URL=https://life.blinddev.xyz
 APP_BASE_URL=https://life.blinddev.xyz
 SESSION_SECRET=...
-SESSION_MAX_AGE_SECONDS=604800
+SESSION_MAX_AGE_SECONDS=31536000
 DEV_AUTH_ENABLED=false
 ```
 
@@ -98,6 +125,14 @@ npm run webhook:clear
 ```
 
 `npm run webhook:info` — read-only. Скрипт не печатает `BOT_TOKEN` даже частично. `webhook:set` передаёт `secret_token` и `allowed_updates: message, edited_message, inline_query`; нужен HTTPS URL. Живая processing lease отвечает `503` с `Retry-After`, завершённый дубль — `200`; номер attempt защищает состояние от опоздавшего worker, а Telegram outbound timeout короче lease. Branded inline-кнопка принимает только configured app origin, точного configured Telegram bot или точного VK app; остальные URL ведут на canonical app. Официальные контракты: [Telegram setWebhook](https://core.telegram.org/bots/api#setwebhook), [InlineKeyboardButton](https://core.telegram.org/bots/api#inlinekeyboardbutton).
+
+## Договор заботы / Care contract
+
+Шаблон заполняет пустую форму сразу. Перед заменой заполненных полей запрашивается подтверждение; отказ сохраняет черновик. Лимиты: название 120, критерий 300, подарок и назначение фонда по 300, сумма 40, валюта 20 символов. API отклоняет превышение, не обрезая текст. Сумма необязательна: неотрицательное число с точкой или запятой. Валюта остаётся текстовым обозначением; переводов денег нет.
+
+Полезное в VK открывает Mini Apps через VKWebAppOpenApp, остальные разрешённые VK-ссылки — в отдельном окне. Неудачное открытие не начисляет награду и показывает локализованный статус.
+
+Connected регрессия на временной БД: `python3 tests/run-browser-qa.py vk-testers-fixes-browser-qa.py`. Native bridge в ней контролируется; это не проверка реального iOS VK.
 
 ## Auth и History API
 
@@ -125,7 +160,7 @@ install -m 600 .env "$BACKUP/app.env"
 node -e 'const Database=require("better-sqlite3"); const db=new Database(process.argv[1],{readonly:true,fileMustExist:true}); console.log(db.pragma("integrity_check",{simple:true})); for(const t of ["users","entries","weekly_contracts","user_artifacts"]) console.log(t,db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n); db.close()' "$BACKUP/kopilka-life.sqlite"
 ```
 
-3. Подготовить отдельный clean release без `.env`, `data/`, `tmp/`, затем добавить в production `.env` `TELEGRAM_WEBHOOK_SECRET` и `SESSION_MAX_AGE_SECONDS=604800`. До этого новый production process не запускать.
+3. Подготовить отдельный clean release без `.env`, `data/`, `tmp/`, затем добавить в production `.env` `TELEGRAM_WEBHOOK_SECRET` и `SESSION_MAX_AGE_SECONDS=31536000`. До этого новый production process не запускать.
 4. Запустить только read-only gate:
 
 ```bash
@@ -138,7 +173,7 @@ KOPILKA_RELEASE_DIR="$RELEASE" scripts/deploy-life.sh --preflight
 6. Проверить `/health`, неизменность `DB_PATH`, `PRAGMA integrity_check`, прежние counts/ключевые записи и вход на сайт. Затем выполнить `npm run webhook:set` и `npm run webhook:info`.
 7. Live gate родителя: открыть `https://vk.ru/app54723764` из технического VK-аккаунта Lada и подтвердить немедленный signed launch login, expired-session renewal, повторное открытие, прежнюю identity/данные и History. Отдельно в реальном cross-site VK iframe воспроизвести exceptional fallback: невалидный/отсутствующий proof → явная VK ID кнопка → first-party popup → возврат в то же приложение и ту же VK identity. Затем открыть `@HarborLifeBot`, проверить немедленный вход существующего Telegram-пользователя, expired-session renewal, referral/profile share и отсутствие дублей webhook. Mock QA не заменяет этот gate.
 
-Rollback: вернуть предыдущий code release целиком и reload вместе с совместимым env/webhook состоянием; текущая миграция только добавляет таблицы. Не восстанавливать старую БД поверх живой без отдельного решения. Незавершённый OAuth state можно отбросить и начать вход заново.
+Rollback: вернуть предыдущий code release целиком и reload вместе с совместимым env/webhook состоянием. Миграции 018–020 добавляют таблицы/колонки, но 020 также удаляет уникальный индекс дневных записей: прежний код после миграции не получит DB-ограничение на повторную запись; rollback до миграции требует отдельной проверки данных, не запускать прежний код вслепую. Не восстанавливать старую БД поверх живой без отдельного решения. Незавершённый OAuth state можно отбросить и начать вход заново.
 
 ## Важные ограничения
 

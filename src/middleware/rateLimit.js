@@ -28,6 +28,7 @@ function createRateLimiter(options = {}) {
     if (bucket.count > max) {
       const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
       res.set('Retry-After', String(retryAfter));
+      if (options.onLimit) return options.onLimit(req, res, retryAfter);
       return res.status(429).json({ error: 'Слишком много запросов. Попробуй чуть позже.' });
     }
     return next();

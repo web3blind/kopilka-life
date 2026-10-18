@@ -33,7 +33,7 @@ function invoke(routePath, user, body = {}, params = {}) {
   // Invoke the real API handler with an authenticated fixture user (no sockets).
   const route = router.stack.find((layer) => layer.route?.path === routePath).route;
   const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(data) { this.data = data; return this; } };
-  route.stack.at(-1).handle({ user, locale: 'en', body, params, query: {} }, res);
+  route.stack.at(-1).handle({ user, locale: 'en', body, params, query: {}, get: () => '' }, res);
   return res;
 }
 after(() => { global.fetch = originalFetch; closeDb(); fs.rmSync(tempDir, { recursive: true, force: true }); });
@@ -52,24 +52,23 @@ test('both repeated platform upserts preserve manually chosen locale and refresh
   }
 });
 
-test('two full notes survive merge, API reads/edits, explicit oversized rejection, no extra points', () => {
+test('two full notes survive as separate entries with their historical points and editable API reads', () => {
   const { primary, source } = pair();
   const a = entries.createEntry(primary.id, 'joy', 'А'.repeat(2000));
   const b = entries.createEntry(source.id, 'joy', 'Б'.repeat(2000));
-  const expected = `${a.note}\n\nИз слитого аккаунта: ${b.note}`;
   const res = invoke('/account/merge-vk/confirm', primary, { mergeToken: token(primary, source) });
   assert.equal(res.statusCode, 200);
-  assert.equal(row('entries', primary.id)[0].note, expected);
-  assert.equal(entries.getSummary(primary.id).totalLife, entries.ENTRY_POINTS.joy);
-  assert.equal(entries.getHistory(primary.id).selectedEntries[0].note, expected);
-  const edit = expected.replace('А', 'В');
+  assert.deepEqual(row('entries', primary.id).map(x => x.note).sort(), [a.note, b.note].sort());
+  assert.equal(entries.getSummary(primary.id).totalLife, entries.ENTRY_POINTS.joy * 2);
+  assert.equal(entries.getHistory(primary.id).selectedEntries.length, 2);
+  const edit = a.note.replace('А', 'В');
   const saved = invoke('/entries/:id', primary, { note: edit }, { id: a.id });
   assert.equal(saved.statusCode, 200);
   assert.equal(saved.data.entry.note, edit);
   const rejected = invoke('/entries/:id', primary, { note: edit + 'X' }, { id: a.id });
   assert.equal(rejected.statusCode, 400);
   assert(rejected.data.error);
-  assert.equal(row('entries', primary.id)[0].note, edit);
+  assert.equal(row('entries', primary.id).find(x => x.id === a.id).note, edit);
   assert.throws(() => entries.createEntry(primary.id, 'rest', 'X'.repeat(2001)), /entryNoteTooLong/);
   assert.equal(users.getUserById(source.id), undefined);
 });
@@ -80,11 +79,11 @@ test('identical and empty duplicate notes preserve content without repeat labels
     entries.createEntry(primary.id, 'joy', left);
     entries.createEntry(source.id, 'joy', right);
     merge(primary, source);
-    assert.equal(row('entries', primary.id)[0].note, !left && right ? `Из слитого аккаунта: ${right}` : left);
+    assert.deepEqual(row('entries', primary.id).map(x => x.note), [left, right]);
   }
 });
 
-test('artifacts transfer and deduplicate with earliest award and remapped triggering entry', () => {
+test('different artifact triggers block rather than silently discard either history', () => {
   const db = getDb();
   const { primary, source } = pair();
   const a = entries.createEntry(primary.id, 'joy');
@@ -92,11 +91,10 @@ test('artifacts transfer and deduplicate with earliest award and remapped trigge
   db.prepare('INSERT INTO user_artifacts VALUES (?, ?, ?, ?)').run(primary.id, 'shared', a.id, '2026-02-01');
   db.prepare('INSERT INTO user_artifacts VALUES (?, ?, ?, ?)').run(source.id, 'shared', b.id, '2026-01-01');
   db.prepare('INSERT INTO user_artifacts VALUES (?, ?, ?, ?)').run(source.id, 'unique', b.id, '2026-01-02');
-  merge(primary, source);
-  const artifacts = row('user_artifacts', primary.id);
-  assert.equal(artifacts.length, 2);
-  assert(artifacts.every((item) => item.trigger_entry_id === a.id));
-  assert.equal(artifacts.find((item) => item.artifact_id === 'shared').awarded_at, '2026-01-01');
+  assert(merges.buildMergePreview(primary.id, source.id).blocking.includes('artifact_conflict'));
+  assert.throws(() => merge(primary, source), /merge blocked/);
+  assert.equal(row('user_artifacts', primary.id).length, 1);
+  assert.equal(row('user_artifacts', source.id).length, 2);
 });
 
 test('support state union preserves credit on collisions and cannot be claimed twice', () => {
@@ -132,6 +130,67 @@ test('artifacts-only and support-only VK accounts are not disposable', () => {
     merge(primary, source);
     assert.equal(row(kind === 'artifact' ? 'user_artifacts' : 'user_support_actions', primary.id).length, 1);
   }
+});
+
+test('VK account with an email identity cannot be discarded by linking or merge', () => {
+  const { primary, source } = pair();
+  getDb().prepare("INSERT INTO login_identities (provider, subject, user_id) VALUES ('email', ?, ?)").run('linked@example.org', source.id);
+  assert.equal(users.userHasOwnedData(source.id), true);
+  const offer = merges.buildVkMergeOffer(primary.id, source.vk_id);
+  assert(offer.preview.blocking.includes('source_identity_conflict'));
+  assert.equal(offer.preview.canMerge, false);
+  assert.throws(() => users.linkVkUser(primary.id, source.vk_id));
+  assert.throws(() => merge(primary, source), /merge blocked/);
+  assert.equal(getDb().prepare("SELECT user_id FROM login_identities WHERE subject = 'linked@example.org'").get().user_id, source.id);
+});
+
+test('explicit Google/email to VK+Telegram merge keeps platform owner, all logins, both histories, and rotates session', () => {
+  const db = getDb();
+  const target = tg();
+  const vkSource = vk();
+  users.linkVkUser(target.id, vkSource.vk_id);
+  const info = db.prepare(`INSERT INTO users (telegram_id,first_name,username,timezone,locale,is_demo)
+    VALUES (?, 'Google', '', 'UTC', 'ru', 0)`).run(`google:fixture-${++identity}`);
+  const current = users.getUserById(info.lastInsertRowid);
+  db.prepare("INSERT INTO login_identities (provider,subject,user_id) VALUES ('google',?,?)").run(`google-sub-${identity}`, current.id);
+  db.prepare("INSERT INTO login_identities (provider,subject,user_id) VALUES ('email',?,?)").run(`fixture${identity}@gmail.com`, current.id);
+  const a = entries.createEntry(target.id, 'joy', 'VK progress');
+  const b = entries.createEntry(current.id, 'rest', 'Google progress');
+  const offer = merges.buildVkMergeOffer(current.id, users.getUserById(target.id).vk_id);
+  assert.equal(offer.preview.canMerge, true);
+  assert.equal(offer.preview.primary.id, target.id);
+  assert.equal(offer.preview.source.id, current.id);
+  assert.equal(offer.preview.result.transferLogins, true);
+  assert.equal(users.getUserById(current.id).id, current.id, 'offer cannot merge');
+  const preview = invoke('/account/merge-vk/preview', current, { mergeToken: offer.mergeToken });
+  assert.equal(preview.statusCode, 200);
+  assert.equal(invoke('/account/merge-vk/confirm', target, { mergeToken: offer.mergeToken }).statusCode, 400, 'only OAuth-authenticated source may confirm');
+  const confirmed = invoke('/account/merge-vk/confirm', current, { mergeToken: offer.mergeToken });
+  assert.equal(confirmed.statusCode, 200);
+  assert.equal(confirmed.data.user.id, target.id);
+  assert.equal(require('../src/auth/session').verifyToken(confirmed.data.token), target.id);
+  assert.equal(users.getUserById(current.id), undefined);
+  assert.deepEqual(row('login_identities', target.id).map(x => x.provider).sort(), ['email', 'google']);
+  assert.deepEqual(row('entries', target.id).map(x => x.id).sort(), [a.id, b.id].sort());
+  assert.equal(users.getUserById(target.id).telegram_id, target.telegram_id);
+  assert.equal(users.getUserById(target.id).vk_id, vkSource.vk_id);
+  assert.throws(() => merges.applyMergeByToken(offer.mergeToken, current.id), /users invalid/);
+});
+
+test('conflicting login provider blocks reverse merge without changing either account', () => {
+  const db = getDb();
+  const target = tg(), vkSource = vk();
+  users.linkVkUser(target.id, vkSource.vk_id);
+  const info = db.prepare("INSERT INTO users (telegram_id,first_name,username,timezone,locale,is_demo) VALUES (?, 'Google', '', 'UTC', 'ru', 0)").run(`email:fixture-${++identity}`);
+  const current = users.getUserById(info.lastInsertRowid);
+  db.prepare("INSERT INTO login_identities (provider,subject,user_id) VALUES ('email',?,?)").run(`source${identity}@example.org`, current.id);
+  db.prepare("INSERT INTO login_identities (provider,subject,user_id) VALUES ('email',?,?)").run(`target${identity}@example.org`, target.id);
+  const offer = merges.buildVkMergeOffer(current.id, users.getUserById(target.id).vk_id);
+  assert(offer.preview.blocking.includes('source_identity_conflict'));
+  assert.equal(offer.preview.canMerge, false);
+  assert.throws(() => merges.applyMergeByToken(offer.mergeToken, current.id), /merge blocked/);
+  assert.equal(row('login_identities', current.id).length, 1);
+  assert.equal(row('login_identities', target.id).length, 1);
 });
 
 test('empty VK can link, same identity is idempotent, linked Telegram cannot be destroyed', () => {
@@ -238,8 +297,9 @@ test('HTTP authenticated merge/history path preserves notes and returns correct 
     assert.equal(forged.status, 400);
     const merged = await request('/account/merge-vk/confirm', primary, 'POST', { mergeToken: token(primary, source) });
     assert.equal(merged.status, 200);
-    const note = row('entries', primary.id)[0].note;
-    assert(note.includes('A'.repeat(2000)) && note.includes('B'.repeat(2000)));
+    const note = row('entries', primary.id).find(x => x.id === entry.id).note;
+    assert.equal(row('entries', primary.id).length, 2);
+    assert(row('entries', primary.id).some(x => x.note === 'B'.repeat(2000)));
     const edit = await request('/entries/' + entry.id, primary, 'PATCH', { note: note.replace('A', 'C') });
     assert.equal(edit.status, 200);
     assert.equal((await edit.json()).entry.note.length, note.length);
@@ -270,15 +330,14 @@ test('VK permission follows its identity through confirmed merge and empty linki
   }
 });
 
-test('duplicate reminder history does not abort merge or lose sent state', () => {
+test('scheduled versus sent reminder collision blocks rather than losing pending delivery', () => {
   const { primary, source } = pair();
   const db = getDb();
   db.prepare("INSERT INTO reminders (user_id, due_at, status) VALUES (?, '2026-01-01', 'scheduled')").run(primary.id);
   db.prepare("INSERT INTO reminders (user_id, due_at, status, sent_at) VALUES (?, '2026-01-01', 'sent', '2026-01-01 20:00:00')").run(source.id);
-  merge(primary, source);
-  const reminders = row('reminders', primary.id);
-  assert.equal(reminders.length, 1);
-  assert.equal(reminders[0].status, 'sent');
-  assert.equal(reminders[0].sent_at, '2026-01-01 20:00:00');
+  assert(merges.buildMergePreview(primary.id, source.id).blocking.includes('reminder_conflict'));
+  assert.throws(() => merge(primary, source), /merge blocked/);
+  assert.equal(row('reminders', primary.id)[0].status, 'scheduled');
+  assert.equal(row('reminders', source.id)[0].status, 'sent');
   assert.deepEqual(db.pragma('foreign_key_check'), []);
 });

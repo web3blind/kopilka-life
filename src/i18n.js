@@ -16,6 +16,7 @@ const STRINGS = {
   'error.merge.primary_vk_conflict': { ru: 'Текущая Копилка уже связана с другим VK-аккаунтом. Заменять эту привязку нельзя.', en: 'Your Life Harbor is already linked to another VK account. That identity cannot be replaced.' },
   'error.merge.support_metadata_conflict': { ru: 'В аккаунтах есть несовместимые сведения о действиях поддержки. Объединение остановлено, чтобы сохранить данные.', en: 'The accounts have conflicting support-action records. Merging is blocked to preserve the data.' },
   // ---- entry type titles + hints ----
+  'entry.referral.title': { ru: 'Активный приглашённый человек', en: 'Active invited person' },
   'entry.sleep.title': { ru: 'Нормальный сон', en: 'Good sleep' },
   'entry.sleep.hint': { ru: 'выспался или лёг вовремя', en: 'slept well or went to bed on time' },
   'entry.movement.title': { ru: 'Движение', en: 'Movement' },
@@ -89,6 +90,8 @@ const STRINGS = {
   'status.notDemo': { ru: 'Это не demo account, удаление недоступно.', en: 'This is not a demo account; deletion is not available.' },
 
   // ---- errors ----
+  'error.inputTooLarge': { ru: 'Текст слишком длинный. Сократи его и попробуй ещё раз. Ничего не сохранено.', en: 'The text is too long. Shorten it and try again. Nothing was saved.' },
+  'error.invalidTimezone': { ru: 'Выбери корректный часовой пояс из списка.', en: 'Choose a valid time zone from the list.' },
   'error.unknownType': { ru: 'Неизвестный тип записи', en: 'Unknown entry type' },
   'error.entryAlreadyToday': { ru: 'Этот вариант уже добавлен сегодня. Завтра он снова будет доступен.', en: 'This entry is already saved for today. It will be available again tomorrow.' },
   'error.session': { ru: 'Не удалось подтвердить сессию. Открой приложение ещё раз.', en: 'Could not confirm the session. Open the app again.' },
@@ -97,6 +100,16 @@ const STRINGS = {
   'error.vkSession': { ru: 'Не удалось подтвердить VK-сессию. Открой приложение из VK ещё раз.', en: 'Could not confirm the VK session. Open the app from VK again.' },
   'error.contractExists': { ru: 'Уже есть активный договор заботы', en: 'There is already an active care contract' },
   'error.contractFields': { ru: 'Заполни название и критерий договора', en: 'Fill in the contract name and criteria' },
+  'error.contractInputType': { ru: 'Передай поля договора в виде объекта.', en: 'Provide the contract fields as an object.' },
+  'error.contractTextType': { ru: 'Текстовые поля договора должны содержать текст.', en: 'Contract text fields must contain text.' },
+  'error.contractTitleTooLong': { ru: 'Название договора может содержать не больше 120 символов.', en: 'The contract name can contain no more than 120 characters.' },
+  'error.contractTargetTooLong': { ru: 'Критерий договора может содержать не больше 300 символов.', en: 'The contract criteria can contain no more than 300 characters.' },
+  'error.contractStakeTooLong': { ru: 'Сумма фонда заботы может содержать не больше 40 символов.', en: 'The care fund amount can contain no more than 40 characters.' },
+  'error.contractStakeInvalid': { ru: 'Укажи неотрицательную сумму цифрами, с точкой или запятой для дробной части, либо оставь поле пустым.', en: 'Enter a nonnegative amount using digits, with a dot or comma for decimals, or leave the field empty.' },
+  'error.contractRewardTooLong': { ru: 'Описание подарка себе может содержать не больше 300 символов.', en: 'The gift description can contain no more than 300 characters.' },
+  'error.contractFundTooLong': { ru: 'Описание фонда заботы может содержать не больше 300 символов.', en: 'The care fund description can contain no more than 300 characters.' },
+  'error.contractCurrencyTooLong': { ru: 'Название валюты или актива может содержать не больше 20 символов.', en: 'The currency or asset name can contain no more than 20 characters.' },
+  'error.contractResultTooLong': { ru: 'Итог договора может содержать не больше 500 символов.', en: 'The contract result note can contain no more than 500 characters.' },
   'error.contractStatus': { ru: 'Неизвестный итог договора', en: 'Unknown contract result' },
   'error.contractNotFound': { ru: 'Активный договор не найден', en: 'Active contract not found' },
   'error.historyDate': { ru: 'Укажи дату в формате ГГГГ-ММ-ДД.', en: 'Choose a valid date.' },

@@ -45,7 +45,8 @@ function stateTtlMs() {
 
 function createOAuthIntent(context = {}, now = Date.now()) {
   const intent = randomBase64Url(24);
-  const channel = randomBase64Url(24);
+  if (context.channel !== undefined && !validOpaque(context.channel)) throw new Error('VK OAuth handoff channel is invalid');
+  const channel = context.channel || randomBase64Url(24);
   const db = getDb();
   pruneStates(db, now);
   db.prepare('INSERT INTO vk_oauth_intents (intent_hash, context_json, channel, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
@@ -187,4 +188,113 @@ function buildOAuthHandoffDocument(payload, targetOrigin = appOrigin()) {
   return { html, nonce, csp: `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'none'; img-src 'none'; connect-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'` };
 }
 
-module.exports = { createOAuthIntent, beginOAuthIntent, exchangeCode, consumeState, createOAuthLinkProof, consumeOAuthLinkProof, oauthRedirectUri, codeChallenge, validBrowserBinding, buildOAuthHandoffDocument, appOrigin };
+function oauthCallbackHandoff(payload, targetOrigin) {
+  sessionStorage.setItem('kopilkaVkOAuthHandoff', JSON.stringify(payload));
+  let acknowledged = false;
+  const finishHere = () => window.location.replace('/?vk_oauth_return=1');
+  window.addEventListener('message', event => {
+    if (event.source === window.opener && event.origin === targetOrigin &&
+        event.data?.type === 'kopilka:vk-oauth-ack' && event.data?.channel === payload.channel) {
+      acknowledged = true;
+      window.close();
+    }
+  });
+  if (window.opener && !window.opener.closed) {
+    window.opener.postMessage(payload, targetOrigin);
+    window.setTimeout(() => { if (!acknowledged) finishHere(); }, 1200);
+  } else { finishHere(); }
+}
+
+async function oauthCallbackBootstrap(targetOrigin, handoff) {
+  const status = document.getElementById('status');
+  // A prerender can execute scripts. Wait for activation and a visible document;
+  // a fetched/preloaded/background landing must not perform auth completion.
+  if (document.prerendering) await new Promise(resolve => document.addEventListener('prerenderingchange', resolve, { once: true }));
+  if (document.visibilityState !== 'visible') await new Promise(resolve => {
+    const visible = () => { if (document.visibilityState === 'visible') { document.removeEventListener('visibilitychange', visible); resolve(); } };
+    document.addEventListener('visibilitychange', visible);
+  });
+  const input = new URLSearchParams(location.search);
+  const body = {};
+  for (const key of ['state', 'code', 'device_id', 'error']) body[key] = input.get(key) || '';
+  // Do not retain authorization codes in the address/history or handoff URL.
+  history.replaceState(null, '', location.pathname);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    if (location.origin !== targetOrigin || window.top !== window) throw new Error('origin');
+    const response = await fetch('/api/auth/vk-oauth/complete', {
+      method: 'POST', credentials: 'same-origin', signal: controller.signal,
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const payload = await response.json();
+    if (!response.ok || payload.type !== 'kopilka:vk-oauth' ||
+        !/^[A-Za-z0-9_-]{20,80}$/.test(payload.channel) || !['auth', 'link'].includes(payload.action) ||
+        (!payload.error && !(payload.action === 'link' ? payload.linkProof : payload.token))) throw new Error('completion');
+    handoff(payload, targetOrigin);
+  } catch (_) {
+    // Uncorrelated/replayed failure must not overwrite another successful handoff.
+    status.textContent = 'Не удалось завершить вход через VK ID. Вернитесь в приложение и попробуйте снова.';
+  } finally { clearTimeout(timeout); }
+}
+
+function buildOAuthCallbackDocument() {
+  const nonce = randomBase64Url(18);
+  const origin = safeJson(appOrigin());
+  const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VK ID — Копилка жизни</title></head><body><main><h1>Возвращаемся в Копилку жизни</h1><p id="status" role="status">Завершаем вход…</p><p><a href="/">Вернуться в приложение</a></p></main><script nonce="${nonce}">(${oauthCallbackBootstrap.toString()})(${origin}, ${oauthCallbackHandoff.toString()});</script></body></html>`;
+  return { html, nonce, csp: `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'` };
+}
+
+// Pass the snapshot synchronously via the new window's name, not a URL or
+// partitioned storage. The first-party page clears it before any fetch/navigation.
+function buildOAuthWindowDocument(retryAfter = 0) {
+  const nonce = randomBase64Url(18);
+  const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VK ID — Копилка жизни</title></head><body><main><h1>VK ID</h1><p id="status" role="status">Подготавливаем безопасный вход…</p><p><a href="/">Вернуться в приложение</a></p></main><script nonce="${nonce}">(${oauthWindowBootstrap.toString()})(${safeJson(retryAfter)});</script></body></html>`;
+  return { html, nonce, csp: `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'` };
+}
+
+async function oauthWindowBootstrap(retryAfter = 0) {
+  let context;
+  let rawContext = window.name;
+  window.name = '';
+  const status = document.getElementById('status');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    context = JSON.parse(rawContext || 'null');
+    rawContext = '';
+    if (!context || !/^[A-Za-z0-9_-]{20,80}$/.test(context.channel) ||
+        !['auth', 'link'].includes(context.action) || !Number.isFinite(context.createdAt) ||
+        Math.abs(Date.now() - context.createdAt) > 60000 || (context.action === 'link' && !context.token)) {
+      throw new Error('bootstrap');
+    }
+    if (retryAfter > 0) throw new Error('throttled');
+    const response = await fetch('/api/auth/vk-oauth/intent', {
+      method: 'POST', credentials: 'same-origin', signal: controller.signal,
+      headers: { 'content-type': 'application/json', ...(context.action === 'link' ? { authorization: 'Bearer ' + context.token } : {}) },
+      body: JSON.stringify({ action: context.action, channel: context.channel, refCode: context.refCode, timezone: context.timezone, locale: context.locale })
+    });
+    const data = await response.json();
+    if (response.status === 429) retryAfter = Number(response.headers.get('Retry-After')) || 0;
+    if (!response.ok || data.channel !== context.channel) throw new Error('intent');
+    const target = new URL(data.launchUrl, location.origin);
+    if (target.origin !== location.origin || target.pathname !== '/api/auth/vk-oauth/start' ||
+        target.username || target.password || !/^[A-Za-z0-9_-]{20,80}$/.test(target.searchParams.get('intent'))) throw new Error('launch');
+    location.replace(target.href);
+  } catch (_) {
+    const en = context?.locale === 'en';
+    if (document.documentElement) document.documentElement.lang = en ? 'en' : 'ru';
+    status.textContent = retryAfter > 0
+      ? (en ? `Too many sign-in attempts. Try again in ${retryAfter} seconds.` : `Слишком много попыток входа. Попробуй через ${retryAfter} сек.`)
+      : 'Не удалось начать вход через VK ID. Вернитесь в приложение и попробуйте снова.';
+    if (context && /^[A-Za-z0-9_-]{20,80}$/.test(context.channel) && ['auth', 'link'].includes(context.action) && Number.isFinite(context.createdAt) && Math.abs(Date.now() - context.createdAt) <= 60000 && window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: 'kopilka:vk-oauth', channel: context.channel, action: context.action, error: status.textContent, retryAfter }, location.origin);
+    }
+  } finally {
+    rawContext = '';
+    clearTimeout(timeout);
+    if (context) delete context.token;
+  }
+}
+
+module.exports = { buildOAuthCallbackDocument, buildOAuthWindowDocument, createOAuthIntent, beginOAuthIntent, exchangeCode, consumeState, createOAuthLinkProof, consumeOAuthLinkProof, oauthRedirectUri, codeChallenge, validBrowserBinding, buildOAuthHandoffDocument, appOrigin };

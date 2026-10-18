@@ -131,7 +131,7 @@ function deleteEntry(userId, entryId) {
 // Localized title for display (by type when available, fallback to stored title).
 function displayTitle(entry, locale) {
   const lang = normalizeLocale(locale);
-  const localized = ENTRY_POINTS[entry.type] ? entryTitle(entry.type, lang) : '';
+  const localized = (ENTRY_POINTS[entry.type] || entry.type === 'referral') ? entryTitle(entry.type, lang) : '';
   return localized || entry.title;
 }
 function getSummary(userId) {

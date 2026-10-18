@@ -2,8 +2,10 @@ const crypto = require('crypto');
 const config = require('../config');
 function sign(payload) { return crypto.createHmac('sha256', config.sessionSecret).update(payload).digest('base64url'); }
 function createToken(userId, now = Date.now()) {
-  const maxAgeMs = Math.max(300, Number(config.sessionMaxAgeSeconds) || 604800) * 1000;
-  const payload = Buffer.from(JSON.stringify({ v: 1, userId: Number(userId), iat: now, exp: now + maxAgeMs })).toString('base64url');
+  const maxAgeMs = Math.max(300, Number(config.sessionMaxAgeSeconds) || 31536000) * 1000;
+  const { getDb } = require('../db');
+  const revision = getDb().prepare('SELECT session_revision FROM users WHERE id = ?').get(Number(userId))?.session_revision || 0;
+  const payload = Buffer.from(JSON.stringify({ v: 1, userId: Number(userId), iat: now, exp: now + maxAgeMs, rev: revision })).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 function inspectToken(token, now = Date.now()) {
@@ -23,13 +25,23 @@ function inspectToken(token, now = Date.now()) {
     if (data.v !== 1 || !Number.isSafeInteger(userId) || userId < 1 || !Number.isFinite(issuedAt) || !Number.isFinite(expiresAt) || expiresAt <= issuedAt) return { userId: null, status: 'invalid' };
     if (issuedAt > now + 60_000) return { userId: null, status: 'invalid' };
     if (now >= expiresAt) return { userId: null, status: 'expired' };
-    return { userId, status: 'valid' };
+    return { userId, status: 'valid', ...(data.rev === undefined ? {} : { revision: data.rev }) };
   } catch (_) {
     return { userId: null, status: 'invalid' };
   }
 }
 function verifyToken(token) {
-  const result = inspectToken(token);
+  const result = inspectActiveToken(token);
   return result.status === 'valid' ? result.userId : null;
 }
-module.exports = { createToken, verifyToken, inspectToken };
+function inspectActiveToken(token, now = Date.now()) {
+  const result = inspectToken(token, now);
+  if (result.status !== 'valid') return result;
+  const { getDb } = require('../db');
+  const user = getDb().prepare('SELECT session_revision FROM users WHERE id = ?').get(result.userId);
+  if (!user || !Number.isSafeInteger(result.revision === undefined ? 0 : result.revision) ||
+      (result.revision === undefined ? 0 : result.revision) !== user.session_revision)
+    return { userId: null, status: 'invalid' };
+  return result;
+}
+module.exports = { createToken, verifyToken, inspectToken, inspectActiveToken };

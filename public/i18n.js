@@ -8,7 +8,7 @@
 
   // Entry types: id -> { points, title:{ru,en}, hint:{ru,en} }
   const ENTRY_DEFS = {
-    sleep: { points: 3, icon: '🌙', title: { ru: 'Нормальный сон', en: 'Good sleep' }, hint: { ru: 'выспался или лёг вовремя', en: 'slept well or went to bed on time' } },
+    sleep: { points: 3, icon: '🌙', title: { ru: 'Нормальный сон', en: 'Good sleep' }, shortTitle: { ru: 'Сон', en: 'Sleep' }, hint: { ru: 'выспался или лёг вовремя', en: 'slept well or went to bed on time' } },
     movement: { points: 2, icon: '🌿', title: { ru: 'Движение', en: 'Movement' }, hint: { ru: 'прогулка, разминка, спорт', en: 'walk, stretch, sport' } },
     food_water: { points: 1, icon: '💧', title: { ru: 'Еда или вода', en: 'Food or water' }, hint: { ru: 'поел или попил воды', en: 'ate or drank water' } },
     joy: { points: 1, icon: '✨', title: { ru: 'Радость', en: 'Joy' }, hint: { ru: 'что-то приятное, без KPI; посмеялся, смешное видео', en: 'something pleasant, no KPI; laughed, a funny video' } },
@@ -17,19 +17,37 @@
     dream_step: { points: 2, icon: '⭐', title: { ru: 'Шаг к мечте', en: 'Step to a dream' }, hint: { ru: 'маленькое действие к мечте или важной цели', en: 'small step toward a dream or important goal' } },
     dreamed: { points: 1, icon: '☁', title: { ru: 'Помечтал', en: 'Dreamed' }, hint: { ru: 'представил, какой жизни хочется', en: 'imagined the life you want' } },
     kind_trace: { points: 2, icon: '🐝', title: { ru: 'Доброе дело', en: 'Kind deed' }, hint: { ru: 'помог, поддержал человека, позаботился о животных или сделал мир чуть теплее', en: 'helped or supported someone, cared for animals, or made the world a little warmer' } },
-    gifted_joy: { points: 2, icon: '🎁', title: { ru: 'Подарил радость', en: 'Gifted joy' }, hint: { ru: 'маленький подарок или приятный жест для другого человека', en: 'a small gift or kind gesture for someone else' } },
+    gifted_joy: { points: 2, icon: '🎁', title: { ru: 'Подарил радость', en: 'Gifted joy' }, shortTitle: { ru: 'Подарок', en: 'Gift' }, hint: { ru: 'маленький подарок или приятный жест для другого человека', en: 'a small gift or kind gesture for someone else' } },
     honest_step: { points: 2, icon: '🧭', title: { ru: 'Честный шаг', en: 'Honest step' }, hint: { ru: 'не к мечте, а к порядку: признал факт, исправил ошибку, закрыл хвост', en: 'not toward a dream, but toward order: admitted a fact, fixed a mistake, closed a loose end' } },
-    social_contact: { points: 2, icon: '☎', title: { ru: 'Встреча или звонок', en: 'Meet-up or call' }, hint: { ru: 'общение с давним другом или подругой', en: 'talked with an old friend' } },
-    family_time: { points: 2, icon: '🏠', title: { ru: 'Время с родными', en: 'Time with family' }, hint: { ru: 'провёл время с родными', en: 'spent time with family' } },
+    social_contact: { points: 2, icon: '☎', title: { ru: 'Встреча или звонок', en: 'Meet-up or call' }, shortTitle: { ru: 'Общение', en: 'Connect' }, hint: { ru: 'общение с давним другом или подругой', en: 'talked with an old friend' } },
+    family_time: { points: 2, icon: '🏠', title: { ru: 'Время с родными', en: 'Time with family' }, shortTitle: { ru: 'С родными', en: 'Family time' }, hint: { ru: 'провёл время с родными', en: 'spent time with family' } },
     rest: { points: 1, icon: '☕', title: { ru: 'Отдых', en: 'Rest' }, hint: { ru: 'восстановился хоть немного', en: 'recovered a little' } },
     hard_day: { points: 1, icon: '🛡', title: { ru: 'Сложный день', en: 'Hard day' }, hint: { ru: 'отметил день честно, без оценки', en: 'noted the day honestly, without judgment' } }
   };
 
   const STRINGS = {
+    contractCharacterCount: { ru: '{current} из {max} символов', en: '{current} of {max} characters' },
+    linkTelegramAccount: { ru: 'Привязать Telegram', en: 'Link Telegram' },
+  telegramLinkHandoffHint: { ru: 'Открой Telegram, подтверди привязку там и вернись сюда для завершения.', en: 'Open Telegram, confirm the link there, then return here to finish.' },
+  telegramLinkPending: { ru: 'Ждём подтверждения в Telegram.', en: 'Waiting for confirmation in Telegram.' },
+  telegramLinkClaimed: { ru: 'Подтверждено. Вернись в исходное окно и заверши привязку.', en: 'Confirmed. Return to the original window to finish linking.' },
+  telegramLinkExpired: { ru: 'Ссылка устарела. Начни привязку заново.', en: 'This link expired. Start again.' },
+    telegramLinkDone: { ru: 'Telegram привязан.', en: 'Telegram linked.' },
+    telegramLinkWidgetHint: { ru: 'Подтверди вход в виджете Telegram ниже.', en: 'Confirm your identity in the Telegram widget below.' },
+    mergeIdentitySettings: { ru: 'Сохранятся входы: {logins}. Настройки основного профиля (часовой пояс {timezone}) останутся. Несовместимые записи или входы блокируют объединение; подтверди только если узнаёшь оба аккаунта.', en: 'Retained logins: {logins}. The primary profile settings (timezone {timezone}) remain. Conflicting records or logins block the merge; confirm only if you recognize both accounts.' },
+    mergeBlockedRecords: { ru: 'В аккаунтах есть пересекающиеся записи с разным содержимым. Нельзя удалить ни одну: обратись в поддержку.', en: 'The accounts have overlapping records. Neither can be discarded; contact support.' },
+    mergeBlockedSettings: { ru: 'В аккаунтах разные настройки напоминаний. Сначала согласуй их или обратись в поддержку.', en: 'Reminder settings differ. Align them first or contact support.' },
+    mergeBlockedReferrer: { ru: 'У аккаунтов разные пригласившие. Сохранить оба в одном профиле пока нельзя; обратись в поддержку.', en: 'These accounts have different referrers. Both cannot be represented in one profile; contact support.' },
+    mergeBlockedDemo: { ru: 'Демо-аккаунт нельзя объединить с настоящим. Войди в настоящий аккаунт.', en: 'Demo accounts cannot be merged into real accounts. Sign in with your real account.' },
     mergeBlockedSourceTelegram: { ru: 'Слияние заблокировано: второй аккаунт связан с отдельным Telegram. Его вход нельзя удалить.', en: 'Merge is blocked: the other account has a separate Telegram login that must be preserved.' },
+    mergeBlockedSourceIdentity: { ru: 'Слияние заблокировано: к другому аккаунту привязан e-mail или Google. Чтобы сохранить этот вход, обратись в поддержку.', en: 'Merge is blocked: the other account has an email or Google login. Contact support to preserve it.' },
+    mergeBlockedReverseIdentity: { ru: 'Слияние заблокировано: в обоих аккаунтах уже есть один и тот же способ входа e-mail или Google. Два разных входа нельзя перезаписать; обратись в поддержку.', en: 'Merge is blocked: both accounts already have an email or Google login for the same provider. Distinct identities cannot be overwritten; contact support.' },
+    mergeBlockedReversePlatform: { ru: 'Слияние заблокировано: текущий аккаунт не является отдельным аккаунтом только с e-mail/Google. Его вход VK или Telegram нельзя удалить.', en: 'Merge is blocked: this is not a separate email/Google-only account. Its VK or Telegram login cannot be removed.' },
+    mergeBlockedScheduledReminder: { ru: 'Слияние заблокировано: у переносимого аккаунта есть будущие напоминания. Нельзя незаметно удалить их или создать дубли.', en: 'Merge is blocked: the account to move has upcoming reminders. They cannot be silently lost or duplicated.' },
     mergeBlockedPrimaryVk: { ru: 'Слияние заблокировано: текущий аккаунт уже связан с другим VK. Оба входа нужно сохранить.', en: 'Merge is blocked: this account is already linked to another VK login. Both logins must be preserved.' },
     mergeBlockedSupportMetadata: { ru: 'Слияние заблокировано: данные полезных действий различаются. Обратись в поддержку, чтобы сохранить их без потерь.', en: 'Merge is blocked: support-action records differ. Contact support to preserve both records without loss.' },
     mergeBlockedUnknown: { ru: 'Слияние заблокировано для сохранности данных. Обратись в поддержку.', en: 'Merge is blocked to preserve your data. Contact support.' },
+    networkUnavailable: { ru: "Не удалось связаться с сервером. Проверь подключение к интернету. Перед повторной отправкой проверь историю: действие могло сохраниться.", en: "Could not reach the server. Check your internet connection. Before retrying, check History: the action may have been saved." },
     requestTimeout: { ru: "Ответ не пришёл вовремя. Проверь историю перед повторной отправкой: действие могло сохраниться.", en: "The response timed out. Check History before retrying: the action may have been saved." },
     refreshPending: { ru: "Изменение сохранено, но часть данных пока не обновилась. При возвращении попробуем снова.", en: "The change was saved, but some data could not refresh. We will retry when you return." },
     refreshUnavailable: { ru: "Не удалось обновить данные. При возвращении попробуем снова.", en: "Could not refresh data. We will retry when you return." },
@@ -56,6 +74,29 @@
     alreadyAddedToday: { ru: 'Уже добавлено сегодня', en: 'Already added today' },
     availableTomorrow: { ru: 'доступно завтра', en: 'available tomorrow' },
     plusLife: { ru: '+{points} ЖИЗНЬ', en: '+{points} LIFE' },
+    daySceneTitle: { ru: 'Картина дня', en: 'A picture of today' },
+    daySceneHint: { ru: 'После отметки найди новую деталь', en: 'After adding an entry, find the new detail' },
+    daySceneEmpty: { ru: 'Тихая картина дня. Отметки ниже добавят в неё детали, когда захочешь.', en: 'A quiet picture of today. Use the actions below to add details whenever you like.' },
+    daySceneWith: { ru: 'На картине: {items}.', en: 'In the picture: {items}.' },
+    daySceneShare: { ru: 'Сохранить или поделиться картиной', en: 'Save or share the picture' },
+    daySceneStoryTelegramPrepare: { ru: 'Подготовить историю Telegram', en: 'Prepare Telegram story' },
+    daySceneStoryTelegramOpen: { ru: 'Открыть историю Telegram', en: 'Open Telegram story' },
+    daySceneStoryTelegramPreparing: { ru: 'Подготавливаю картину для истории…', en: 'Preparing the picture for a story…' },
+    daySceneStoryTelegramReady: { ru: 'Картина готова ненадолго. Нажми «Открыть историю Telegram» — публикацию решишь в редакторе.', en: 'Picture ready for a short time. Tap “Open Telegram story”; posting remains your choice.' },
+    daySceneStoryTelegramConfirm: { ru: 'Открыть редактор истории Telegram с этой картиной? Она не опубликуется автоматически.', en: 'Open the Telegram story editor with this picture? It will not post automatically.' },
+    daySceneStoryTelegramRequested: { ru: 'Запрос передан Telegram. Публикацию ты подтверждаешь отдельно в редакторе.', en: 'Request sent to Telegram. You confirm posting separately in its editor.' },
+    daySceneStoryTelegramCanceled: { ru: 'История не отправлена. Картина пока готова — можно открыть редактор позже.', en: 'Story not sent. The picture is still ready to open later.' },
+    daySceneStoryTelegramExpired: { ru: 'Картина больше не доступна для истории. Подготовь её ещё раз.', en: 'The picture is no longer available for the story. Prepare it again.' },
+    daySceneStoryTelegramError: { ru: 'Не удалось подготовить или открыть историю Telegram. Попробуй ещё раз.', en: 'Could not prepare or open the Telegram story. Try again.' },
+    daySceneStoryOpenApp: { ru: 'Открыть Копилку', en: 'Open Kopilka' },
+    daySceneStoryVk: { ru: 'Поделиться картиной в истории VK', en: 'Share picture in a VK story' },
+    daySceneStoryVkShort: { ru: 'В историю VK', en: 'VK story' },
+    daySceneStoryOpened: { ru: 'Картина передана VK. Ты сам решаешь, публиковать ли историю.', en: 'Picture handed to VK. You decide whether to post the story.' },
+    daySceneStoryError: { ru: 'Не удалось открыть редактор истории VK. Попробуй позже.', en: 'Could not open the VK story editor. Try again later.' },
+    daySceneStoryCanceled: { ru: 'Редактор истории закрыт без публикации.', en: 'Story editor closed without posting.' },
+    daySceneShared: { ru: 'Картина передана для отправки.', en: 'The picture is ready to share.' },
+    daySceneDownloaded: { ru: 'Картина сохранена на устройстве.', en: 'The picture was saved to your device.' },
+    daySceneShareError: { ru: 'Не удалось подготовить картину. Попробуй ещё раз.', en: 'Could not prepare the picture. Please try again.' },
     noEntriesToday: { ru: 'Сегодня ещё тихо. Можно начать с одного клика.', en: 'Still quiet today. You can start with one tap.' },
     noWeek: { ru: 'Тихая неделя. Можно продолжить сегодня.', en: 'A quiet week. You can continue today.' },
     noCategories: { ru: 'Категории появятся после первых записей.', en: 'Categories will appear after the first entries.' },
@@ -78,11 +119,19 @@
     contractClosed: { ru: 'Итог договора сохранён мягко и без оценки.', en: 'Contract result saved gently, without judgment.' },
     savingSettings: { ru: 'Сохраняю настройки…', en: 'Saving settings…' },
     settingsSaved: { ru: 'Настройки сохранены.', en: 'Settings saved.' },
+    settingsUnsaved: { ru: 'Изменения настроек пока не сохранены. Черновик остаётся в «Настройках» — вернитесь и нажмите «Сохранить настройки». При закрытии приложения изменения потеряются.', en: 'Settings changes are not saved yet. Your draft remains in Settings — return and select Save settings. Closing the app will discard these changes.' },
     practicesUpdated: { ru: 'Практики обновлены под выбранную цель.', en: 'Practices updated for the chosen goal.' },
+    templateReplaceTitle: { ru: 'Заменить шаблон?', en: 'Replace template?' },
+    templateReplaceButton: { ru: 'Заменить', en: 'Replace' },
+    templateReplaceConfirm: { ru: 'Заменить заполненные поля этим шаблоном? Твой текущий черновик будет заменён.', en: 'Replace the filled fields with this template? Your current draft will be replaced.' },
+    historyLoaded: { ru: 'История обновлена.', en: 'History updated.' },
+    inputTooLarge: { ru: 'Текст слишком длинный. Сократи его и попробуй ещё раз. Ничего не сохранено.', en: 'The text is too long. Shorten it and try again. Nothing was saved.' },
+    contractStakeFormat: { ru: 'Число не меньше нуля. Дробную часть можно отделить точкой или запятой.', en: 'A number of zero or more. Use a dot or comma for decimals.' },
     templateApplied: { ru: 'Шаблон “{title}” подставлен. Можно отредактировать.', en: 'Template “{title}” filled in. You can edit it.' },
     ready: { ru: 'Готово. Можно пополнить Копилку жизни.', en: 'Ready. You can top up your Life Harbor.' },
     sessionRenewed: { ru: 'Сессия безопасно обновлена.', en: 'Your session was renewed securely.' },
     sessionRecoveryHint: { ru: 'Сессия закончилась. Записи в форме сохранены на экране. Войди через VK ID или снова открой приложение в Telegram.', en: 'Your session ended. Form entries are still on screen. Sign in with VK ID or reopen the app in Telegram.' },
+    sessionRecoveryHintRegional: { ru: 'Сессия закончилась. Записи в форме сохранены на экране. Войди через e-mail или VK ID.', en: 'Your session ended. Form entries are still on screen. Sign in with email or VK ID.' },
     sessionExpiredLogin: { ru: 'Сессия завершилась. Войди ещё раз — записи останутся на месте.', en: 'Your session has ended. Sign in again — your entries are still here.' },
     connectFailed: { ru: 'Не удалось подключиться.', en: 'Could not connect.' },
     openFromTelegram: { ru: 'Открой приложение из Telegram ещё раз.', en: 'Open the app from Telegram again.' },
@@ -113,6 +162,20 @@
     landingBenefitArtifactsTitle: { ru: 'Тёплые персонажи', en: 'Warm characters' },
     landingBenefitArtifactsText: { ru: 'Иногда за живые действия открываются маленькие артефакты пути.', en: 'Sometimes real-life actions unlock small path artifacts.' },
     loginIntro: { ru: 'Вход через Telegram или VK ID связывает сайт, бота и Mini App с одним аккаунтом.', en: 'Sign in with Telegram or VK ID to keep the website, bot, and Mini App in one account.' },
+    loginIntroRegional: { ru: 'Войди через e-mail или VK ID, чтобы сохранить свои отметки.', en: 'Sign in with email or VK ID to keep your entries.' },
+    emailLoginLabel: { ru: 'Электронная почта', en: 'Email address' },
+    emailLoginSend: { ru: 'Получить код', en: 'Send a code' },
+    emailLoginCodeLabel: { ru: 'Код из письма', en: 'Code from email' },
+    emailLoginConfirm: { ru: 'Войти по коду', en: 'Sign in with code' },
+    emailCheckInbox: { ru: 'Проверь почту и введи код из письма.', en: 'Check your email and enter the code.' },
+    emailConnected: { ru: 'Вход по e-mail подтверждён.', en: 'Signed in with email.' },
+    emailLinkLabel: { ru: 'Привязать e-mail к текущему аккаунту', en: 'Link email to this account' },
+    emailLinkConfirm: { ru: 'Привязать e-mail', en: 'Link email' },
+    emailLinkDone: { ru: 'E-mail привязан. Теперь можно входить по коду без потери записей.', en: 'Email linked. You can now sign in with a code and keep your entries.' },
+    loginGoogleButton: { ru: 'Войти через Google', en: 'Sign in with Google' },
+    linkGoogleAccount: { ru: 'Привязать Google', en: 'Link Google' },
+    googleLinkDone: { ru: 'Google привязан к твоему аккаунту.', en: 'Google is linked to your account.' },
+    openVkMiniApp: { ru: 'Открыть Mini App во ВКонтакте', en: 'Open the VK Mini App' },
     loginMethodsHeading: { ru: 'Войти и начать', en: 'Sign in and start' },
     loginTelegramHint: { ru: 'Кнопка входа через Telegram появится здесь.', en: 'The Telegram sign-in button will appear here.' },
     openTelegramButton: { ru: 'Открыть в Telegram', en: 'Open in Telegram' },
@@ -126,7 +189,10 @@
     vkOauthOpenLink: { ru: 'Открыть VK ID', en: 'Open VK ID' },
     vkOauthCancelled: { ru: 'Вход через VK ID не завершён. Можно попробовать ещё раз.', en: 'VK ID sign-in was not completed. You can try again.' },
     mergeAccountsTitle: { ru: 'Объединить аккаунты?', en: 'Merge accounts?' },
-    mergeAccountsIntro: { ru: 'Этот VK уже связан с другим аккаунтом, где есть данные. Можно перенести историю сюда без повторного начисления одинаковых кнопок за один день.', en: 'This VK is already linked to another account with data. You can move its history here without double-counting the same daily actions.' },
+    mergeAccountsIntro: { ru: 'Этот VK уже связан с другим аккаунтом. Пока аккаунты раздельны: ничего не перенесено. При подтверждении данные второго аккаунта перейдут в текущий, а прежний аккаунт будет удалён; e-mail и Google текущего аккаунта сохранятся. Если слияние заблокировано, ничего не изменится.', en: 'This VK belongs to another account. The accounts are still separate; nothing has moved. If confirmed, the other account’s data moves into the current account and its old account is deleted; this account’s email and Google stay. If blocked, nothing changes.' },
+    mergeReverseIntro: { ru: 'Сейчас аккаунты раздельны, ничего не перенесено. Аккаунт VK и Telegram сохранится; в него перейдут записи и проверенные входы Google/e-mail текущего аккаунта. Текущий аккаунт будет удалён только после вашего подтверждения. При блокировке ничего не меняется.', en: 'The accounts are separate; nothing has moved. The VK and Telegram account stays, receiving this account’s records and verified Google/email logins. This account is removed only after your confirmation. If blocked, nothing changes.' },
+    mergeTarget: { ru: 'Аккаунт, который сохранится: {name}, ID {id}.', en: 'Account kept: {name}, ID {id}.' },
+    mergeSource: { ru: 'Аккаунт, который будет удалён только после разрешённого подтверждения: {name}, ID {id}.', en: 'Account removed only after an allowed confirmation: {name}, ID {id}.' },
     mergeMovedEntries: { ru: 'Перенесём записей: {count}', en: 'Entries to move: {count}' },
     mergeDedupedEntries: { ru: 'Объединим дневных дублей без повторной ЖИЗНИ: {count}', en: 'Daily duplicates merged without extra LIFE: {count}' },
     mergeNotes: { ru: 'Объединим заметок в дублях: {count}', en: 'Duplicate notes to merge: {count}' },
@@ -135,7 +201,7 @@
     mergeBlockedActiveContract: { ru: 'Слияние пока заблокировано: в обоих аккаунтах есть активный договор. Сначала закрой один из них.', en: 'Merge is blocked: both accounts have an active contract. Close one first.' },
     mergeConfirm: { ru: 'Объединить аккаунты', en: 'Merge accounts' },
     mergeCancel: { ru: 'Отменить', en: 'Cancel' },
-    mergeNeedsConfirmation: { ru: 'Нужно подтвердить объединение аккаунтов.', en: 'Account merge needs confirmation.' },
+    mergeNeedsConfirmation: { ru: 'Откройте «Профиль» → «Связанные аккаунты»: там проверка слияния и причины блокировки. Пока ничего не объединено.', en: 'Open Profile → Linked accounts for the merge review and any blockers. Nothing has been merged yet.' },
     mergeInProgress: { ru: 'Объединяю аккаунты…', en: 'Merging accounts…' },
     mergeDone: { ru: 'Аккаунты объединены.', en: 'Accounts merged.' },
     mergeCancelled: { ru: 'Слияние отменено.', en: 'Merge cancelled.' },
@@ -148,7 +214,7 @@
     loginFailed: { ru: 'Не удалось войти через Telegram. Попробуйте ещё раз.', en: 'Could not sign in with Telegram. Try again.' },
     connecting: { ru: 'Подключаемся мягко и без спешки…', en: 'Connecting gently, no rush…' },
     tabToday: { ru: 'Сегодня', en: 'Today' },
-    todayIntro: { ru: 'Здравствуй, человек. Выбери, что сегодня было в твоей жизни.', en: 'Hello, human. Choose what was present in your life today.' },
+    todayIntro: { ru: 'Рады видеть тебя. Выбери, что сегодня было в твоей жизни.', en: 'Good to see you. Choose what was present in your life today.' },
     todayAdded: { ru: 'Сегодня добавлено: ', en: 'Added today: ' },
     todayAddedNote: { ru: '. Это видимый след жизни и заботы, не оценка тебя.', en: '. This is a visible trace of life and care, not a judgment of you.' },
     dailyHintHeading: { ru: 'Подсказка дня', en: 'Daily hint' },
@@ -182,11 +248,15 @@
     selectedDayHeading: { ru: 'Записи за выбранный день', en: 'Entries for the selected day' },
     historyDaysHeading: { ru: 'Семь дней по выбранную дату', en: 'Seven days through the selected date' },
     historyEmptyDay: { ru: 'Тихий день. Здесь нечего исправлять, и это не провал.', en: 'A quiet day. There is nothing to correct, and that is not a failure.' },
-    historyDaySummary: { ru: '{date}. Записей: {count}. ЖИЗНЬ: {life}.', en: '{date}: {count} entries, {life} LIFE.' },
+    historyDaySummary: { ru: '{date} · Записей: {count}. ЖИЗНЬ: {life}.', en: '{date}: {count} entries, {life} LIFE.' },
     historyEdit: { ru: 'Исправить заметку', en: 'Edit note' },
     historyDelete: { ru: 'Удалить случайную отметку', en: 'Delete accidental entry' },
     historySave: { ru: 'Сохранить заметку', en: 'Save note' },
     historyCancel: { ru: 'Отменить', en: 'Cancel' },
+    historyUnsavedTitle: { ru: 'Заметка ещё не сохранена', en: 'This note is not saved yet' },
+    historyUnsavedText: { ru: 'Сохранить изменения перед продолжением? Можно также не сохранять их или остаться в заметке.', en: 'Save your changes before continuing? You can also discard them or stay in the note.' },
+    historyDiscard: { ru: 'Не сохранять изменения', en: 'Discard changes' },
+    historySavedRefreshFailed: { ru: 'Заметка сохранена, но историю не удалось обновить. Переход не выполнен. Можно повторить переход — сохранять заметку снова не нужно.', en: 'The note was saved, but history could not refresh. You stayed here. Try navigating again; the note does not need saving again.' },
     historyEditLabel: { ru: 'Заметка к записи «{title}»', en: 'Note for “{title}”' },
     historyDeleteConfirm: { ru: 'Удалить эту случайную отметку? Баланс пересчитается, но уже встреченные персонажи останутся с тобой.', en: 'Delete this accidental entry? Your balance will be recalculated, but characters you have already met will stay with you.' },
     historySaved: { ru: 'Заметка исправлена.', en: 'The note was updated.' },
@@ -203,7 +273,7 @@
     practicesGoal: { ru: 'Цель', en: 'Goal' },
     tabContract: { ru: 'Договор', en: 'Contract' },
     contractCreate: { ru: 'Создать договор заботы', en: 'Create a care contract' },
-    contractCreateNote: { ru: 'Это мягкое обещание себе на неделю, без наказания.', en: 'A gentle promise to yourself for a week, without punishment.' },
+    contractCreateNote: { ru: 'Это мягкое обещание себе на календарную неделю — с понедельника по воскресенье, без наказания. Договор относится к текущей неделе в твоём часовом поясе. При создании в середине недели на цель есть только оставшиеся дни до воскресенья, не семь полных дней. В воскресенье новый договор начинается со следующей недели.', en: 'A gentle promise to yourself for a calendar week — Monday to Sunday, without punishment. The contract covers the current week in your time zone. If you create it midweek, you have only the remaining days until Sunday, not seven full days. On Sunday, a new contract starts the following week.' },
     contractTemplatesHeading: { ru: 'Шаблоны недельных договоров', en: 'Weekly contract templates' },
     contractTemplatesHint: { ru: 'Можно заполнить форму шаблоном и отредактировать под себя.', en: 'You can fill the form with a template and edit it to fit.' },
     contractTitle: { ru: 'Название цели', en: 'Goal name' },
@@ -212,21 +282,23 @@
     contractStakeAmount: { ru: 'Сумма фонда заботы', en: 'Care fund amount' },
     contractStakeHint: { ru: 'Не обязательно. Приложение не хранит и не переводит деньги. Это только мягкое напоминание, если сумма помогает договору.', en: 'Optional. The app does not store or transfer money. This is only a gentle reminder if an amount helps the contract.' },
     contractStakeCurrency: { ru: 'Валюта', en: 'Currency' },
+    contractStakeCurrencyHint: { ru: 'Можно указать валюту или свою единицу, например RUB или баллы заботы. До 20 символов.', en: 'Enter a currency or your own unit, such as USD or care points. Up to 20 characters.' },
     contractReward: { ru: 'Подарок себе при выполнении', en: 'Gift to yourself on completion' },
     contractFund: { ru: 'Куда отправить, если не получилось', en: 'Where to send if it did not work' },
     contractSubmit: { ru: 'Создать договор', en: 'Create contract' },
     tabSettings: { ru: 'Настройки', en: 'Settings' },
+    dismissNotification: { ru: 'Закрыть уведомление', en: 'Dismiss notification' },
     tabSupport: { ru: 'Полезное рядом', en: 'Useful nearby' },
     tabSupportShort: { ru: 'Полезное', en: 'Useful' },
-    supportTabNew: { ru: 'Полезное рядом, {label}', en: 'Useful nearby, {label}' },
-    supportTabNewShort: { ru: '{label}', en: '{label}' },
+    supportTabNew: { ru: 'Полезное рядом: осталось действий — {count}', en: 'Useful nearby: {count} actions remaining' },
+    supportTabNewShort: { ru: 'Ещё {count}', en: '{count} left' },
     supportIntro: { ru: 'Здесь иногда появляются действия, которые помогают Копилке, сообществу или могут быть полезны тебе. Это необязательно.', en: 'Helpful optional actions can appear here: for the project, the community, or for you.' },
     supportBadgeTitle: { ru: 'Светлячок поддержки', en: 'Support firefly' },
     supportBadgeUnit: { ru: 'Огоньки поддержки:', en: 'Support lights:' },
     supportBadgeHint: { ru: 'Это отдельный бейдж. Он не меняет ЖИЗНЬ и не оценивает тебя.', en: 'This is a separate badge. It does not change LIFE and does not judge you.' },
     supportActionsHeading: { ru: 'Карточки поддержки', en: 'Support cards' },
-    supportNewSummary: { ru: '{label}. Список идёт от новых к старым.', en: '{label}. The list goes from newest to oldest.' },
-    supportNoNew: { ru: 'Новых карточек пока нет. Уже открытые можно посмотреть снова.', en: 'No new cards right now. Opened cards can still be viewed again.' },
+    supportNewSummary: { ru: 'Можно открыть и засчитать: {count}.', en: '{count} actions can still earn support lights.' },
+    supportNoNew: { ru: 'Все текущие действия уже засчитаны. Карточки можно открыть снова.', en: 'All current actions have been counted. You can open the cards again.' },
     supportEmpty: { ru: 'Карточки появятся здесь позже.', en: 'Cards will appear here later.' },
     supportOpen: { ru: 'Открыть и засчитать', en: 'Open and count' },
     supportOpenAgain: { ru: 'Открыть снова', en: 'Open again' },
@@ -255,6 +327,7 @@
     artifactMysteryAlt: { ru: 'Закрытое тёмное место для будущего персонажа.', en: 'A closed dark place for a future character.' },
     refLinkLabel: { ru: 'Твоя реферальная ссылка', en: 'Your referral link' },
     refLinkHint: { ru: 'По этой ссылке переход и вход считаются твоим приглашением.', en: 'Following this link and signing in counts as your invite.' },
+    referralPrivacyNotice: { ru: 'Получатель ссылки также сможет посмотреть ваш публичный профиль: имя, имя пользователя, баллы, категории действий и число приглашённых (всего и активных). Личные заметки не показываются.', en: 'The link recipient can also view your public profile: your name, username, LIFE points, action categories and invitation counts (total and active). Private notes are not shown.' },
     profileLinkLabel: { ru: 'Ссылка профиля', en: 'Profile link' },
     profileLinkHint: { ru: 'Это публичная ссылка только для просмотра профиля. При входе она сохранится как приглашение.', en: 'This is a public read-only profile link. If the visitor signs in, it will be saved as the invite.' },
     copyRefLink: { ru: 'Копировать ссылку', en: 'Copy link' },
@@ -268,6 +341,8 @@
     storyEditorOpened: { ru: 'Редактор истории открыт. Публикация произойдёт только после твоего подтверждения.', en: 'The story editor opened. Nothing is published until you confirm it.' },
     storyCancelled: { ru: 'История не опубликована. Ссылку можно скопировать вручную.', en: 'The story was not published. You can copy the link manually.' },
     storyUnsupported: { ru: 'Истории здесь не поддерживаются. Ссылка выделена для ручного копирования.', en: 'Stories are not supported here. The link is selected for manual copying.' },
+    vkAuthCooldown: { ru: 'Слишком много попыток входа. Попробуй через {seconds} сек.', en: 'Too many sign-in attempts. Try again in {seconds} seconds.' },
+    vkAuthRetryReady: { ru: 'Можно повторить вход.', en: 'You can try signing in again.' },
     storyLoadFailed: { ru: 'Не удалось подготовить карточку истории. Ссылку можно скопировать вручную.', en: 'The story card could not be prepared. You can copy the link manually.' },
     shareRefText: { ru: 'Приглашаю в приложение, где можно мягко отмечать маленькие шаги жизни — и видеть, как копится её тепло. Без давления и стыда.', en: 'I invite you to an app where you can gently note the small steps of life and watch its warmth grow. No pressure, no shame.' },
     shareProfileText: { ru: 'Посмотри мой профиль в Копилке жизни — я отмечаю здесь то, что происходит в моей жизни.', en: 'Look at my profile in Life Harbor — I am noting here what happens in my life.' },
@@ -276,6 +351,9 @@
     copyRetry: { ru: 'Не удалось скопировать ссылку. Попробуй ещё раз.', en: 'Could not copy the link. Please try again.' },
     shareOpened: { ru: 'Окно «Поделиться» открыто.', en: 'Share dialog opened.' },
     shareCompleted: { ru: 'Ссылка отправлена.', en: 'The link was shared.' },
+    sharePublicationCompleted: { ru: 'Публикация завершена.', en: 'Publication completed.' },
+    shareActionCompleted: { ru: 'Действие «Поделиться» завершено.', en: 'Sharing completed.' },
+    shareUnconfirmed: { ru: 'Отправка или публикация не подтверждена. Ссылку можно скопировать вручную.', en: 'Sending or publication was not confirmed. You can copy the link manually.' },
     shareUnavailable: { ru: 'Ссылка пока не готова. Попробуй ещё раз после загрузки профиля.', en: 'The link is not ready yet. Try again after the profile loads.' },
     copyFailed: { ru: 'Не получилось скопировать автоматически. Ссылка выделена ниже — скопируй её обычной командой устройства.', en: 'Automatic copying did not work. The link is selected below so you can copy it with your device command.' },
     shareCancelled: { ru: 'Отправка отменена. Ссылка осталась доступна для ручного копирования.', en: 'Sharing was cancelled. The link is still available for manual copying.' },
@@ -295,13 +373,38 @@
     publicLoginCta: { ru: 'Открыть свою Копилку', en: 'Open my Life Harbor' },
     publicProfileNotFound: { ru: 'Профиль не найден.', en: 'Profile not found.' },
     settingsTimezone: { ru: 'Часовой пояс', en: 'Time zone' },
-    settingsTimezoneHint: { ru: 'Например: Asia/Novosibirsk, Europe/Moscow или UTC.', en: 'Example: Asia/Novosibirsk, Europe/Moscow, or UTC.' },
+    settingsTimezoneHint: { ru: 'Выбери свой часовой пояс. Смещение UTC указано на сегодня и может меняться летом.', en: 'Choose your time zone. The UTC offset is shown for today and may change with daylight saving time.' },
+    invalidTimezone: { ru: 'Выбери корректный часовой пояс из списка.', en: 'Choose a valid time zone from the list.' },
     settingsReminders: { ru: 'Вечернее напоминание включено', en: 'Evening reminder enabled' },
     settingsReminderTime: { ru: 'Время напоминания', en: 'Reminder time' },
     settingsReminderNote: { ru: 'Пример: “Если есть силы, можно за 10 секунд пополнить Копилку жизни.”', en: 'Example: “If you have energy, you can top up your Life Harbor in 10 seconds.”' },
+    reminderChannelsNote: { ru: 'Напоминания приходят в Telegram, VK и браузеры, где включены уведомления. На e-mail они не отправляются.', en: 'Reminders arrive via Telegram, VK, and subscribed browsers. They are not sent by email.' },
+    signOutSite: { ru: 'Выйти из аккаунта', en: 'Sign out' },
+    signOutSiteHint: { ru: 'История останется в аккаунте. Несохранённые записи в этом браузере будут очищены.', en: 'Your history stays in your account. Unsaved drafts in this browser will be cleared.' },
+    signedOutSite: { ru: 'Вышли из аккаунта. Можно войти в другой аккаунт. История сохранена.', en: 'Signed out. You can sign in with another account. Your history is saved.' },
+    oauthLoginRetry: { ru: 'Вход не завершён или ссылка уже использована. Нажмите кнопку входа ещё раз и выберите нужный аккаунт.', en: 'Sign-in was not completed or the link has already been used. Start sign-in again and choose the account you want.' },
+    installAppHeading: { ru: 'Установить Копилку', en: 'Install Life Harbor' },
+    installHomeText: { ru: 'Копилка будет открываться как приложение. Это необязательно.', en: 'Open Life Harbor like an app. Installation is optional.' },
+    installHomeDismiss: { ru: 'Не сейчас', en: 'Not now' },
+    installAppButton: { ru: 'Установить Копилку', en: 'Install Life Harbor' },
+    installAppAndroidHint: { ru: 'Откройте меню Chrome и выберите «Установить приложение» или «Добавить на главный экран». Если Копилка уже установлена, повторять не нужно.', en: 'Open the Chrome menu and choose Install app or Add to Home screen. If it is already installed, you do not need to install it again.' },
+    installAppDesktopHint: { ru: 'В Chrome выберите «Установить» в адресной строке или найдите установку приложения в меню браузера. Если Копилка уже установлена, повторять не нужно.', en: 'In Chrome, use the Install icon in the address bar or find the app installation option in the browser menu. If it is already installed, you do not need to install it again.' },
+    installAppIosHint: { ru: 'В браузере нажмите «Поделиться», затем «На экран Домой».', en: 'In your browser, tap Share, then Add to Home Screen.' },
+    pushHeading: { ru: 'Уведомления в этом браузере', en: 'Notifications in this browser' },
+    pushChecking: { ru: 'Проверяем поддержку уведомлений…', en: 'Checking notifications…' },
+    pushEnable: { ru: 'Включить в этом браузере', en: 'Enable in this browser' },
+    pushDisable: { ru: 'Отключить в этом браузере', en: 'Disable in this browser' },
+    pushHint: { ru: 'Разрешение запрашивается только по нажатию. На других устройствах включите отдельно.', en: 'Permission is only requested when you press the button. Enable separately on other devices.' },
+    pushUnsupported: { ru: 'Этот браузер не поддерживает push-уведомления.', en: 'This browser does not support push notifications.' },
+    pushUnconfigured: { ru: 'Уведомления пока не настроены на сервере.', en: 'Notifications are not configured on the server yet.' },
+    pushDenied: { ru: 'Уведомления запрещены в настройках браузера.', en: 'Notifications are blocked in browser settings.' },
+    pushOff: { ru: 'В этом браузере уведомления выключены.', en: 'Notifications are off in this browser.' },
+    pushOn: { ru: 'В этом браузере уведомления включены.', en: 'Notifications are on in this browser.' },
+    pushError: { ru: 'Не удалось изменить уведомления. Попробуйте ещё раз.', en: 'Could not change notifications. Please try again.' },
     vkReminderPromptTitle: { ru: 'Хочешь мягкое вечернее напоминание?', en: 'Want a gentle evening reminder?' },
     vkReminderPromptText: { ru: 'Можно разрешить сообщения от сообщества «Копилка жизни». Тогда вечером VK сможет тихо напомнить зайти. Личные записи в сообщения не отправляются.', en: 'You can allow messages from the Life Harbor community. Then VK can gently remind you to open the app in the evening. Personal entries are not sent to messages.' },
     vkReminderStatusUnknown: { ru: 'VK-напоминания ещё не включены.', en: 'VK reminders are not enabled yet.' },
+    vkReminderStatusOff: { ru: 'Вечерние напоминания выключены. Сообщения от сообщества разрешены.', en: 'Evening reminders are off. Community messages are allowed.' },
     vkReminderStatusOn: { ru: 'VK-напоминания включены. Вечером сообщество сможет мягко напомнить зайти.', en: 'VK reminders are enabled. The community can gently remind you in the evening.' },
     vkReminderStatusNeedVk: { ru: 'VK-напоминания доступны внутри VK Mini App.', en: 'VK reminders are available inside the VK Mini App.' },
     vkReminderEnable: { ru: 'Включить напоминания в VK', en: 'Enable VK reminders' },
@@ -309,7 +412,8 @@
     vkReminderHint: { ru: 'Нужно разрешить сообщения от сообщества. Личные записи в VK не отправляются.', en: 'You need to allow community messages. Personal entries are not sent to VK.' },
     vkReminderRequesting: { ru: 'Открываю разрешение VK…', en: 'Opening VK permission…' },
     vkReminderAllowed: { ru: 'VK-напоминания включены.', en: 'VK reminders enabled.' },
-    vkReminderDenied: { ru: 'VK не дал разрешение на сообщения. Можно попробовать ещё раз.', en: 'VK did not allow messages. You can try again.' },
+    vkReminderNoResult: { ru: 'VK не вернул результат запроса. Напоминания не включены. Можно попробовать ещё раз.', en: 'VK did not return a request result. Reminders are not enabled. You can try again.' },
+    vkReminderDenied: { ru: 'VK не разрешил сообщения или вернул ошибку. Можно попробовать ещё раз.', en: 'VK denied messages or returned an error. You can try again.' },
     settingsSave: { ru: 'Сохранить настройки', en: 'Save settings' },
     languageHeading: { ru: 'Язык', en: 'Language' },
     accountLinksHeading: { ru: 'Связанные аккаунты', en: 'Linked accounts' },
@@ -338,12 +442,73 @@
     const def = ENTRY_DEFS[type];
     if (!def) return null;
     const lang = normalizeLocale(locale);
-    return { type, title: def.title[lang] || def.title[DEFAULT_LOCALE], hint: def.hint[lang] || def.hint[DEFAULT_LOCALE], points: def.points, icon: def.icon };
+    return { type, title: def.title[lang] || def.title[DEFAULT_LOCALE], shortTitle: def.shortTitle?.[lang] || def.title[lang] || def.title[DEFAULT_LOCALE], hint: def.hint[lang] || def.hint[DEFAULT_LOCALE], points: def.points, icon: def.icon };
   }
 
   function entryTypes(locale) {
     return Object.keys(ENTRY_DEFS).map((type) => entryType(locale, type));
   }
 
-  global.KopilkaI18n = { LOCALES, DEFAULT_LOCALE, normalizeLocale, t, entryType, entryTypes, STRINGS, ENTRY_DEFS };
+  // Intl supplies CLDR translations and the runtime's complete zone catalog.
+  // A small city override avoids the generic «Eastern European time» for Russia.
+  const RU_ZONE_CITIES = {
+    'Europe/Kaliningrad': 'Калининград', 'Europe/Moscow': 'Москва',
+    'Europe/Kirov': 'Киров', 'Europe/Volgograd': 'Волгоград',
+    'Europe/Astrakhan': 'Астрахань', 'Europe/Saratov': 'Саратов',
+    'Europe/Ulyanovsk': 'Ульяновск', 'Europe/Samara': 'Самара',
+    'Asia/Yekaterinburg': 'Екатеринбург', 'Asia/Omsk': 'Омск',
+    'Asia/Novosibirsk': 'Новосибирск', 'Asia/Barnaul': 'Барнаул',
+    'Asia/Tomsk': 'Томск', 'Asia/Krasnoyarsk': 'Красноярск',
+    'Asia/Novokuznetsk': 'Новокузнецк', 'Asia/Irkutsk': 'Иркутск',
+    'Asia/Chita': 'Чита', 'Asia/Yakutsk': 'Якутск',
+    'Asia/Khandyga': 'Хандыга', 'Asia/Vladivostok': 'Владивосток',
+    'Asia/Ust-Nera': 'Усть-Нера', 'Asia/Magadan': 'Магадан',
+    'Asia/Sakhalin': 'Сахалин', 'Asia/Srednekolymsk': 'Среднеколымск',
+    'Asia/Kamchatka': 'Камчатка', 'Asia/Anadyr': 'Анадырь'
+  };
+  function validTimezone(value) {
+    if (typeof value !== 'string' || !/^[A-Za-z][A-Za-z0-9._+-]*(?:\/[A-Za-z0-9._+-]+)*$/.test(value)) return false;
+    try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; }
+    catch (_) { return false; }
+  }
+  function timezoneChoices(current, serverZones) {
+    let zones;
+    try { zones = Intl.supportedValuesOf('timeZone'); }
+    catch (_) { zones = Array.isArray(serverZones) ? serverZones.filter(validTimezone) : Object.keys(RU_ZONE_CITIES).concat(['Europe/London', 'America/New_York', 'Asia/Tokyo']); }
+    // Never canonicalize a saved alias: its exact value must remain selectable.
+    return [...new Set(['UTC', ...zones, ...(validTimezone(current) ? [current] : [])])];
+  }
+  function timezoneLabel(locale, zone, date = new Date()) {
+    if (!validTimezone(zone)) return t(locale, 'invalidTimezone');
+    const lang = normalizeLocale(locale);
+    const canonical = new Intl.DateTimeFormat('en', { timeZone: zone }).resolvedOptions().timeZone;
+    let offset;
+    try {
+      offset = new Intl.DateTimeFormat('en', { timeZone: zone, timeZoneName: 'longOffset' }).formatToParts(date).find(p => p.type === 'timeZoneName').value.replace('GMT', 'UTC');
+    } catch (_) {
+      // Older WebViews reject longOffset. Compute the actual offset in this
+      // zone at this instant; do not substitute UTC for nonzero/DST zones.
+      const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(date);
+      const values = Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, Number(p.value)]));
+      const wallTime = Date.UTC(values.year, values.month - 1, values.day, values.hour % 24, values.minute, values.second);
+      const minutes = Math.round((wallTime - Math.floor(date.getTime() / 1000) * 1000) / 60000);
+      const absolute = Math.abs(minutes);
+      offset = `UTC${minutes < 0 ? '-' : '+'}${String(Math.floor(absolute / 60)).padStart(2, '0')}:${String(absolute % 60).padStart(2, '0')}`;
+    }
+    if (offset === 'UTC') offset = 'UTC+00:00';
+    if (canonical === 'UTC') return `${lang === 'ru' ? 'Всемирное время' : 'Coordinated Universal Time'} (${offset})${zone === 'UTC' ? '' : ` — ${zone}`}`;
+    let localized;
+    try {
+      localized = new Intl.DateTimeFormat(lang, { timeZone: zone, timeZoneName: 'longGeneric' }).formatToParts(date).find(p => p.type === 'timeZoneName').value;
+    } catch (_) {
+      localized = new Intl.DateTimeFormat(lang, { timeZone: zone, timeZoneName: 'long' }).formatToParts(date).find(p => p.type === 'timeZoneName').value;
+    }
+    // Newly added IANA zones may predate a CLDR translation in this runtime.
+    if (lang === 'ru' && !/[А-Яа-яЁё]/.test(localized)) localized = `Местное время: ${localized}`;
+    const city = lang === 'ru' ? RU_ZONE_CITIES[canonical] : canonical.split('/').pop().replace(/_/g, ' ');
+    // Supplemental exact ID disambiguates same-name CLDR zones and saved aliases.
+    return `${city || localized} (${offset})${city && zone === canonical ? '' : ` — ${zone}`}`;
+  }
+
+  global.KopilkaI18n = { LOCALES, DEFAULT_LOCALE, normalizeLocale, t, entryType, entryTypes, STRINGS, ENTRY_DEFS, validTimezone, timezoneChoices, timezoneLabel };
 })(window);

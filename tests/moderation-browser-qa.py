@@ -25,20 +25,26 @@ def launch_query():
 
 
 def inspect_footer(frame):
-    frame.evaluate("document.documentElement.style.scrollBehavior='auto';window.scrollTo(0,document.documentElement.scrollHeight)")
-    frame.wait_for_timeout(150)
-    return frame.evaluate("""() => {
+    frame.evaluate("document.documentElement.style.scrollBehavior='auto'")
+    # At 200% text zoom the legal group can exceed the space above fixed nav.
+    # Test every link at its own reachable scroll position, not all at once.
+    links = []
+    for link in frame.locator('.legal-links a').all():
+        link.scroll_into_view_if_needed()
+        links.append(link.evaluate("""a => {
+          const nav=document.querySelector('.tab-bar').getBoundingClientRect();
+          const rects=Array.from(a.getClientRects());
+          return {text:a.textContent,rects:rects.map(r=>({top:r.top,bottom:r.bottom})),
+            visible:rects.every(r=>r.top>=0 && r.bottom<=nav.top-2),
+            clickable:rects.every(r=>a.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)))};
+        }"""))
+    return frame.evaluate("""links => {
       const nav=document.querySelector('.tab-bar').getBoundingClientRect();
-      const links=Array.from(document.querySelectorAll('.legal-links a')).map(a=>{
-        const rects=Array.from(a.getClientRects());
-        return {text:a.textContent,visible:rects.every(r=>r.top>=0 && r.bottom<=nav.top-2),
-          clickable:rects.every(r=>a.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)))};
-      });
       return {links,navTop:nav.top,footerBottom:document.querySelector('.legal-links').getBoundingClientRect().bottom,
         horizontalOverflow:document.documentElement.scrollWidth>innerWidth+1,scrollWidth:document.documentElement.scrollWidth,scrollX:window.scrollX,
         overflowingContent:Array.from(document.querySelectorAll('body *')).filter(e=>e.clientWidth>0 && e.scrollWidth>e.clientWidth+2).slice(0,10).map(e=>({id:e.id,cls:e.className,w:e.clientWidth,sw:e.scrollWidth})),
         overflowElements:Array.from(document.querySelectorAll('body *')).filter(e=>e.getClientRects().length && e.getBoundingClientRect().right>innerWidth+1).slice(0,8).map(e=>({tag:e.tagName,id:e.id,cls:e.className,right:e.getBoundingClientRect().right}))};
-    }""")
+    }""", links)
 
 
 def main():

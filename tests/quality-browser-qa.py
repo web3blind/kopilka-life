@@ -42,7 +42,7 @@ def run():
             page.unroute('**/api/product?*')
             tab('settings')
             assert page.locator('#eveningReminderTime').input_value() == '17:31'
-            page.locator('#timezone').fill('Pacific/Kiritimati')
+            page.locator('#timezone').select_option('Pacific/Kiritimati')
             page.locator('#settingsForm').evaluate('form=>form.requestSubmit()'); idle()
             assert page.evaluate('state.user.timezone') == 'Pacific/Kiritimati'
             assert page.evaluate('state.history.todayDate') == datetime.now(ZoneInfo('Pacific/Kiritimati')).date().isoformat()
@@ -70,7 +70,7 @@ def run():
             assert not any('\u0400' <= ch <= '\u04ff' for ch in page.locator('#practiceGoal').inner_text())
             page.locator('.legal-links a[href="/privacy.html"]').click()
             page.get_by_role('button', name='Close document', exact=True).wait_for()
-            assert page.locator('.document-content [lang="ru"]').count() > 0
+            assert page.locator('.document-content [lang="en"]').count() > 0
             page.get_by_role('button', name='Close document', exact=True).click()
             print('PASS locale controls, practice options, legal reader language')
 
@@ -124,7 +124,7 @@ def run():
             page.locator('[data-support-open="'+str(action['id'])+'"]').click(); idle()
             assert page.evaluate('state.support.badge.points') == before
             assert page.locator('#statusRegion').evaluate('e=>e.classList.contains("error")')
-            page.evaluate('window.open=()=>({opener:null,location:{replace(url){window.__opened=url}},close(){}})')
+            page.evaluate('window.open=(url)=>{window.__opened=url;return {opener:null,close(){}}}')
             page.locator('[data-support-open="'+str(action['id'])+'"]').click(); idle()
             opened=page.evaluate('window.__opened')
             expected=page.evaluate('(url)=>new URL(url).href', action['url'])

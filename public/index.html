@@ -6,11 +6,254 @@
   <title>Копилка жизни</title>
   <meta name="theme-color" content="#B97443">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
-  <link rel="apple-touch-icon" href="/assets/icon-150.png">
+  <link rel="apple-touch-icon" href="/assets/icon-180.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260919-frontend-quality">
+  <!-- STARTUP_GUARD_BEGIN: generated from public/startup.js -->
+  <script>
+/* Early startup guard: independent of app.js/i18n, never an identity proof. */
+(function () {
+  'use strict';
+  var version = '20261013-startup-diag1';
+  // Per-document only: no storage, identity, launch proof or device fingerprint.
+  var boot = 'unavailable', started = Date.now(), sdk = 'unknown';
+  try {
+    var random = new Uint32Array(2);
+    window.crypto.getRandomValues(random);
+    boot = random[0].toString(16) + '-' + random[1].toString(16);
+  } catch (_) { /* no persistent or identifying fallback */ }
+  function rootState(id) {
+    // DOM presence/hidden only; not computed visibility, paint or host readiness.
+    var node = document.getElementById(id);
+    return !node ? 'absent' : (node.hidden ? 'hidden' : 'unhidden');
+  }
+  function evidence() {
+    var handlers = window.webkit && window.webkit.messageHandlers;
+    var init = handlers && handlers.VKWebAppInit;
+    var ready = document.readyState;
+    return 'boot=' + boot + ';seq=' + count + ';ms=' + Math.min(60000, Math.max(0, Date.now() - started))
+      + ';ready=' + (['loading', 'interactive', 'complete'].indexOf(ready) < 0 ? 'unknown' : ready)
+      + ';startup=' + rootState('startupScreen') + ';app=' + rootState('appShell') + ';login=' + rootState('loginScreen')
+      + ';init=' + (init && typeof init.postMessage === 'function' ? '1' : '0')
+      + ';close=' + (handlers && handlers.VKWebAppClose ? '1' : '0') + ';sdk=' + sdk;
+  }
+  function observeHandlers() {
+    // Handler availability is an observation, not native readiness or identity.
+    try {
+      var handlers = window.webkit && window.webkit.messageHandlers;
+      if (handlers && handlers.VKWebAppInit && typeof handlers.VKWebAppInit.postMessage === 'function' && handlers.VKWebAppClose) log('handlers-observed');
+    } catch (_) { /* diagnostics must not prevent recovery */ }
+  }
+  var allowed = ['guard-loaded', 'bridge-loaded', 'app-loaded', 'app-executed', 'i18n-loaded', 'documents-loaded', 'scene-loaded', 'script-failed', 'runtime-error', 'init-native-recovery', 'ui-visible', 'startup-timeout', 'bridge-webview', 'bridge-web', 'init-result', 'init-failed', 'bridge-unknown', 'handlers-observed', 'dom-content-loaded'];
+  var seen = {}, count = 0, nativeSent = false, finished = false, failed = false;
+  var isVkLaunch = /(?:[?&#])vk_app_id=/.test(window.location.search + window.location.hash);
+  function log(event) {
+    if (allowed.indexOf(event) < 0 || seen[event] || count >= allowed.length) return;
+    seen[event] = true; count++;
+    try {
+      var payload = JSON.stringify({event: 'startup_' + event, details: evidence(), platform: isVkLaunch ? 'vk' : 'web', version: version});
+      if (typeof window.fetch === 'function') window.fetch('/api/client-log', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: payload,
+        mode: 'same-origin', credentials: 'omit', referrerPolicy: 'no-referrer',
+        cache: 'no-store', keepalive: true
+      }).catch(function () {});
+    } catch (_) { /* no raw URLs, launch params, user text or exception messages */ }
+  }
+  function visibleUI() {
+    var app = document.getElementById('appShell'), login = document.getElementById('loginScreen');
+    return Boolean((app && !app.hidden) || (login && !login.hidden));
+  }
+  function refresh() {
+    observeHandlers();
+    var screen = document.getElementById('startupScreen');
+    // Localize as soon as parsing creates the shell; DOMContentLoaded can itself
+    // be delayed by secondary scripts. Avoid repeated text mutations.
+    if (screen && !screen.hidden) {
+      var copy = {
+        startupHeading: english() ? 'Life Harbor' : 'Копилка жизни',
+        startupMessage: failed
+          ? (english() ? 'The app could not finish loading. Try loading it again.' : 'Не удалось завершить загрузку. Попробуй загрузить приложение ещё раз.')
+          : (english() ? 'Loading the app…' : 'Загружаем приложение…'),
+        startupReload: english() ? 'Load again' : 'Загрузить ещё раз'
+      };
+      Object.keys(copy).forEach(function (id) {
+        var node = document.getElementById(id);
+        if (node && node.textContent !== copy[id]) node.textContent = copy[id];
+      });
+      var retry = document.getElementById('startupReload');
+      if (retry && retry.hidden !== !failed) retry.hidden = !failed;
+    }
+    if (screen && !screen.hidden && visibleUI()) { screen.hidden = true; finished = true; log('ui-visible'); }
+  }
+  function fail() {
+    refresh();
+    if (finished) return;
+    failed = true;
+    refresh();
+  }
+  function english() {
+    try { return /(?:[?&])lang=en(?:&|$)/.test(window.location.search) || window.localStorage.getItem('kopilkaLocale') === 'en'; }
+    catch (_) { return false; }
+  }
+  // Document-local request ownership. Web transport pending is NOT a native
+  // attempt. Conversely any native invocation may have delivered even if it
+  // throws, rejects or never acknowledges: never automatically send a second.
+  var webRequested = false, webPromise, nativePromise, probePromise;
+  var initPromise, settleInit, readinessTimer, expired = false;
+  var deadline = started + 30000;
+  function stopReadiness() {
+    if (readinessTimer) clearTimeout(readinessTimer);
+    readinessTimer = null;
+  }
+  function retain(promise) {
+    Promise.resolve(promise).then(settleInit, function () { settleInit(); });
+    return promise;
+  }
+  function liveInit() {
+    var handlers = window.webkit && window.webkit.messageHandlers;
+    var handler = handlers && handlers.VKWebAppInit;
+    return handlers && handlers.VKWebAppClose && handler && typeof handler.postMessage === 'function' ? handler : null;
+  }
+  function directInit(handler) {
+    if (nativeSent || expired || Date.now() > deadline) return;
+    nativeSent = true; stopReadiness(); // Reserve BEFORE invoking host code.
+    log('init-native-recovery');
+    try { handler.postMessage({request_id: 'startup_native_' + boot}); }
+    catch (_) { /* ambiguous delivery; no retry */ }
+    settleInit();
+  }
+  function checkInit(finalCheck) {
+    if (!isVkLaunch || nativeSent || expired || probePromise) return;
+    if (Date.now() > deadline) return;
+    var bridge = window.vkBridge;
+    if (!bridge || typeof bridge.send !== 'function' || typeof bridge.isWebView !== 'function') return;
+    try {
+      if (!bridge.isWebView()) {
+        if (!webRequested) {
+          webRequested = true; // Also reserve before a synchronous SDK failure.
+          try { webPromise = retain(bridge.send('VKWebAppInit')); }
+          catch (_) { settleInit(); }
+        }
+        var handler = liveInit();
+        if (handler) directInit(handler);
+        return;
+      }
+      // Pinned 3.0.2 native supportsAsync reads its captured handler map and
+      // sends no discovery request. A false result must not create a forever-
+      // pending SDK Init request; a replaced live map needs direct fallback.
+      if (typeof bridge.supportsAsync !== 'function') return;
+      probePromise = Promise.resolve().then(function () {
+        return bridge.supportsAsync('VKWebAppInit');
+      }).then(function (supported) {
+        if (nativeSent || expired || Date.now() > deadline) return;
+        if (supported) {
+          nativeSent = true; stopReadiness();
+          try { nativePromise = retain(bridge.send('VKWebAppInit')); }
+          catch (_) { settleInit(); }
+        } else {
+          var handler = liveInit();
+          if (handler) directInit(handler);
+        }
+      }).catch(function () { /* readiness failure is not permission or delivery */ }).then(function () {
+        probePromise = null;
+      });
+    } catch (_) { /* environment observation must not block application auth */ }
+  }
+  function initVkBridge() {
+    if (!initPromise) initPromise = new Promise(function (resolve) { settleInit = resolve; });
+    if (!isVkLaunch || expired) settleInit();
+    else checkInit(false);
+    return initPromise;
+  }
+  function readinessTick() {
+    readinessTimer = null;
+    if (nativeSent || expired || !isVkLaunch) return;
+    var finalCheck = Date.now() >= deadline;
+    initVkBridge();
+    if (finalCheck) {
+      checkInit(true);
+      // Let the serialized final support check complete, then permanently stop.
+      Promise.resolve(probePromise).then(function () { expired = true; settleInit(); });
+    } else if (!nativeSent) {
+      readinessTimer = setTimeout(readinessTick, Math.min(250, deadline - Date.now()));
+    }
+  }
+  function bridgeEvent(event) {
+    var type = event && event.detail && event.detail.type;
+    if (type === 'VKWebAppInitResult') log('init-result');
+    if (type === 'VKWebAppInitFailed') log('init-failed');
+  }
+  window.addEventListener('VKWebAppEvent', bridgeEvent);
+  document.addEventListener('VKWebAppEvent', bridgeEvent);
+  window.KopilkaStartup = {
+    initVkBridge: initVkBridge,
+    mark: function (event) {
+      log(event);
+      if (event === 'bridge-loaded') {
+        try {
+          var bridge = window.vkBridge;
+          sdk = bridge && typeof bridge.isWebView === 'function' ? (bridge.isWebView() ? 'webview' : 'web') : 'unknown';
+          log(sdk === 'webview' ? 'bridge-webview' : (sdk === 'web' ? 'bridge-web' : 'bridge-unknown'));
+          if (bridge && typeof bridge.subscribe === 'function') bridge.subscribe(bridgeEvent);
+        } catch (_) { /* diagnostics only */ }
+        initVkBridge();
+      }
+      refresh();
+    }
+  };
+  window.addEventListener('error', function (event) {
+    var target = event.target;
+    var script = target && target.tagName === 'SCRIPT';
+    log(script ? 'script-failed' : 'runtime-error');
+    fail();
+  }, true);
+  window.addEventListener('unhandledrejection', function () { log('runtime-error'); fail(); });
+  document.addEventListener('DOMContentLoaded', function () { log('dom-content-loaded'); refresh(); });
+  if (typeof MutationObserver === 'function') new MutationObserver(refresh).observe(document.documentElement, {subtree: true, childList: true, attributes: true, attributeFilter: ['hidden']});
+  // DOM visibility is not native readiness. Keep bounded checks alive even after
+  // the authenticated HTML has appeared; never alter the vendor transport/auth.
+  [0, 100, 300, 750, 1500, 2500, 4000, 8000].forEach(function (delay) { setTimeout(observeHandlers, delay); });
+  if (isVkLaunch) readinessTimer = setTimeout(readinessTick, 0);
+  setTimeout(function () { refresh(); if (!finished) { log('startup-timeout'); fail(); } }, 10000);
+  log('guard-loaded');
+})();
+  </script>
+  <!-- STARTUP_GUARD_END -->
+  <!-- Critical startup and keyboard access styles have no asset dependency. -->
+  <style>
+    [hidden] { display: none !important; }
+    html { background: #fff8ef; color-scheme: only light; }
+    body { margin: 0; background: #fff8ef; color: #23160f; font: 1rem/1.55 system-ui, sans-serif; }
+    #startupScreen {
+      box-sizing: border-box; width: calc(100% - 2rem); max-width: 40rem;
+      margin: max(2rem, env(safe-area-inset-top)) auto 2rem; padding: clamp(1.25rem, 5vw, 2rem);
+      color: #23160f; background: #fffdf9; border: 1px solid #decab4; border-radius: 22px;
+      box-shadow: 0 10px 26px rgba(92,56,22,.09); font: 1rem/1.55 system-ui, sans-serif; overflow-wrap: anywhere;
+    }
+    #startupHeading { margin: 0 0 .65rem; font-size: clamp(1.5rem, 6vw, 2rem); line-height: 1.2; }
+    #startupMessage { margin: 0; color: #6c5a4a; }
+    #startupReload {
+      margin-top: 1.25rem; min-height: 46px; max-width: 100%; padding: .78rem 1.08rem;
+      font: inherit; font-weight: 700; color: #fff; background: #8b4f1f;
+      border: 1px solid #8b4f1f; border-radius: 999px; cursor: pointer;
+    }
+    #startupReload:focus-visible { outline: 3px solid #173f68; outline-offset: 3px; }
+    .skip-link {
+      position: absolute; left: .75rem; top: .75rem; z-index: 50;
+      width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+      background: #173f68; color: #fff; padding: 0; border-radius: 12px;
+    }
+    .skip-link:focus { width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; padding: .7rem 1rem; outline: 3px solid #173f68; outline-offset: 3px; }
+  </style>
+  <link rel="stylesheet" href="/styles.css?v=20261010-compass4" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="/styles.css?v=20261010-compass4"></noscript>
 </head>
 <body>
+  <section id="startupScreen" aria-labelledby="startupHeading">
+    <h1 id="startupHeading">Копилка жизни</h1>
+    <p id="startupMessage" role="status" aria-live="polite">Загружаем приложение…</p>
+    <button id="startupReload" type="button" hidden onclick="window.location.reload()">Загрузить ещё раз</button>
+    <noscript><p>Для работы приложения нужен JavaScript. Включи его в настройках браузера.</p></noscript>
+  </section>
   <a class="skip-link" href="#main" data-i18n="skipToContent">Перейти к содержимому</a>
   <section id="loginScreen" class="screen-panel" aria-labelledby="loginHeading" hidden>
     <div id="loginLanding" class="login-landing" aria-labelledby="loginHeading">
@@ -20,10 +263,27 @@
       <p id="loginRecoveryHint" class="recovery-notice" data-i18n="sessionRecoveryHint" hidden>Сессия закончилась. Записи в форме сохранены на экране. Войди через VK ID или снова открой приложение в Telegram.</p>
       <section class="summary-card login-methods-card" aria-labelledby="loginMethodsHeading">
         <h2 id="loginMethodsHeading" data-i18n="loginMethodsHeading">Войти и начать</h2>
-        <p data-i18n="loginIntro">Вход через Telegram или VK ID связывает сайт, бота и Mini App с одним аккаунтом.</p>
+        <p id="loginIntro" data-i18n="loginIntro">Вход через Telegram или VK ID связывает сайт, бота и Mini App с одним аккаунтом.</p>
+        <form id="emailLoginForm">
+          <label for="emailLoginAddress" data-i18n="emailLoginLabel">Электронная почта</label>
+          <input id="emailLoginAddress" type="email" autocomplete="email" required maxlength="254">
+          <button type="submit" id="emailLoginSend" data-i18n="emailLoginSend">Получить код</button>
+        </form>
+        <form id="emailCodeForm" hidden>
+          <label for="emailLoginCode" data-i18n="emailLoginCodeLabel">Код из письма</label>
+          <input id="emailLoginCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+          <button type="submit" data-i18n="emailLoginConfirm">Войти по коду</button>
+        </form>
+        <p id="emailLoginStatus" role="status" aria-live="polite"></p>
+        <!-- GLOBAL_AUTH_BEGIN -->
         <div id="telegramLoginButton" class="login-button"></div>
         <p id="loginTelegramHint" class="field-hint" data-i18n="loginTelegramHint">Кнопка входа через Telegram появится здесь.</p>
+        <!-- GOOGLE_AUTH_BEGIN -->
+        <button id="googleLoginButton" type="button" class="login-button secondary" data-i18n="loginGoogleButton">Войти через Google</button>
+        <!-- GOOGLE_AUTH_END -->
+        <!-- GLOBAL_AUTH_END -->
         <button id="vkLoginButton" type="button" class="login-button secondary" data-i18n="loginVkButton">Войти через VK ID</button>
+        <p><a href="https://vk.com/app54723764" target="_blank" rel="noopener noreferrer" data-i18n="openVkMiniApp">Открыть Mini App во ВКонтакте</a></p>
       </section>
       <ul class="landing-benefits" data-login-landing-only aria-label="Чем помогает Копилка жизни" data-i18n-aria="landingBenefitsLabel">
         <li><strong data-i18n="landingBenefitFastTitle">Быстрые отметки</strong><span data-i18n="landingBenefitFastText">Один клик вместо длинного дневника.</span></li>
@@ -34,9 +294,10 @@
     </div>
     <p id="loginStatus" class="status-region" role="status" aria-live="polite"></p>
     <p class="soft-note"><a href="/privacy.html" data-i18n="legalPrivacy">Политика конфиденциальности</a> · <a href="/terms.html" data-i18n="legalTerms">Условия использования</a> · <a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме</a></p>
+    <p id="loginIpAttribution" class="soft-note">Данные определения страны по IP: <a href="https://db-ip.com" target="_blank" rel="noopener noreferrer">DB-IP.com</a> (CC BY 4.0).</p>
   </section>
   <div class="app-shell" id="appShell" hidden>
-    <header class="top-card" aria-label="Статус подключения" data-i18n-aria="connectionLabel">
+    <header class="top-card" aria-label="Копилка жизни" data-i18n-aria="appName">
       <p class="eyebrow" data-i18n="appName">Копилка жизни</p>
       <p id="connectionStatus">Подключаемся мягко и без спешки…</p>
     </header>
@@ -51,7 +312,16 @@
     <main id="main" class="main-content" tabindex="-1">
       <section id="tab-today" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-today">
         <h1 id="heading-today" tabindex="-1" data-i18n="tabToday">Сегодня</h1>
-        <p data-i18n="todayIntro">Здравствуй, человек. Выбери, что сегодня было в твоей жизни.</p>
+        <p data-i18n="todayIntro">Рады видеть тебя. Выбери, что сегодня было в твоей жизни.</p>
+        <section id="installHomeOffer" class="summary-card install-home-offer" aria-labelledby="installHomeHeading" hidden>
+          <h2 id="installHomeHeading" data-i18n="installAppHeading">Установить Копилку</h2>
+          <p data-i18n="installHomeText">Копилка будет открываться как приложение. Это необязательно.</p>
+          <button id="installHomeButton" type="button" data-i18n="installAppButton" hidden>Установить Копилку</button>
+          <p id="installHomeAndroidHint" class="soft-note" data-i18n="installAppAndroidHint" hidden>Откройте меню Chrome и выберите «Установить приложение» или «Добавить на главный экран». Если Копилка уже установлена, повторять не нужно.</p>
+          <p id="installHomeDesktopHint" class="soft-note" data-i18n="installAppDesktopHint" hidden>В Chrome выберите «Установить» в адресной строке или найдите установку приложения в меню браузера. Если Копилка уже установлена, повторять не нужно.</p>
+          <p id="installHomeIosHint" class="soft-note" data-i18n="installAppIosHint" hidden>В браузере нажмите «Поделиться», затем «На экран Домой».</p>
+          <button id="installHomeDismiss" type="button" class="secondary" data-i18n="installHomeDismiss">Не сейчас</button>
+        </section>
         <section id="vkReminderPrompt" class="summary-card" aria-labelledby="vkReminderPromptHeading" aria-live="polite" hidden>
           <h2 id="vkReminderPromptHeading" data-i18n="vkReminderPromptTitle">Хочешь мягкое вечернее напоминание?</h2>
           <p data-i18n="vkReminderPromptText">Можно разрешить сообщения от сообщества «Копилка жизни». Тогда вечером VK сможет тихо напомнить зайти. Личные записи в сообщения не отправляются.</p>
@@ -60,6 +330,16 @@
         <section class="summary-card balance-summary" aria-label="Баланс ЖИЗНИ" data-i18n-aria="balanceLabel">
           <p class="big-number"><span id="totalLife">0</span> <span class="life-unit" data-i18n="life">ЖИЗНЬ</span></p>
           <p><span data-i18n="todayAdded">Сегодня добавлено: </span><strong id="todayLife">0</strong><span data-i18n="todayAddedNote">. Это видимый след жизни и заботы, не оценка тебя.</span></p>
+        </section>
+        <section class="summary-card day-scene-card" aria-labelledby="daySceneHeading">
+          <h2 id="daySceneHeading" data-i18n="daySceneTitle">Картина дня</h2>
+          <div class="day-scene-picture" aria-hidden="true">
+            <img src="/assets/day-scene/tree.webp?v=2" width="960" height="1280" alt="" decoding="async" fetchpriority="high">
+            <div id="daySceneLayer" class="day-scene-layer"></div>
+          </div>
+          <p><strong data-i18n="daySceneHint">После отметки найди новую деталь</strong></p>
+          <p id="daySceneDescription" class="day-scene-description">Сегодняшние отметки появятся здесь.</p>
+          <button id="daySceneShare" type="button" class="secondary" data-i18n="daySceneShare">Сохранить или поделиться картиной</button>
         </section>
         <form id="entryForm" class="entry-form">
           <fieldset>
@@ -158,41 +438,67 @@
       <section id="tab-contract" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-contract" hidden>
         <h1 id="heading-contract" tabindex="-1" data-i18n="tabContract">Договор</h1>
         <div id="contractCurrent"></div>
-        <form id="contractForm" class="card-form">
+        <form id="contractForm" class="card-form" aria-describedby="contractCreateNote">
           <h2 data-i18n="contractCreate">Создать договор заботы</h2>
-          <p data-i18n="contractCreateNote">Это мягкое обещание себе на неделю, без наказания.</p>
+          <p id="contractCreateNote" data-i18n="contractCreateNote">Это мягкое обещание себе на календарную неделю — с понедельника по воскресенье, без наказания. Договор относится к текущей неделе в твоём часовом поясе. При создании в середине недели на цель есть только оставшиеся дни до воскресенья, не семь полных дней. В воскресенье новый договор начинается со следующей недели.</p>
           <section aria-labelledby="contractTemplatesHeading">
             <h3 id="contractTemplatesHeading" data-i18n="contractTemplatesHeading">Шаблоны недельных договоров</h3>
             <p class="field-hint" data-i18n="contractTemplatesHint">Можно заполнить форму шаблоном и отредактировать под себя.</p>
             <div id="contractTemplates" class="template-grid"></div>
           </section>
           <label for="contractTitle" data-i18n="contractTitle">Название цели</label>
-          <input id="contractTitle" name="title" required autocomplete="off">
+          <input id="contractTitle" name="title" maxlength="120" required autocomplete="off" aria-describedby="contractTitleCounter">
+          <p id="contractTitleCounter" class="contract-counter" data-contract-counter="contractTitle">0 из 120 символов</p>
           <label for="contractTarget" data-i18n="contractTarget">Критерий выполнения</label>
-          <textarea id="contractTarget" data-i18n-placeholder="contractTargetPlaceholder" name="targetValue" rows="2" required placeholder="Например: лечь до 23:30 минимум 5 дней из 7"></textarea>
+          <textarea id="contractTarget" data-i18n-placeholder="contractTargetPlaceholder" name="targetValue" rows="2" maxlength="300" required placeholder="Например: лечь до 23:30 минимум 5 дней из 7" aria-describedby="contractTargetCounter"></textarea>
+          <p id="contractTargetCounter" class="contract-counter" data-contract-counter="contractTarget">0 из 300 символов</p>
           <label for="stakeAmount" data-i18n="contractStakeAmount">Сумма фонда заботы</label>
-          <input id="stakeAmount" name="stakeAmount" inputmode="decimal" aria-describedby="stakeHint">
+          <input id="stakeAmount" name="stakeAmount" inputmode="decimal" maxlength="40" pattern="[0-9]+([.,][0-9]+)?" aria-describedby="stakeHint stakeFormatHint stakeAmountCounter">
+          <p id="stakeAmountCounter" class="contract-counter" data-contract-counter="stakeAmount">0 из 40 символов</p>
+          <p id="stakeFormatHint" class="field-hint" data-i18n="contractStakeFormat">Число не меньше нуля. Дробную часть можно отделить точкой или запятой.</p>
           <p id="stakeHint" class="field-hint" data-i18n="contractStakeHint">Не обязательно. Приложение не хранит и не переводит деньги. Это только мягкое напоминание, если сумма помогает договору.</p>
           <label for="stakeCurrency" data-i18n="contractStakeCurrency">Валюта</label>
-          <input id="stakeCurrency" name="stakeCurrency" value="RUB" autocomplete="off">
+          <input id="stakeCurrency" name="stakeCurrency" value="RUB" maxlength="20" autocomplete="off" aria-describedby="stakeCurrencyHint stakeCurrencyCounter">
+          <p id="stakeCurrencyHint" class="field-hint" data-i18n="contractStakeCurrencyHint">Можно указать валюту или свою единицу, например RUB или баллы заботы. До 20 символов.</p>
+          <p id="stakeCurrencyCounter" class="contract-counter" data-contract-counter="stakeCurrency">3 из 20 символов</p>
           <label for="rewardDescription" data-i18n="contractReward">Подарок себе при выполнении</label>
-          <input id="rewardDescription" name="rewardDescription" autocomplete="off">
+          <input id="rewardDescription" name="rewardDescription" maxlength="300" autocomplete="off" aria-describedby="rewardDescriptionCounter">
+          <p id="rewardDescriptionCounter" class="contract-counter" data-contract-counter="rewardDescription">0 из 300 символов</p>
           <label for="fundDescription" data-i18n="contractFund">Куда отправить, если не получилось</label>
-          <input id="fundDescription" name="fundDescription" autocomplete="off">
+          <input id="fundDescription" name="fundDescription" maxlength="300" autocomplete="off" aria-describedby="fundDescriptionCounter">
+          <p id="fundDescriptionCounter" class="contract-counter" data-contract-counter="fundDescription">0 из 300 символов</p>
           <button type="submit" data-i18n="contractSubmit">Создать договор</button>
         </form>
       </section>
 
       <section id="tab-settings" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-settings" hidden>
         <h1 id="heading-settings" tabindex="-1" data-i18n="tabSettings">Настройки</h1>
+        <section id="installAppSection" class="summary-card" aria-labelledby="installAppHeading" hidden>
+          <h2 id="installAppHeading" data-i18n="installAppHeading">Установить Копилку</h2>
+          <button id="installAppButton" type="button" class="secondary" data-i18n="installAppButton" hidden>Установить Копилку</button>
+          <p id="installAppAndroidHint" class="soft-note" data-i18n="installAppAndroidHint" hidden>Откройте меню Chrome и выберите «Установить приложение» или «Добавить на главный экран». Если Копилка уже установлена, повторять не нужно.</p>
+          <p id="installAppDesktopHint" class="soft-note" data-i18n="installAppDesktopHint" hidden>В Chrome выберите «Установить» в адресной строке или найдите установку приложения в меню браузера. Если Копилка уже установлена, повторять не нужно.</p>
+          <p id="installAppIosHint" class="soft-note" data-i18n="installAppIosHint" hidden>В браузере нажмите «Поделиться», затем «На экран Домой».</p>
+        </section>
         <form id="settingsForm" class="card-form">
           <label for="timezone" data-i18n="settingsTimezone">Часовой пояс</label>
-          <input id="timezone" name="timezone" value="Asia/Novosibirsk" autocomplete="off" aria-describedby="timezoneHint">
-          <p id="timezoneHint" class="field-hint" data-i18n="settingsTimezoneHint">Например: Asia/Novosibirsk, Europe/Moscow или UTC.</p>
+          <select id="timezone" name="timezone" required aria-describedby="timezoneHint">
+            <option value="Asia/Novosibirsk">Новосибирск (UTC+07:00)</option>
+          </select>
+          <p id="timezoneHint" class="field-hint" data-i18n="settingsTimezoneHint">Выбери свой часовой пояс. Смещение UTC указано на сегодня и может меняться летом.</p>
           <label class="checkbox-label" for="remindersEnabled"><input id="remindersEnabled" name="remindersEnabled" type="checkbox"><span data-i18n="settingsReminders">Вечернее напоминание включено</span></label>
           <label for="eveningReminderTime" data-i18n="settingsReminderTime">Время напоминания</label>
           <input id="eveningReminderTime" name="eveningReminderTime" type="time" value="20:00">
           <p class="soft-note" data-i18n="settingsReminderNote">Пример: “Если есть силы, можно за 10 секунд пополнить Копилку жизни.”</p>
+          <p class="field-hint" data-i18n="reminderChannelsNote">Напоминания приходят в Telegram, VK и браузеры, где включены уведомления. На e-mail они не отправляются.</p>
+          <div class="contract-box" aria-labelledby="pushHeading">
+            <h3 id="pushHeading" data-i18n="pushHeading">Уведомления в этом браузере</h3>
+            <p id="pushStatus" class="soft-note" role="status" aria-live="polite">Проверяем поддержку уведомлений…</p>
+            <button id="enablePush" type="button" class="secondary" data-i18n="pushEnable" hidden>Включить в этом браузере</button>
+            <button id="disablePush" type="button" class="secondary" data-i18n="pushDisable" hidden>Отключить в этом браузере</button>
+            <p class="field-hint" data-i18n="pushHint">Разрешение запрашивается только по нажатию. На других устройствах включите отдельно.</p>
+
+          </div>
           <div id="vkReminderBox" class="contract-box" hidden>
             <p id="vkReminderStatus" class="soft-note" data-i18n="vkReminderStatusUnknown">VK-напоминания ещё не включены.</p>
             <button id="enableVkReminders" type="button" class="secondary" data-enable-vk-reminders data-i18n="vkReminderEnable">Включить напоминания в VK</button>
@@ -207,12 +513,6 @@
             <button id="lang-en" type="button" data-lang="en">English</button>
           </div>
         </section>
-        <section class="summary-card" aria-labelledby="accountLinksHeading">
-          <h2 id="accountLinksHeading" data-i18n="accountLinksHeading">Связанные аккаунты</h2>
-          <p id="vkLinkStatus" class="soft-note" data-i18n="vkLinkStatusUnknown">VK не проверен.</p>
-          <button id="linkVkAccount" type="button" class="secondary" data-i18n="linkVkAccount">Привязать VK</button>
-        </section>
-        <p class="soft-note"><a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме в сообществе VK</a></p>
         <section id="servicePanel" class="summary-card" aria-labelledby="serviceHeading" hidden>
           <h2 id="serviceHeading" data-i18n="serviceHeading">Служебно</h2>
           <p id="userDebug" data-i18n="userDebug">Пользователь ещё не подключён.</p>
@@ -238,10 +538,50 @@
 
       <section id="tab-profile" class="screen-panel" role="tabpanel" aria-labelledby="tab-button-profile" hidden>
         <h1 id="heading-profile" tabindex="-1" data-i18n="tabProfile">Профиль</h1>
+        <div id="siteLogoutSection" data-own-profile hidden>
+          <button id="signOutSite" type="button" class="secondary" data-i18n="signOutSite" aria-describedby="signOutSiteHint">Выйти из аккаунта</button>
+          <p id="signOutSiteHint" class="field-hint" data-i18n="signOutSiteHint">История останется в аккаунте. Несохранённые записи в этом браузере будут очищены.</p>
+        </div>
         <section class="summary-card profile-hero" aria-labelledby="profileNameHeading">
           <h2 id="profileNameHeading" class="profile-name">—</h2>
           <div class="badge-heart" aria-label=""><span class="badge-heart-count">0</span></div>
           <p data-own-profile class="soft-note" data-i18n="profileBadgeHint">Сердце заботы растёт с каждым человеком, которому ты помог начать.</p>
+        </section>
+        <section id="accountLinksSection" class="summary-card" data-own-profile aria-labelledby="accountLinksHeading">
+          <h2 id="accountLinksHeading" data-i18n="accountLinksHeading">Связанные аккаунты</h2>
+          <p id="vkLinkStatus" class="soft-note" data-i18n="vkLinkStatusUnknown">VK не проверен.</p>
+          <button id="linkVkAccount" type="button" class="secondary" data-i18n="linkVkAccount">Привязать VK</button>
+          <button id="linkTelegramAccount" type="button" class="secondary" data-i18n="linkTelegramAccount">Привязать Telegram</button>
+          <div id="telegramLinkWidget" hidden></div>
+          <div id="telegramLinkHandoff" hidden>
+            <a id="telegramLinkOpen" class="button-like" target="_blank" rel="noopener noreferrer">Открыть Telegram Mini App</a>
+            <button id="telegramLinkFinish" type="button" class="secondary">Я подтвердил в Telegram — завершить здесь</button>
+          </div>
+          <div id="telegramLinkClaim" hidden>
+            <p>Другой аккаунт запросил привязку этого Telegram. Подтверди только если это твой аккаунт.</p>
+            <button id="telegramLinkConsent" type="button">Подтвердить Telegram для привязки</button>
+            <p id="telegramLinkClaimStatus" role="status" aria-live="polite"></p>
+          </div>
+          <p id="telegramLinkStatus" role="status" aria-live="polite"></p>
+          <form id="linkEmailForm" hidden>
+            <label for="linkEmailAddress" data-i18n="emailLinkLabel">Привязать e-mail к текущему аккаунту</label>
+            <input id="linkEmailAddress" type="email" autocomplete="email" maxlength="254" required>
+            <button type="submit" data-i18n="emailLoginSend">Получить код</button>
+          </form>
+          <form id="linkEmailCodeForm" hidden>
+            <label for="linkEmailCode" data-i18n="emailLoginCodeLabel">Код из письма</label>
+            <input id="linkEmailCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+            <button type="submit" data-i18n="emailLinkConfirm">Привязать e-mail</button>
+          </form>
+          <p id="emailLinkStatus" role="status" aria-live="polite"></p>
+          <!-- GLOBAL_SETTINGS_AUTH_BEGIN -->
+          <!-- GOOGLE_AUTH_BEGIN -->
+          <button id="linkGoogleAccount" type="button" class="secondary" data-i18n="linkGoogleAccount">Привязать Google</button>
+          <!-- GOOGLE_AUTH_END -->
+          <!-- GLOBAL_SETTINGS_AUTH_END -->
+          <p id="linkedLoginsStatus" class="soft-note" role="status" aria-live="polite"></p>
+          <div id="accountMergePrompt" class="contract-box" hidden></div>
+          <button id="unlinkLoginAccounts" type="button" class="secondary" hidden>Отвязать e-mail и Google</button>
         </section>
         <section class="summary-card" aria-labelledby="partnerHeading">
           <h2 id="partnerHeading" data-i18n="partnerHeading">Партнёрская программа</h2>
@@ -250,9 +590,10 @@
           <label for="refLink" data-i18n="refLinkLabel">Твоя реферальная ссылка</label>
           <input id="refLink" name="refLink" readonly aria-describedby="refLinkHint">
           <p id="refLinkHint" class="field-hint" data-i18n="refLinkHint">По этой ссылке переход и вход считаются твоим приглашением.</p>
+          <p id="referralPrivacyNotice" data-own-profile class="field-hint" data-i18n="referralPrivacyNotice">Получатель ссылки также сможет посмотреть ваш публичный профиль: имя, имя пользователя, баллы, категории действий и число приглашённых (всего и активных). Личные заметки не показываются.</p>
           <div class="close-actions">
-            <button type="button" id="copyRefLink" data-i18n="copyRefLink">Копировать ссылку</button>
-            <button type="button" id="shareRefLink" data-i18n="shareRefLink">Поделиться реферальной ссылкой</button>
+            <button type="button" id="copyRefLink" aria-describedby="referralPrivacyNotice" data-i18n="copyRefLink">Копировать ссылку</button>
+            <button type="button" id="shareRefLink" aria-describedby="referralPrivacyNotice" data-i18n="shareRefLink">Поделиться реферальной ссылкой</button>
             <button type="button" id="shareProfile" class="secondary" data-i18n="shareProfile">Поделиться профилем</button>
             <button type="button" id="shareStory" class="secondary" data-i18n="shareStory">Поделиться в истории</button>
           </div>
@@ -283,8 +624,9 @@
       </div>
     </section>
 
-    <p id="statusRegion" class="status-region" role="status" aria-live="polite"></p>
+    <div id="statusNotice" class="status-notice"><p id="statusRegion" role="status" aria-live="polite"></p><button id="dismissStatus" type="button" data-i18n="dismissNotification" hidden>Закрыть уведомление</button></div>
     <p class="soft-note legal-links"><a href="/privacy.html" data-i18n="legalPrivacy">Политика конфиденциальности</a> · <a href="/terms.html" data-i18n="legalTerms">Условия использования</a> · <a href="https://vk.ru/life_harbor_game" target="_blank" rel="noopener" data-i18n="reportProblem">Сообщить о проблеме</a></p>
+    <p id="appIpAttribution" class="soft-note">Данные определения страны по IP: <a href="https://db-ip.com" target="_blank" rel="noopener noreferrer">DB-IP.com</a> (CC BY 4.0).</p>
     <nav class="tab-bar" aria-label="Разделы Копилки жизни" data-i18n-aria="navLabel" role="tablist">
       <button id="tab-button-today" type="button" role="tab" data-tab="today" aria-controls="tab-today" aria-selected="true" aria-current="page" data-i18n="tabToday">Сегодня</button>
       <button id="tab-button-week" type="button" role="tab" data-tab="week" aria-controls="tab-week" aria-selected="false" data-i18n="tabWeek">История</button>
@@ -311,19 +653,20 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/i18n.js?v=20260919-frontend-quality"></script>
+  <script src="/i18n.js?v=20261010-compass4" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('i18n-loaded')"></script>
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
-  <script src="/vendor/vk-bridge-3.0.2.min.js?v=20260820"></script>
+  <script src="/vendor/vk-bridge-3.0.2.min.js?v=20260820" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('bridge-loaded')"></script>
   <script>
     (function () {
       try {
-        if (/[?&]vk_app_id=/.test(window.location.search || '') && window.vkBridge && window.vkBridge.send) {
-          window.vkBridge.send('VKWebAppInit').catch(function () {});
+        if (/[?&]vk_app_id=/.test(window.location.search || '') && window.KopilkaStartup) {
+          window.KopilkaStartup.initVkBridge();
         }
       } catch (_) {}
     })();
   </script>
-  <script src="/document-navigation.js?v=20260919-frontend-quality"></script>
-  <script src="/app.js?v=20260923-vk-native-copy"></script>
+  <script src="/document-navigation.js?v=20261010-compass4" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('documents-loaded')"></script>
+  <script src="/day-scene.js?v=20261010-compass4" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('scene-loaded')"></script>
+  <script src="/app.js?v=20261010-compass4" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('app-loaded')"></script>
 </body>
 </html>

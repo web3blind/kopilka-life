@@ -1,3 +1,12 @@
+// Manual settings are strict; launch/default/time calculation fallback stays unchanged.
+function isValidTimezone(value) {
+  if (typeof value !== 'string' || !/^[A-Za-z][A-Za-z0-9._+-]*(?:\/[A-Za-z0-9._+-]+)*$/.test(value)) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch (_) { return false; }
+}
+
 function normalizeTimezone(timezone) {
   const value = String(timezone || 'Asia/Novosibirsk').trim() || 'Asia/Novosibirsk';
   try {
@@ -81,4 +90,4 @@ function weekStartDateString(date = new Date(), timezone = 'UTC') {
   return noon.toISOString().slice(0, 10);
 }
 
-module.exports = { normalizeTimezone, normalizeHHMM, localDateString, nextDueAt, weekStartDateString };
+module.exports = { isValidTimezone, normalizeTimezone, normalizeHHMM, localDateString, nextDueAt, weekStartDateString };

@@ -212,7 +212,7 @@ function testStaticAccessibility() {
   assert(frontendApp.includes('showLoginScreen({ landing: false })'), 'Mini App auth failures show login without marketing landing');
   assert(frontendApp.includes("loginStatus.textContent = detail || L('connectFailed')"), 'Mini App auth failures surface the sanitized error on the login screen');
   assert(frontendApp.includes('function waitForTelegram'), 'frontend waits for Telegram Mini App initData');
-  assert(frontendApp.includes('const telegramReady = await waitForTelegram(looksLikeTelegramLaunch ? 200 : 40)'), 'frontend bounds SDK readiness while giving marked Telegram launches the full wait');
+  assert(frontendApp.includes('const telegramReady = looksLikeTelegramLaunch ? await waitForTelegram(200) : hasTelegramInitData'), 'marked Telegram launches wait for delayed SDK without delaying ordinary website startup');
   assert(frontendApp.includes('renderSupportActions'), 'frontend renders support actions');
   assert(frontendApp.includes('renderTodayContractReminder'), 'today tab renders contract last-day reminder');
   assert(frontendApp.includes('renderGratitudePractice'), 'frontend renders gratitude practice separately from quick actions');
@@ -221,7 +221,7 @@ function testStaticAccessibility() {
   assert(frontendApp.includes("join(', ')"), 'gratitude hint values are inserted through comma-separated text');
   assert(frontendApp.includes("createEntry('gratitude'"), 'gratitude practice saves the gratitude entry type');
   assert(frontendApp.includes("note.setAttribute('aria-disabled', String(used))"), 'completed gratitude textarea stays disabled after busy reset');
-  assert(frontendApp.includes('function supportNewLabel'), 'support new-count label has Russian plural handling');
+  assert(frontendApp.includes("L('supportTabNewShort', { count: newCount })") && frontendApp.includes("L('supportTabNew', { count: newCount })"), 'remaining action count has localized visible and accessible labels');
   assert(frontendApp.includes('data-open-contract'), 'today contract reminder can jump to contract tab');
   assert(frontendApp.includes("disabled aria-disabled=\"true\"' : ''} data-support-open"), 'opened support action buttons are disabled like daily actions');
   assert(frontendApp.includes("el.getAttribute('aria-disabled') === 'true'"), 'busy reset preserves permanently disabled action buttons');
@@ -336,7 +336,7 @@ async function main() {
     console.error = originalOauthError;
   }
   assert.equal(foreignCallback.status, 200, 'foreign browser binding receives a closed handoff document rather than an open redirect');
-  assert.equal(oauthErrors.filter((line) => line.includes('browser binding is invalid')).length, 1, 'foreign browser-binding rejection is logged once');
+  assert.equal(oauthErrors.length, 0, 'inert callback GET never validates or logs browser credentials');
   assert(!/Max-Age=0/i.test(foreignCallback.headers.get('set-cookie') || ''), 'foreign callback cannot clear an in-progress first-party browser binding');
   assert(foreignCallback.headers.get('content-security-policy').includes("frame-ancestors 'none'"), 'OAuth callback document blocks framing');
   assert(!(await foreignCallback.text()).includes('https://evil.example'), 'OAuth callback never reflects a foreign return URL');
@@ -440,7 +440,7 @@ async function main() {
 
   const expiredSessionTarget = await request('/api/auth/dev', { method: 'POST', body: JSON.stringify({ firstName: 'Expired OAuth target' }) });
   const expiredSessionProof = createOAuthLinkProof({ targetUserId: expiredSessionTarget.data.user.id, vkId: '991123', channel: 'expired-session-channel-123' });
-  const expiredSessionAuth = { authorization: `Bearer ${createToken(expiredSessionTarget.data.user.id, Date.now() - 8 * 24 * 60 * 60 * 1000)}` };
+  const expiredSessionAuth = { authorization: `Bearer ${createToken(expiredSessionTarget.data.user.id, Date.now() - (require('../src/config').sessionMaxAgeSeconds + 1) * 1000)}` };
   const expiredSessionFinalize = await request('/api/auth/vk-oauth/finalize-link', { method: 'POST', headers: expiredSessionAuth, body: JSON.stringify({ proof: expiredSessionProof }) });
   assert.equal(expiredSessionFinalize.res.status, 401, 'expired target app session cannot finalize OAuth linking');
   assert.equal(getDb().prepare('SELECT consumed_at FROM vk_oauth_link_proofs ORDER BY created_at DESC LIMIT 1').get().consumed_at, null, 'expired target session does not consume or mutate its link proof');
@@ -548,19 +548,19 @@ async function main() {
   const mergeOffer = await request('/api/settings/link-vk', { method: 'POST', headers: primaryAuth, body: JSON.stringify({ launchParams: makeVkLaunchParams(9010, 'test-vk-secure-key') }) });
   assert.equal(mergeOffer.res.status, 409, 'linking VK with data returns merge offer');
   assert.equal(mergeOffer.data.mergeRequired, true, 'merge offer is explicit');
-  assert.equal(mergeOffer.data.preview.result.dedupedQuickEntries, 1, 'duplicate quick-action is detected');
-  assert.equal(mergeOffer.data.preview.result.movedEntries, 2, 'unique quick/system entries will move');
+  assert.equal(mergeOffer.data.preview.result.dedupedQuickEntries, 0, 'independent quick-actions are preserved');
+  assert.equal(mergeOffer.data.preview.result.movedEntries, 3, 'all historical entries will move');
   const mergeConfirm = await request('/api/account/merge-vk/confirm', { method: 'POST', headers: primaryAuth, body: JSON.stringify({ mergeToken: mergeOffer.data.mergeToken }) });
   assert.equal(mergeConfirm.res.status, 200, 'merge can be confirmed');
   assert.equal(mergeConfirm.data.user.vkLinked, true, 'primary account is linked to VK after merge');
-  const mergedSummary = await request('/api/summary/today', { headers: primaryAuth });
+  const mergedSummary = await request('/api/summary/today', { headers: { authorization: `Bearer ${mergeConfirm.data.token}` } });
   const mergedTotal = dbForMerge.prepare('SELECT COALESCE(SUM(life_points), 0) AS total FROM entries WHERE user_id = ?').get(primaryId).total;
-  assert.equal(mergedTotal, 7, 'merged total avoids duplicate joy double-count');
-  const mergedJoy = dbForMerge.prepare("SELECT note FROM entries WHERE user_id = ? AND entry_date = '2026-08-10' AND type = 'joy'").get(primaryId);
-  assert(mergedJoy.note.includes('primary joy') && mergedJoy.note.includes('source joy'), 'duplicate notes are preserved on target entry');
+  assert.equal(mergedTotal, 8, 'merged total preserves each account historical LIFE');
+  const mergedJoy = dbForMerge.prepare("SELECT note FROM entries WHERE user_id = ? AND entry_date = '2026-08-10' AND type = 'joy'").all(primaryId);
+  assert.deepEqual(mergedJoy.map(row => row.note).sort(), ['primary joy', 'source joy'], 'independent notes are retained');
   assert.equal(dbForMerge.prepare('SELECT COUNT(*) AS count FROM users WHERE id = ?').get(sourceId).count, 0, 'source account is removed after merge');
   assert.equal(dbForMerge.prepare('SELECT COUNT(*) AS count FROM weekly_contracts WHERE user_id = ?').get(primaryId).count, 1, 'source contract moved');
-  assert.equal(dbForMerge.prepare("SELECT COUNT(*) AS count FROM reminders WHERE user_id = ? AND status = 'scheduled'").get(primaryId).count, 0, 'future source reminder is dropped instead of duplicated');
+  assert.equal(dbForMerge.prepare("SELECT COUNT(*) AS count FROM reminders WHERE user_id = ? AND status = 'scheduled'").get(primaryId).count, 1, 'future source reminder is retained');
   assert(mergedSummary.res.status === 200, 'merged account remains usable');
 
   loginResp = await request('/api/auth/telegram-login', { method: 'POST', body: JSON.stringify({ ...makeLoginWidget({ id: 123, first_name: 'Telegram', username: 'tg_user' }, 'test-bot-token'), hash: 'deadbeef' }) });
@@ -776,8 +776,8 @@ async function main() {
   assert(refAProfile.data.profile.vkRefLink.includes('vk.com/app54723764#ref='), 'profile exposes VK Mini App ref link');
   assert(refAProfile.data.profile.vkProfileLink.includes('vk.com/app54723764#profile='), 'profile exposes VK Mini App profile link');
   assert.equal(refAProfile.data.profile.telegramProfileLink, `https://t.me/HarborLifeBot?startapp=profile-${refCodeA}`, 'profile exposes a Telegram profile deep link distinct from referral startapp');
-  assert.equal(refAProfile.data.profile.telegramStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=telegram&v=3`, 'profile exposes canonical Telegram story-card URL');
-  assert.equal(refAProfile.data.profile.vkStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=vk&v=3`, 'profile exposes canonical VK story-card URL');
+  assert.equal(refAProfile.data.profile.telegramStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=telegram&locale=ru&v=4`, 'profile exposes canonical Telegram story-card URL');
+  assert.equal(refAProfile.data.profile.vkStoryCardUrl, `http://localhost:3000/api/story-card/${refCodeA}.png?platform=vk&locale=ru&v=4`, 'profile exposes canonical VK story-card URL');
   assert.equal(storyDestination(refCodeA, 'telegram'), refAProfile.data.profile.telegramProfileLink, 'Telegram QR destination is the distinct profile start parameter');
   assert.equal(storyDestination(refCodeA, 'vk'), refAProfile.data.profile.vkProfileLink, 'VK QR destination is the profile hash deep link');
   const publicShell = await fetch(`${baseUrl}/p/${refCodeA}`);

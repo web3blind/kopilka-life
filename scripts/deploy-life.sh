@@ -27,6 +27,9 @@ test ! -e "$KOPILKA_RELEASE_DIR/.env"
 test ! -e "$KOPILKA_RELEASE_DIR/data"
 test -f "$KOPILKA_RELEASE_DIR/package-lock.json"
 test -f "$KOPILKA_RELEASE_DIR/migrations/014_security_state.sql"
+for migration in 017_google_oauth_intents 018_account_merge_offers 019_telegram_link_intents 020_session_revision; do
+  test -f "$KOPILKA_RELEASE_DIR/migrations/$migration.sql"
+done
 
 node -e '
   const Database = require("better-sqlite3");
@@ -39,5 +42,5 @@ node -e '
 ' "$KOPILKA_DB_BACKUP"
 
 echo "PRECHECK_OK"
-echo "Verified: external non-empty DB/env backups, SQLite integrity, isolated release tree, security migration."
+echo "Verified: external non-empty DB/env backups, SQLite integrity, isolated release tree, security and 017–020 migrations."
 echo "No files, services, webhooks, or production data were changed."

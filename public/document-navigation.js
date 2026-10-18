@@ -1,8 +1,19 @@
 'use strict';
 (() => {
-  const documents = new Set(['/privacy.html', '/terms.html']);
+  const paths = Object.freeze({
+    '/privacy.html': { ru: '/privacy.html', en: '/privacy.en.html' },
+    '/terms.html': { ru: '/terms.html', en: '/terms.en.html' },
+  });
+  const documents = new Set(Object.values(paths).flatMap((locales) => Object.values(locales)));
   const isDocument = documents.has(window.location.pathname);
-  const text = (key, fallback) => window.KopilkaI18n?.t(document.documentElement.lang, key) || fallback;
+  const query = new URLSearchParams(window.location.search);
+  const language = () => document.documentElement.lang === 'en' || (isDocument && query.getAll('lang').length === 1 && query.get('lang') === 'en') ? 'en' : 'ru';
+  const canonicalPath = (path) => Object.keys(paths).find((key) => Object.values(paths[key]).includes(path));
+  const localizedPath = (path) => paths[canonicalPath(path)][language()];
+  const localeQuery = () => language() === 'en' ? '&lang=en' : '';
+  const englishText = { legalClose: 'Close document', legalPrivacy: 'Privacy Policy', legalTerms: 'Terms of Use',
+    legalLoading: 'Loading document…', legalReturn: 'Return to the app', legalLoadFailed: 'Could not load the document. Please try again.', legalRetry: 'Retry loading' };
+  const text = (key, fallback) => window.KopilkaI18n?.t(language(), key) || (language() === 'en' && englishText[key]) || fallback;
   function documentPath(link) {
     try {
       const url = new URL(link.getAttribute('href'), window.location.href);
@@ -18,14 +29,18 @@
     const destinations = { web: new URL('/', window.location.origin).href,
       vk: 'https://vk.ru/app54723764', telegram: 'https://t.me/HarborLifeBot?startapp' };
     const source = isDocument && sources.length === 1 && Object.hasOwn(destinations, sources[0]) ? sources[0] : 'web';
+    if (isDocument && window.location.pathname !== localizedPath(window.location.pathname)) {
+      window.location.replace(`${localizedPath(window.location.pathname)}?source=${source}${localeQuery()}`);
+      return;
+    }
     document.querySelectorAll('a[href]').forEach((link) => {
       const path = documentPath(link);
-      if (path) link.setAttribute('href', isDocument ? `${path}?source=${source}` : path);
+      if (path) link.setAttribute('href', isDocument ? `${localizedPath(path)}?source=${source}${localeQuery()}` : path);
     });
     if (isDocument) {
       const back = document.querySelector('[data-document-return]');
       if (back) {
-        back.href = destinations[source];
+        back.href = destinations[source] + (source === 'web' && language() === 'en' ? '?lang=en' : '');
         back.target = source === 'web' ? '_self' : '_top';
       }
     }
@@ -68,33 +83,35 @@
     const controller = new AbortController();
     request = controller;
     const timeout = setTimeout(() => controller.abort(), 12000);
-    title.textContent = path === '/privacy.html' ? text('legalPrivacy', 'Политика конфиденциальности') : text('legalTerms', 'Условия использования');
+    const documentLanguage = language();
+    const fetchPath = localizedPath(path);
+    title.textContent = canonicalPath(path) === '/privacy.html' ? text('legalPrivacy', 'Политика конфиденциальности') : text('legalTerms', 'Условия использования');
     dialog.querySelector('[data-document-close]').textContent = text('legalClose', 'Закрыть документ');
     content.setAttribute('aria-busy', 'true');
     content.textContent = text('legalLoading', 'Загружаем документ…');
     content.scrollTop = 0;
     title.focus({ preventScroll: true });
     try {
-      const response = await fetch(path, { signal: controller.signal, credentials: 'omit',
+      const response = await fetch(fetchPath + (documentLanguage === 'en' ? '?lang=en' : ''), { signal: controller.signal, credentials: 'omit',
         referrerPolicy: 'no-referrer', redirect: 'error' });
       if (!response.ok) throw new Error('Document unavailable');
       const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
       const section = parsed.querySelector('main > section');
       if (!section?.querySelector('h1')) throw new Error('Invalid document');
-      // Only the canonical legal copy is imported, never its scripts or page shell.
+      // Only the allowlisted legal copy is imported, never its scripts or page shell.
       section.querySelectorAll('script, style, iframe, object, embed, link, base, form').forEach((node) => node.remove());
       section.querySelectorAll('*').forEach((node) => {
         for (const attr of [...node.attributes]) {
           if (/^on/i.test(attr.name)) node.removeAttribute(attr.name);
         }
       });
-      section.lang = 'ru'; // canonical legal copy is Russian, independent of app controls
+      section.lang = documentLanguage;
       const back = section.querySelector('[data-document-return]');
       if (back) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'secondary';
-        button.lang = document.documentElement.lang;
+        button.lang = documentLanguage;
         button.textContent = text('legalReturn', back.textContent);
         button.addEventListener('click', close);
         back.replaceWith(button);

@@ -50,7 +50,7 @@ async function main() {
   assert.throws(() => validateRuntimeConfig(productionOAuthConfig), /HTTPS|WEBAPP_URL/i, 'production VK OAuth refuses an insecure callback/app origin');
   assert.throws(() => validateRuntimeConfig({ ...productionOAuthConfig, webappUrl: 'https://life.example', vkOAuthTokenUrl: 'http://127.0.0.1:4124/token' }), /provider endpoints/i, 'production VK OAuth refuses local provider endpoint overrides');
   const now = 2_000_000_000_000;
-  assert.deepEqual(inspectToken(createToken(42, now), now + 1_000), { userId: 42, status: 'valid' }, 'fresh session token is valid');
+  assert.deepEqual(inspectToken(createToken(42, now), now + 1_000), { userId: 42, status: 'valid', revision: 0 }, 'fresh session token is valid');
   assert.equal(inspectToken(createToken(42, now), now + 3_600_000).status, 'expired', 'session token expires at the configured boundary');
   assert.equal(inspectToken('broken.token.value', now).status, 'invalid', 'malformed session token is rejected without throwing');
   assert.equal(inspectToken(createToken(42, now + 120_000), now).status, 'invalid', 'token issued too far in the future is rejected');
@@ -79,6 +79,14 @@ async function main() {
   assert.throws(() => consumeOAuthLinkProof(linkProof, proofTargetUser.id, now + 3), /invalid|used|expired/i, 'verified VK link proof cannot be replayed');
   const expiredLinkProof = createOAuthLinkProof({ targetUserId: proofTargetUser.id, vkId: '770100', channel: intent.channel }, 1000);
   assert.throws(() => consumeOAuthLinkProof(expiredLinkProof, proofTargetUser.id, 601000), /invalid|expired/i, 'verified VK link proof expires at the OAuth state boundary');
+  const suppliedChannel = 'client-popup-channel-'.repeat(2);
+  const suppliedIntent = createOAuthIntent({ action: 'link', userId: proofTargetUser.id, channel: suppliedChannel });
+  assert.equal(suppliedIntent.channel, suppliedChannel, 'synchronous popup correlation survives intent creation');
+  const suppliedState = new URL(beginOAuthIntent(suppliedIntent.intent, browserBinding)).searchParams.get('state');
+  const suppliedContext = consumeState(suppliedState, browserBinding);
+  assert.equal(suppliedContext.channel, suppliedChannel, 'client correlation remains attached to the single-use browser-bound state');
+  assert.equal(suppliedContext.userId, proofTargetUser.id, 'client channel cannot change the authenticated link target');
+  assert.throws(() => createOAuthIntent({ channel: 'malformed' }), /channel/i, 'popup channels must be opaque and bounded');
   const secondIntent = createOAuthIntent({ action: 'auth' });
   const secondState = new URL(beginOAuthIntent(secondIntent.intent, browserBinding)).searchParams.get('state');
   assert.throws(() => consumeState(secondState, 'different-browser-binding-that-is-long-enough-123'), /browser|invalid/i, 'VK OAuth state is bound to initiating browser');

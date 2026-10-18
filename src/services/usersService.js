@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { getDb } = require('../db');
-const { normalizeHHMM, normalizeTimezone } = require('../time');
+const { normalizeHHMM, normalizeTimezone, isValidTimezone } = require('../time');
 const { normalizeLocale } = require('../i18n');
 const { sanitizeVkFirstName } = require('./vkProfileService');
 
@@ -19,6 +19,7 @@ function ensureRefCode(userId) {
   // Try a few times to get a unique code.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const code = generateRefCode();
+    if (db.prepare('SELECT 1 FROM merged_ref_codes WHERE ref_code = ?').get(code)) continue;
     try {
       db.prepare('UPDATE users SET ref_code = ? WHERE id = ?').run(code, userId);
       return code;
@@ -31,11 +32,12 @@ function ensureRefCode(userId) {
 }
 function resolveRefCode(code) {
   if (!code || typeof code !== 'string') return null;
-  return getDb().prepare('SELECT id FROM users WHERE ref_code = ? COLLATE NOCASE').get(String(code).trim().toUpperCase()) || null;
+  return getDb().prepare('SELECT id FROM users WHERE ref_code = ? COLLATE NOCASE').get(String(code).trim().toUpperCase()) ||
+    getDb().prepare('SELECT user_id AS id FROM merged_ref_codes WHERE ref_code = ? COLLATE NOCASE').get(String(code).trim().toUpperCase()) || null;
 }
 function publicUser(user) {
   if (!user) return null;
-  return { id: user.id, firstName: user.first_name, username: user.username, timezone: user.timezone, locale: normalizeLocale(user.locale), remindersEnabled: Boolean(user.reminders_enabled), eveningReminderTime: user.evening_reminder_time, isDemo: Boolean(user.is_demo), vkLinked: Boolean(user.vk_id), vkMessagesAllowed: Boolean(user.vk_messages_allowed) };
+  return { id: user.id, firstName: user.first_name, username: user.username, timezone: user.timezone, locale: normalizeLocale(user.locale), remindersEnabled: Boolean(user.reminders_enabled), eveningReminderTime: user.evening_reminder_time, isDemo: Boolean(user.is_demo), telegramLinked: /^\d+$/.test(String(user.telegram_id || '')), vkLinked: Boolean(user.vk_id), vkMessagesAllowed: Boolean(user.vk_messages_allowed) };
 }
 function upsertTelegramUser(tgUser, refCode, timezone) {
   const db = getDb();
@@ -89,7 +91,8 @@ function userHasOwnedData(userId) {
   const artifacts = db.prepare('SELECT COUNT(*) AS count FROM user_artifacts WHERE user_id = ?').get(userId).count;
   const supportActions = db.prepare('SELECT COUNT(*) AS count FROM user_support_actions WHERE user_id = ?').get(userId).count;
   const referrals = db.prepare('SELECT COUNT(*) AS count FROM users WHERE referrer_id = ?').get(userId).count;
-  return entries + contracts + reminders + artifacts + supportActions + referrals > 0;
+  const loginIdentities = db.prepare('SELECT COUNT(*) AS count FROM login_identities WHERE user_id = ?').get(userId).count;
+  return entries + contracts + reminders + artifacts + supportActions + referrals + loginIdentities > 0;
 }
 function linkVkUser(userId, vkId) {
   const db = getDb();
@@ -117,7 +120,8 @@ function updateLocale(userId, locale) {
   return getUserById(userId);
 }
 function updateSettings(userId, settings) {
-  const timezone = normalizeTimezone(settings.timezone || 'Asia/Novosibirsk');
+  if (!isValidTimezone(settings?.timezone)) throw new Error('error.invalidTimezone');
+  const timezone = settings.timezone;
   const reminderTime = normalizeHHMM(settings.eveningReminderTime || settings.evening_reminder_time || '20:00');
   getDb().prepare('UPDATE users SET timezone = ?, evening_reminder_time = ?, reminders_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(timezone, reminderTime, settings.remindersEnabled ? 1 : 0, userId);
   return getUserById(userId);

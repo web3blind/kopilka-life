@@ -52,7 +52,7 @@ async function invoke(routePath, { body = {}, query = {}, cookie = '' } = {}) {
     json(data) { this.data = data; return this; }, send(data) { this.data = data; return this; },
     set() { return this; }, append() { return this; }, type() { return this; }
   };
-  await route.stack.at(-1).handle({ body, query, get: (key) => key === 'cookie' ? cookie : '' }, res);
+  await route.stack.at(-1).handle({ body, query, get: (key) => key === 'cookie' ? cookie : key === 'origin' ? config.webappUrl : '', is: type => type === 'application/json' }, res);
   return res;
 }
 const login = (extra = {}, id = vkId) => invoke('/auth/vk', { body: { launchParams: launch(id), ...extra } });
@@ -60,8 +60,8 @@ async function oauthLogin(action = 'auth', userId = null) {
   const binding = 'a'.repeat(48);
   const { intent } = oauth.createOAuthIntent({ action, userId });
   const state = new URL(oauth.beginOAuthIntent(intent, binding)).searchParams.get('state');
-  return invoke('/auth/vk-oauth/callback', {
-    query: { state, code: 'fixture-code', device_id: 'fixture-device', user_id: '999', first_name: 'Spoof' },
+  return invoke('/auth/vk-oauth/complete', {
+    body: { state, code: 'fixture-code', device_id: 'fixture-device', user_id: '999', first_name: 'Spoof' },
     cookie: `kopilka_oauth_browser=${binding}`
   });
 }
@@ -162,16 +162,16 @@ async function main() {
 
   provider = ok('Имя OAuth');
   res = await oauthLogin();
-  assert.match(res.data, /"action":"auth","token":/);
+  assert.equal(res.data.action, 'auth'); assert(res.data.token);
   assert.equal(users.getUserById(initial.id).first_name, 'Имя OAuth');
   assert.equal(profileCalls.at(-1), vkId, 'OAuth uses token-exchange identity, not callback query');
   provider = async () => { throw Error('offline'); };
   res = await oauthLogin();
-  assert.match(res.data, /"action":"auth","token":/);
+  assert.equal(res.data.action, 'auth'); assert(res.data.token);
   assert.equal(users.getUserById(initial.id).first_name, 'Имя OAuth');
   const beforeLink = profileCalls.length;
   res = await oauthLogin('link', linked.id);
-  assert.match(res.data, /"action":"link","linkProof":/);
+  assert.equal(res.data.action, 'link'); assert(res.data.linkProof);
   assert.equal(profileCalls.length, beforeLink, 'link flow unchanged, no profile write');
   assert.deepEqual(db.prepare('SELECT * FROM entries WHERE user_id = ?').all(initial.id), history);
   assert.equal(users.getUserById(initial.id).ref_code, initial.ref_code);

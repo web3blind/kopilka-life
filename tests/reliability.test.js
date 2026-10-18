@@ -95,6 +95,7 @@ test('temporary failure uses persistent 1m/5m backoff and stops after three atte
       await reminders.sendDueReminders();
       assert.equal(calls, attempt);
       db.prepare('UPDATE reminders SET retry_after = ? WHERE id = ?').run(past, item.id);
+      db.prepare('UPDATE reminder_deliveries SET retry_after = ? WHERE reminder_id = ?').run(past, item.id);
     } else assert.equal(current.status, 'failed');
   }
   await reminders.sendDueReminders();
@@ -107,6 +108,7 @@ test('temporary recovery sends once; partial channel success never retries succe
   vkSend = async () => { throw new Error('network'); };
   await reminders.sendDueReminders();
   db.prepare('UPDATE reminders SET retry_after = ? WHERE id = ?').run(past, item.id);
+  db.prepare('UPDATE reminder_deliveries SET retry_after = ? WHERE reminder_id = ?').run(past, item.id);
   vkSend = async () => {};
   assert.equal(await reminders.sendDueReminders(), 1);
   assert.equal(row(item.id).attempts, 2);
@@ -116,8 +118,13 @@ test('temporary recovery sends once; partial channel success never retries succe
   tgSend = async () => { telegramCalls++; };
   vkSend = async () => { throw new Error('temporary'); };
   assert.equal(await reminders.sendDueReminders(), 1);
-  assert.equal(row(partial.id).status, 'sent');
+  assert.equal(row(partial.id).status, 'scheduled');
+  assert.equal(db.prepare("SELECT status FROM reminder_deliveries WHERE reminder_id = ? AND channel = 'telegram'").get(partial.id).status, 'sent');
+  db.prepare('UPDATE reminders SET retry_after = ? WHERE id = ?').run(past, partial.id);
+  db.prepare('UPDATE reminder_deliveries SET retry_after = ? WHERE reminder_id = ? AND channel = ?').run(past, partial.id, 'vk');
+  vkSend = async () => {};
   await reminders.sendDueReminders();
+  assert.equal(row(partial.id).status, 'sent');
   assert.equal(telegramCalls, 1);
 });
 
@@ -197,6 +204,7 @@ test('real VK sender retains provider dedup key across ambiguous retries and key
   vkSend=realVkSend;
   await reminders.sendDueReminders();
   db.prepare('UPDATE reminders SET retry_after=? WHERE id=?').run(past,item.id);
+  db.prepare('UPDATE reminder_deliveries SET retry_after=? WHERE reminder_id=?').run(past,item.id);
   assert.equal(await reminders.sendDueReminders(),1);
   assert.equal(keys.length,3);
   assert.equal(new Set(keys).size,1);
@@ -214,7 +222,8 @@ test('ambiguous Telegram acknowledgement is not replayed, including mixed-channe
   tgSend=async()=>{throw Error('response lost after acceptance');};
   vkSend=async()=>{throw Error('network');};
   await reminders.sendDueReminders();
-  assert.equal(row(item.id).status,'failed');
+  assert.equal(row(item.id).status,'scheduled');
+  assert.equal(db.prepare("SELECT status FROM reminder_deliveries WHERE reminder_id=? AND channel='telegram'").get(item.id).status, 'failed');
   assert.equal(row(item.id).attempts,1);
 });
 

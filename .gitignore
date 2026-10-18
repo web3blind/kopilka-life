@@ -1,4 +1,15 @@
 node_modules/
 .env
-data/*.sqlite
-data/*.sqlite-*
+.env.*
+!.env.example
+data/
+/audits/
+/tmp/
+/PLAN.md
+__pycache__/
+*.py[cod]
+*.log
+tests/*-evidence.md
+tests/referral-privacy-qa/
+# Historical prototype depends on a locally generated HTML snippet.
+tests/timezone-settings-browser-qa.py
