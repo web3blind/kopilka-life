@@ -252,6 +252,26 @@ router.post('/auth/telegram-login', authLimiter, (req, res) => {
     res.status(401).json({ error: 'Не удалось подтвердить вход через Telegram.' });
   }
 });
+// Continuation is not a login: stale signed proof may only retain an already
+// active bearer for exactly the current VK identity. Never issue/renew a token,
+// refresh a profile, create/link/merge an account or grant a recovery bonus here.
+router.post('/auth/vk/resume', authLimiter, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const validated = validateVkLaunchParams(req.body.launchParams, config.vkSecureKey, {
+      appId: config.vkAppId, maxAgeSeconds: config.vkAuthMaxAgeSeconds, allowExpired: true
+    });
+    if (!validated.expired) throw new Error('expired signed launch required');
+    const token = bearer(req);
+    const session = inspectActiveToken(token);
+    if (session.status !== 'valid') throw new Error('active session required');
+    const user = getUserById(session.userId);
+    if (!user || String(user.vk_id || '') !== validated.vkId) throw new Error('identity mismatch');
+    return res.json({ token, user: publicUser(user) });
+  } catch (_) {
+    return res.status(401).json({ error: 'Не удалось подтвердить VK-сессию. Открой приложение из VK ещё раз.' });
+  }
+});
 router.post('/auth/vk', authLimiter, async (req, res) => {
   try {
     const validated = validateVkLaunchParams(req.body.launchParams, config.vkSecureKey, { appId: config.vkAppId, maxAgeSeconds: config.vkAuthMaxAgeSeconds });

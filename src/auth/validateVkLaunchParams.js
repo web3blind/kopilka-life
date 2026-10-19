@@ -48,13 +48,16 @@ function validateVkLaunchParams(input, secureKey, options = {}) {
 
   const maxAgeSeconds = Number(options.maxAgeSeconds || 86400);
   const ts = Number(params.get('vk_ts') || 0);
+  let expired = false;
   if (maxAgeSeconds > 0 && ts > 0) {
     const age = Math.floor(Date.now() / 1000) - ts;
-    if (age > maxAgeSeconds) throw new Error('vk launch params too old');
+    expired = age > maxAgeSeconds;
+    if (expired && !options.allowExpired) throw new Error('vk launch params too old');
     if (age < -300) throw new Error('vk launch params from the future');
   }
 
   return {
+    expired,
     vkId: String(userId),
     appId: String(appId || ''),
     language: params.get('vk_language') || params.get('vk_lang') || '',

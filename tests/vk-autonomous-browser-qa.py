@@ -34,7 +34,7 @@ def main():
                    VK_GROUP_TOKEN='', VK_GROUP_ID='240966481', VK_APP_ID='54723764', VK_SECURE_KEY='fixture-vk-key',
                    VK_OAUTH_CLIENT_ID='54723764', VK_OAUTH_CLIENT_SECRET='fixture-only', VK_OAUTH_AUTHORIZE_URL=PROVIDER+'/authorize',
                    VK_OAUTH_TOKEN_URL=PROVIDER+'/token', APP_BASE_URL=BASE, WEBAPP_URL=BASE, GEO_COUNTRY_DB_PATH=str(Path(tmp,'missing.mmdb')),
-                   VAPID_PUBLIC_KEY='', VAPID_PRIVATE_KEY='', NODE_OPTIONS='')
+                   VAPID_PUBLIC_KEY='', VAPID_PRIVATE_KEY='', NODE_OPTIONS=f"--require={ROOT / 'tests/fixtures/vk-login-recovery-preload.cjs'}")
         with Path(tmp, 'server.log').open('w+') as log:
             proc = subprocess.Popen(['node', str(ROOT/'src/server.js')], cwd=ROOT, env=env, stdout=log, stderr=log)
             try:
@@ -51,6 +51,10 @@ def main():
                 with sync_playwright() as p:
                     browser = p.chromium.connect_over_cdp(os.environ.get('KOPILKA_QA_CDP_URL','http://127.0.0.1:18800'))
                     contexts = []
+                    def isolated_context():
+                        ctx = browser.new_context()
+                        ctx.route('**/*', lambda route: route.continue_() if route.request.url.startswith((BASE+'/', PROVIDER+'/')) else route.abort())
+                        return ctx
                     def guard_duplicates(ctx):
                         def callback(route):
                             def snapshot():
@@ -70,7 +74,7 @@ def main():
                             route.continue_()
                         ctx.route('**/api/auth/vk-oauth/callback?**', callback)
                     def fresh(token=None):
-                        ctx = browser.new_context()
+                        ctx = isolated_context()
                         contexts.append(ctx); guard_duplicates(ctx)
                         page = ctx.new_page()
                         if token:
@@ -86,14 +90,14 @@ def main():
                             user['vk_id'] = connection.execute('SELECT vk_id FROM users WHERE id=?', (user['id'],)).fetchone()[0]
                         return user
                     try:
-                        # Hold the popup document request, disable only the opener's
-                        # scripts, then release it. No opener async code can progress.
+                        # After the opener has created the intent, hold its start request
+                        # and suspend only the opener; the external flow must finish.
                         ctx, page = fresh()
                         session = ctx.new_cdp_session(page)
                         def paused_window(route):
                             session.send('Emulation.setScriptExecutionDisabled', {'value': True})
                             route.continue_()
-                        ctx.route('**/api/auth/vk-oauth/window', paused_window)
+                        ctx.route('**/api/auth/vk-oauth/start?**', paused_window)
                         with page.expect_popup() as opened:
                             page.locator('#vkLoginButton').click()
                         popup = opened.value
@@ -116,7 +120,7 @@ def main():
                         assert popup.evaluate('sessionStorage.getItem("kopilkaVkOAuthBootstrap")') is None
                         assert token not in popup.url
                         session.send('Emulation.setScriptExecutionDisabled', {'value': False})
-                        print('PASS paused opener: independent intent/start/PKCE/callback + same-tab fallback')
+                        print('PASS intent created before opener suspension: start/PKCE/callback + same-tab fallback')
                         ctx.close(); contexts.remove(ctx)
 
                         # Normal popup return and origin/source/channel/action rejection.
@@ -139,7 +143,7 @@ def main():
                         ctx.close(); contexts.remove(ctx)
 
                         # Link from original authenticated account; no login replacement.
-                        ctx = browser.new_context(); contexts.append(ctx); guard_duplicates(ctx)
+                        ctx = isolated_context(); contexts.append(ctx); guard_duplicates(ctx)
                         created = ctx.request.post(BASE+'/api/auth/dev', data={'firstName':'Link fixture'}).json()
                         token = created['token']; target = created['user']['id']
                         page = ctx.new_page(); page.add_init_script('localStorage.setItem("kopilkaToken",'+json.dumps(token)+');')
@@ -158,9 +162,9 @@ def main():
                         print('PASS link preserves initiating account; authenticated finalize consumes proof')
                         ctx.close(); contexts.remove(ctx)
 
-                        # Suspended link opener must retain the initiating session in
+                        # Link opener suspended after intent creation retains the session in
                         # the popup fallback and finalize only its verified proof.
-                        ctx = browser.new_context(); contexts.append(ctx); guard_duplicates(ctx)
+                        ctx = isolated_context(); contexts.append(ctx); guard_duplicates(ctx)
                         created = ctx.request.post(BASE+'/api/auth/dev', data={'firstName':'Paused link fixture'}).json()
                         target = created['user']['id']; token = created['token']
                         page = ctx.new_page(); page.add_init_script('localStorage.setItem("kopilkaToken",'+json.dumps(token)+');')
@@ -169,7 +173,7 @@ def main():
                         def paused_link_window(route):
                             session.send('Emulation.setScriptExecutionDisabled', {'value': True})
                             route.continue_()
-                        ctx.route('**/api/auth/vk-oauth/window', paused_link_window)
+                        ctx.route('**/api/auth/vk-oauth/start?**', paused_link_window)
                         provider.user_id = 770089
                         with page.expect_popup() as opened: page.evaluate("startVkOAuth('link')")
                         popup = opened.value
@@ -210,7 +214,7 @@ def main():
                         ctx.close(); contexts.remove(ctx)
 
                         # Cross-site Mini App explicit recovery with third-party cookies restricted.
-                        ctx = browser.new_context(); contexts.append(ctx); guard_duplicates(ctx)
+                        ctx = isolated_context(); contexts.append(ctx); guard_duplicates(ctx)
                         host = ctx.new_page()
                         cdp = ctx.new_cdp_session(host)
                         cdp.send('Network.enable')
@@ -234,9 +238,8 @@ def main():
                         ctx.route('**/api/auth/vk-oauth/intent', lambda route: route.fulfill(status=503,content_type='application/json',body='{"error":"fixture"}'))
                         with page.expect_popup() as opened: page.locator('#vkLoginButton').click()
                         popup = opened.value
-                        popup.locator('#status').wait_for(state='visible')
                         page.wait_for_function('!document.getElementById("vkLoginButton").disabled')
-                        assert 'Не удалось' in page.locator('#loginStatus').inner_text()
+                        page.wait_for_function("document.getElementById('loginStatus').textContent === L('oauthLoginRetry')")
                         assert page.evaluate('state.token') == ''
                         print('PASS failed intent surfaces error and restores login')
                     finally:

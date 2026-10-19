@@ -181,3 +181,11 @@ Rollback: вернуть предыдущий code release целиком и rel
 - Продуктовые подсказки MVP — статичные мягкие тексты, не медицинские рекомендации и не AI-диагностика.
 - Dev auth и demo cleanup должны быть выключены в production.
 - Rate limiting in-memory: подходит для одного процесса MVP; для нескольких процессов нужен общий store.
+
+#### VK saved-launch recovery
+
+`POST /api/auth/vk` and VK linking still require a fresh valid launch. After an unsuccessful bridge refresh, `POST /api/auth/vk/resume` may continue an existing active bearer only for the same correctly signed, expired VK identity and current session revision. It returns that exact bearer without extending its lifetime or creating/linking/merging accounts. Missing, invalid, expired or revoked bearers and mismatched identities fail closed.
+
+Explicit VK ID starts create the one-use server intent in the initiating page; only its opaque intent crosses the navigation URL. No app bearer or context is passed through `window.name`. A real fallback link remains available even when a native host returns an unusable live WindowProxy. External-browser auth finishes there when no opener exists; external link completion still requires the original authenticated session (never transfer a bearer in a URL). Ordinary Mini App startup retains signed-launch priority over cached accounts.
+
+Local regression: `node --test tests/vk-saved-launch.test.js tests/vk-login-recovery.test.js` and `KOPILKA_QA_PORT=32991 python3 tests/run-browser-qa.py vk-login-recovery-browser-qa.py` (provider port 32992; isolated SQLite, outbound blocker and owned CDP contexts). These checks model native handoff loss; they are not actual VK Android/iOS acceptance.

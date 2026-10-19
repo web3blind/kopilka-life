@@ -245,56 +245,15 @@ function buildOAuthCallbackDocument() {
   return { html, nonce, csp: `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'` };
 }
 
-// Pass the snapshot synchronously via the new window's name, not a URL or
-// partitioned storage. The first-party page clears it before any fetch/navigation.
+// A neutral first-party placeholder reserved during the explicit click. Only the
+// opener creates an intent; no account context is read from name/storage here.
 function buildOAuthWindowDocument(retryAfter = 0) {
   const nonce = randomBase64Url(18);
-  const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VK ID — Копилка жизни</title></head><body><main><h1>VK ID</h1><p id="status" role="status">Подготавливаем безопасный вход…</p><p><a href="/">Вернуться в приложение</a></p></main><script nonce="${nonce}">(${oauthWindowBootstrap.toString()})(${safeJson(retryAfter)});</script></body></html>`;
-  return { html, nonce, csp: `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'` };
-}
-
-async function oauthWindowBootstrap(retryAfter = 0) {
-  let context;
-  let rawContext = window.name;
-  window.name = '';
-  const status = document.getElementById('status');
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  try {
-    context = JSON.parse(rawContext || 'null');
-    rawContext = '';
-    if (!context || !/^[A-Za-z0-9_-]{20,80}$/.test(context.channel) ||
-        !['auth', 'link'].includes(context.action) || !Number.isFinite(context.createdAt) ||
-        Math.abs(Date.now() - context.createdAt) > 60000 || (context.action === 'link' && !context.token)) {
-      throw new Error('bootstrap');
-    }
-    if (retryAfter > 0) throw new Error('throttled');
-    const response = await fetch('/api/auth/vk-oauth/intent', {
-      method: 'POST', credentials: 'same-origin', signal: controller.signal,
-      headers: { 'content-type': 'application/json', ...(context.action === 'link' ? { authorization: 'Bearer ' + context.token } : {}) },
-      body: JSON.stringify({ action: context.action, channel: context.channel, refCode: context.refCode, timezone: context.timezone, locale: context.locale })
-    });
-    const data = await response.json();
-    if (response.status === 429) retryAfter = Number(response.headers.get('Retry-After')) || 0;
-    if (!response.ok || data.channel !== context.channel) throw new Error('intent');
-    const target = new URL(data.launchUrl, location.origin);
-    if (target.origin !== location.origin || target.pathname !== '/api/auth/vk-oauth/start' ||
-        target.username || target.password || !/^[A-Za-z0-9_-]{20,80}$/.test(target.searchParams.get('intent'))) throw new Error('launch');
-    location.replace(target.href);
-  } catch (_) {
-    const en = context?.locale === 'en';
-    if (document.documentElement) document.documentElement.lang = en ? 'en' : 'ru';
-    status.textContent = retryAfter > 0
-      ? (en ? `Too many sign-in attempts. Try again in ${retryAfter} seconds.` : `Слишком много попыток входа. Попробуй через ${retryAfter} сек.`)
-      : 'Не удалось начать вход через VK ID. Вернитесь в приложение и попробуйте снова.';
-    if (context && /^[A-Za-z0-9_-]{20,80}$/.test(context.channel) && ['auth', 'link'].includes(context.action) && Number.isFinite(context.createdAt) && Math.abs(Date.now() - context.createdAt) <= 60000 && window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: 'kopilka:vk-oauth', channel: context.channel, action: context.action, error: status.textContent, retryAfter }, location.origin);
-    }
-  } finally {
-    rawContext = '';
-    clearTimeout(timeout);
-    if (context) delete context.token;
-  }
+  const message = retryAfter > 0
+    ? `Слишком много попыток входа. Попробуй через ${Number(retryAfter)} сек.`
+    : 'Подготавливаем безопасный вход… Если окно не продолжит вход, вернитесь в приложение и нажмите ссылку входа.';
+  const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VK ID — Копилка жизни</title></head><body><main><h1>VK ID</h1><p id="status" role="status">${message}</p><p><a href="/">Вернуться в приложение</a></p></main><script nonce="${nonce}">window.name = '';</script></body></html>`;
+  return { html, nonce, csp: `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'` };
 }
 
 module.exports = { buildOAuthCallbackDocument, buildOAuthWindowDocument, createOAuthIntent, beginOAuthIntent, exchangeCode, consumeState, createOAuthLinkProof, consumeOAuthLinkProof, oauthRedirectUri, codeChallenge, validBrowserBinding, buildOAuthHandoffDocument, appOrigin };

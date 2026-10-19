@@ -1,6 +1,6 @@
 window.KopilkaStartup?.mark('app-executed');
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20261007-testers-fixes6';
+const CLIENT_VERSION = '20261019-vk-login-recovery1';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -359,7 +359,8 @@ async function initVkBridge() {
 }
 function safeFirstPartyOAuthUrl(value) {
   const url = new URL(String(value || ''), window.location.origin);
-  if (url.origin !== window.location.origin || url.pathname !== '/api/auth/vk-oauth/start' || url.username || url.password) throw new Error(L('vkOauthStartFailed'));
+  if (url.origin !== window.location.origin || url.pathname !== '/api/auth/vk-oauth/start' || url.username || url.password ||
+      !/^[A-Za-z0-9_-]{20,80}$/.test(url.searchParams.get('intent') || '') || [...url.searchParams.keys()].some(key => key !== 'intent') || url.hash) throw new Error(L('vkOauthStartFailed'));
   return url.toString();
 }
 function showVkOAuthFallbackLink(statusEl, launchUrl) {
@@ -391,14 +392,15 @@ function clearVkOAuthPending() {
   state.vkOAuthChannel = '';
   state.vkOAuthAction = '';
 }
-async function getVkOAuthIntent(action = 'auth') {
+async function getVkOAuthIntent(action = 'auth', channel = '') {
+  // Snapshot the initiating account before any async work. Link authorization
+  // never travels through a window name, navigation URL or third-party page.
+  const authToken = action === 'link' ? state.token : '';
+  const body = JSON.stringify({ action, channel, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() });
   const cfg = await getPublicConfig();
   if (!cfg.vkOAuthEnabled) throw new Error(L('vkOauthNotConfigured'));
-  const data = await api('/api/auth/vk-oauth/intent', {
-    method: 'POST',
-    body: JSON.stringify({ action, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() })
-  });
-  if (!data.launchUrl || !data.channel) throw new Error(L('vkOauthStartFailed'));
+  const data = await api('/api/auth/vk-oauth/intent', { method: 'POST', authToken, body });
+  if (!data.launchUrl || !data.channel || data.channel !== channel) throw new Error(L('vkOauthStartFailed'));
   return { launchUrl: safeFirstPartyOAuthUrl(data.launchUrl), channel: String(data.channel) };
 }
 async function startGoogleOAuth(action) {
@@ -459,18 +461,20 @@ async function startVkOAuth(action = 'auth', statusEl = null) {
   state.vkOAuthChannel = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
   let popup = null;
   try {
-    // The first-party popup clears this one-shot name before creating its
-    // intent. Unlike sessionStorage cloning, this also works across partitions.
-    const bootstrap = JSON.stringify({
-      action: state.vkOAuthAction, channel: state.vkOAuthChannel, createdAt: Date.now(),
-      token: action === 'link' ? state.token : '', refCode: captureRefCode(), timezone: detectTimezone(), locale: locale()
-    });
-    popup = window.open('/api/auth/vk-oauth/window', bootstrap, 'popup,width=520,height=720');
+    // Reserve a first-party popup during the explicit click. The opener creates
+    // the intent; native external browsers may drop both name and opener.
+    popup = window.open('/api/auth/vk-oauth/window', '_blank', 'popup,width=520,height=720');
   } catch (_) { popup = null; }
   if (popup) state.vkOAuthWindow = popup;
+  const channel = state.vkOAuthChannel;
   try {
+    const intent = await getVkOAuthIntent(state.vkOAuthAction, channel);
+    if (state.vkOAuthChannel !== channel) return;
+    // Always leave a real user-clickable link: a native host can return a live
+    // WindowProxy yet silently ignore navigation after reparenting the window.
+    showVkOAuthFallbackLink(statusEl, intent.launchUrl);
     if (popup && !popup.closed) {
-      if (statusEl) statusEl.textContent = L('loginVkSoon');
+      try { popup.location.replace(intent.launchUrl); } catch (_) { /* explicit link remains usable */ }
       // Native hosts may reparent the popup and never update WindowProxy.closed.
       // Bound only this UI wait (not a provider cooldown); detach correlation so
       // a late result cannot sign in after the person has retried/cancelled.
@@ -486,13 +490,11 @@ async function startVkOAuth(action = 'auth', statusEl = null) {
       }, 500);
       state.vkOAuthMonitor = monitor;
     } else {
-      const intent = await getVkOAuthIntent(action);
-      state.vkOAuthChannel = intent.channel;
       state.vkOAuthWindow = null;
-      showVkOAuthFallbackLink(statusEl, intent.launchUrl);
       restoreVkOAuthAction(state.vkOAuthAction);
     }
   } catch (error) {
+    if (state.vkOAuthChannel !== channel) return;
     if (popup && !popup.closed) popup.close();
     const pendingAction = state.vkOAuthAction || action;
     clearVkOAuthPending();
@@ -814,7 +816,7 @@ async function receiveVkOAuthHandoff(event) {
   if (payload.token) {
     if ($('loginScreen')) $('loginScreen').hidden = true;
     if ($('appShell')) $('appShell').hidden = false;
-    await start();
+    await start({ vkOAuthToken: String(payload.token) });
     return;
   }
 }
@@ -1763,20 +1765,27 @@ async function handleVkAuth({ linkOnly = false, suppressReady = false } = {}) {
   } catch (error) {
     if (error.status !== 401) throw error;
     const bridgeLaunchParams = await freshVkBridgeLaunchParams();
-    if (!bridgeLaunchParams || bridgeLaunchParams === launchParams) {
-      clientLog('vk_auth_bridge_fallback_unavailable', `hasBridgeLaunch=${Boolean(bridgeLaunchParams)}`);
-      if (linkOnly) state.vkLinkRequiresOAuth = true;
-      else await showSessionRecovery();
-      setStatus(L('vkOauthExplicitRequired'), 'error');
-      return { oauthRequired: true };
+    if (bridgeLaunchParams && bridgeLaunchParams !== launchParams) {
+      // The most recent signed context always wins; never fall back to an older
+      // account's launch if a different bridge identity could not authenticate.
+      launchParams = bridgeLaunchParams;
+      clientLog('post_vk_auth_bridge_retry', `${endpoint} len=${bridgeLaunchParams.length}`);
+      try {
+        data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }), ...(linkOnly ? {} : { authToken: '' }) });
+      } catch (retryError) {
+        if (retryError.status !== 401) throw retryError;
+      }
     }
-    clientLog('post_vk_auth_bridge_retry', `${endpoint} len=${bridgeLaunchParams.length}`);
-    launchParams = bridgeLaunchParams;
-    try {
-      data = await api(endpoint, { method: 'POST', body: JSON.stringify({ launchParams, refCode: captureRefCode(), timezone: detectTimezone(), locale: locale() }), ...(linkOnly ? {} : { authToken: '' }) });
-    } catch (retryError) {
-      if (retryError.status !== 401) throw retryError;
-      clientLog('vk_auth_bridge_retry_failed', userSafeErrorMessage(retryError));
+    if (!data && !linkOnly && state.token) {
+      // A cached bearer is only a candidate. The server must verify the stale
+      // signature AND match its identity to the active bearer before any reads.
+      try {
+        data = await api('/api/auth/vk/resume', { method: 'POST', authToken: state.token, body: JSON.stringify({ launchParams }) });
+      } catch (resumeError) {
+        if (resumeError.status !== 401) throw resumeError;
+      }
+    }
+    if (!data) {
       if (linkOnly) state.vkLinkRequiresOAuth = true;
       else await showSessionRecovery();
       setStatus(L('vkOauthExplicitRequired'), 'error');
@@ -2997,6 +3006,7 @@ function bindEvents() {
   });
 }
 async function start() {
+  const { vkOAuthToken = '' } = arguments[0] || {};
   readyNoticeDismissed = false;
   setVkAttributionVisibility();
   const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
@@ -3008,7 +3018,11 @@ async function start() {
   try {
     window.Telegram?.WebApp?.ready?.();
     // Startup owns the final Ready, after any saved merge offer is resolved.
-    await authenticate({ suppressReady: true });
+    // A correlated, explicit OAuth completion just supplied this bearer. Verify
+    // it via /me instead of immediately repeating the failed saved launch. This
+    // one invocation is not a cached-session shortcut for ordinary startup.
+    if (vkOAuthToken && state.token === vkOAuthToken) await loadData();
+    else await authenticate({ suppressReady: true });
     await loadPendingMerge();
     setStatus(state.pendingMerge ? L('mergeNeedsConfirmation') : L('ready'), 'info', state.pendingMerge ? 'merge' : 'ready');
   } catch (e) {

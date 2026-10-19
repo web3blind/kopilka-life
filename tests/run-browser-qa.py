@@ -36,6 +36,12 @@ def main():
                    KOPILKA_QA_BASE_URL=f'http://127.0.0.1:{port}',
                    KOPILKA_QA_OAUTH_PROVIDER_URL='http://localhost:4138',
                    DOTENV_CONFIG_PATH='/dev/null')
+        vk_recovery = 'vk-login-recovery-browser-qa.py' in sys.argv[1:]
+        if vk_recovery:
+            env.update(VK_OAUTH_AUTHORIZE_URL='http://127.0.0.1:32992/authorize',
+                       VK_OAUTH_TOKEN_URL='https://qa-vk.invalid/token',
+                       RATE_LIMIT_AUTH_MAX='500',
+                       NODE_OPTIONS=f"--require={ROOT / 'tests/fixtures/vk-login-recovery-preload.cjs'}")
         if 'vk-quota-browser-qa.py' in sys.argv[1:]:
             # Exhaust only the fixture's tiny local limiter; never real VK quotas.
             env.update(RATE_LIMIT_AUTH_MAX='2', RATE_LIMIT_AUTH_WINDOW_MS='3000')
@@ -57,7 +63,7 @@ def main():
         with Path(tmp, 'server.log').open('w+') as log:
             # sendFile rejects absolute paths with dot-directory components; this
             # scratch directory may live under .hermes. DB and logs stay isolated.
-            proc = subprocess.Popen(['node', str(ROOT / 'src/server.js')], cwd=ROOT, env=env, stdout=log, stderr=log)
+            proc = subprocess.Popen(['node', str(ROOT / 'src/server.js')], cwd=tmp if vk_recovery else ROOT, env=env, stdout=log, stderr=log)
             try:
                 deadline = time.monotonic() + 45
                 while True:
