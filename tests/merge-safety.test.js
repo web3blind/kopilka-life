@@ -24,7 +24,13 @@ const tg = () => users.upsertTelegramUser({ id: ++seq, first_name: `Person${seq}
 const vk = () => users.upsertVkUser(++seq);
 const db = () => getDb();
 const rows = (table, id) => db().prepare(`SELECT * FROM ${table} WHERE user_id = ?`).all(id);
+function seedPush(userId) {
+  return Number(db().prepare(`INSERT INTO push_subscriptions(user_id,endpoint_hash,endpoint,p256dh,auth,session_revision)
+    VALUES (?,?,?,?,?,(SELECT session_revision FROM users WHERE id=?))`)
+    .run(userId, `fixture-${userId}`, `https://fcm.googleapis.com/fcm/send/fixture-${userId}`, 'fixture-key', 'fixture-auth', userId).lastInsertRowid);
+}
 function seed(primary, source) {
+  for (const user of [primary, source]) seedPush(user.id);
   const a = createEntry(primary.id, 'joy', 'primary private note');
   const b = createEntry(source.id, 'joy', 'source private note');
   for (const id of [primary.id, source.id]) {
@@ -37,6 +43,8 @@ function seed(primary, source) {
   return { a, b };
 }
 function assertMerged(primary, source, before, aliases) {
+  assert.equal(rows('push_subscriptions', primary.id).length, 0, 'survivor browser must opt in again');
+  assert.equal(rows('push_subscriptions', source.id).length, 0, 'retired browser must never be transferred');
   assert.equal(users.getUserById(source.id), undefined);
   assert.equal(getSummary(primary.id).totalLife, before);
   assert.equal(rows('entries', primary.id).length, 2);
@@ -76,6 +84,8 @@ test('VK merge retains same-day entries, unsent reminders, aliases and credit; r
     const aliases = [source.ref_code];
     const { a } = seed(primary, source);
     const before = getSummary(primary.id).totalLife + getSummary(source.id).totalLife;
+    seedPush(outsider.id);
+    const outsiderPush = rows('push_subscriptions', outsider.id);
     const oldPrimary = createToken(primary.id), oldSource = createToken(source.id), other = createToken(outsider.id);
     const proof = createMergeToken({ primaryUserId: primary.id, sourceUserId: source.id, vkId: source.vk_id,
       authenticatedUserId: primary.id, sessionHash: require('node:crypto').createHash('sha256').update(oldPrimary).digest('hex') });
@@ -90,6 +100,7 @@ test('VK merge retains same-day entries, unsent reminders, aliases and credit; r
     }
     assert.equal((await api(s, '/me', confirmed.data.token)).status, 200);
     assert.equal((await api(s, '/me', other)).status, 200);
+    assert.deepEqual(rows('push_subscriptions', outsider.id), outsiderPush, 'unrelated browser subscription preserved');
   } finally { await new Promise(resolve => s.close(resolve)); }
 });
 
@@ -100,6 +111,8 @@ test('identity merge retains records and aliases; revokes source and survivor se
     db().prepare("INSERT INTO login_identities(provider,subject,user_id) VALUES ('email',?,?)").run(`merge-${++seq}@invalid.test`, source.id);
     const { a } = seed(primary, source);
     const alias = source.ref_code, before = getSummary(primary.id).totalLife + getSummary(source.id).totalLife;
+    seedPush(outsider.id);
+    const outsiderPush = rows('push_subscriptions', outsider.id);
     const oldPrimary = createToken(primary.id), oldSource = createToken(source.id), other = createToken(outsider.id);
     const offer = identityMerge.createOffer({ currentId: primary.id, provider: 'email', subject: db().prepare("SELECT subject FROM login_identities WHERE user_id = ?").get(source.id).subject, session: oldPrimary });
     assert.equal(offer.preview.canMerge, true);
@@ -113,6 +126,7 @@ test('identity merge retains records and aliases; revokes source and survivor se
     }
     assert.equal((await api(s, '/me', confirmed.data.token)).status, 200);
     assert.equal((await api(s, '/me', other)).status, 200);
+    assert.deepEqual(rows('push_subscriptions', outsider.id), outsiderPush, 'unrelated browser subscription preserved');
   } finally { await new Promise(resolve => s.close(resolve)); }
 });
 
@@ -156,6 +170,34 @@ test('reverse VK merge retains retiring synthetic referral links and invalidates
   assert.equal(verifyToken(createToken(primary.id)), primary.id);
 });
 
+test('push subscription cleanup rolls back if either merge transaction fails after cleanup', () => {
+  for (const kind of ['vk', 'identity']) {
+    const primary = tg(), source = vk();
+    seed(primary, source);
+    const session = createToken(primary.id);
+    let perform;
+    if (kind === 'vk') {
+      const token = createMergeToken({ primaryUserId: primary.id, sourceUserId: source.id, vkId: source.vk_id, authenticatedUserId: primary.id });
+      perform = () => vkMerge.applyMergeByToken(token, primary.id);
+    } else {
+      const subject = `rollback-${++seq}@invalid.test`;
+      db().prepare("INSERT INTO login_identities(provider,subject,user_id) VALUES ('email',?,?)").run(subject, source.id);
+      const offer = identityMerge.createOffer({ currentId: primary.id, provider: 'email', subject, session });
+      perform = () => identityMerge.confirmOffer(offer.mergeToken, session, primary.id);
+    }
+    const subscriptions = db().prepare('SELECT * FROM push_subscriptions ORDER BY id').all();
+    const entries = db().prepare('SELECT * FROM entries ORDER BY id').all();
+    db().exec(`CREATE TEMP TRIGGER abort_push_merge BEFORE UPDATE OF user_id ON entries
+      WHEN OLD.user_id = ${source.id} BEGIN SELECT RAISE(ABORT, 'fixture forced rollback'); END`);
+    try { assert.throws(perform, /fixture forced rollback/); }
+    finally { db().exec('DROP TRIGGER abort_push_merge'); }
+    assert.deepEqual(db().prepare('SELECT * FROM push_subscriptions ORDER BY id').all(), subscriptions);
+    assert.deepEqual(db().prepare('SELECT * FROM entries ORDER BY id').all(), entries);
+    assert.equal(verifyToken(session), primary.id);
+    assert(users.getUserById(source.id));
+  }
+});
+
 test('both engines block unequal reminder states and opaque support metadata without any partial writes', () => {
   for (const kind of ['vk', 'identity']) {
     const primary = tg(), source = vk();
@@ -168,6 +210,7 @@ test('both engines block unequal reminder states and opaque support metadata wit
     const preview = kind === 'vk' ? vkMerge.buildMergePreview(primary.id, source.id) : identityMerge.preview(db(), primary.id, source.id);
     assert(preview.blocking.includes('reminder_conflict'));
     assert(preview.blocking.includes('support_metadata_conflict'));
+    const subscriptions = [seedPush(primary.id), seedPush(source.id)];
     const snapshot = db().prepare('SELECT * FROM reminders WHERE user_id IN (?,?) ORDER BY id').all(primary.id, source.id);
     if (kind === 'vk') assert.throws(() => vkMerge.applyMergeByToken(createMergeToken({ primaryUserId: primary.id, sourceUserId: source.id, vkId: source.vk_id, authenticatedUserId: primary.id }), primary.id), /merge blocked/);
     else {
@@ -176,6 +219,7 @@ test('both engines block unequal reminder states and opaque support metadata wit
       assert.throws(() => identityMerge.confirmOffer(offer.mergeToken, session, primary.id), /Merge blocked/);
     }
     assert.deepEqual(db().prepare('SELECT * FROM reminders WHERE user_id IN (?,?) ORDER BY id').all(primary.id, source.id), snapshot);
+    assert.deepEqual(db().prepare('SELECT id FROM push_subscriptions WHERE user_id IN (?,?) ORDER BY id').all(primary.id, source.id).map(row => row.id), subscriptions);
     assert(users.getUserById(source.id));
   }
 });
