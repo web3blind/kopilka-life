@@ -1,6 +1,6 @@
 window.KopilkaStartup?.mark('app-executed');
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20261021-ios-vk-notice1';
+const CLIENT_VERSION = '20261021-share-dismiss1';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -544,7 +544,10 @@ function transientStatusDismissible() {
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
 function readyStatusDismissible() {
-  return statusCategory === 'ready' && !state.busy && !state.refreshFailed &&
+  return statusCategory === 'ready' && explicitStatusDismissible();
+}
+function explicitStatusDismissible() {
+  return ['ready', 'share-unconfirmed'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -553,13 +556,13 @@ function syncStatusDismiss() {
   if (!button) return; // Older shells keep their mounted live region.
   button.textContent = `× ${L('dismissNotification')}`;
   button.setAttribute('aria-label', L('dismissNotification'));
-  button.hidden = !readyStatusDismissible();
+  button.hidden = !explicitStatusDismissible();
   button.disabled = button.hidden;
   const revision = statusRevision;
   button.onclick = () => {
-    if (revision !== statusRevision || !readyStatusDismissible()) return;
+    if (revision !== statusRevision || !explicitStatusDismissible()) return;
     const restoreFocus = document.activeElement === button;
-    readyNoticeDismissed = true;
+    if (statusCategory === 'ready') readyNoticeDismissed = true;
     $('statusRegion').textContent = '';
     statusCategory = 'dismissed';
     statusRevision++;
@@ -602,7 +605,7 @@ function setStatus(text, type = 'info', category = 'info') {
   statusRevision++;
   statusCategory = category === 'support-action-error' ? category : type === 'error' ? 'error' : category;
   const active = document.activeElement;
-  if (category === 'ready' && active !== $('dismissStatus')) statusReturnFocus = active;
+  if (['ready', 'share-unconfirmed'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
   const region = $('statusRegion');
   region.textContent = text + (state.refreshFailed && type !== 'error' && !text.includes(L('refreshPending')) ? ` ${L('refreshPending')}` : '');
   region.classList.toggle('error', type === 'error');
@@ -2822,7 +2825,9 @@ function bindEvents() {
     const box = $('shareFallback');
     const input = $('shareFallbackLink');
     const message = referral ? `${L(statusKey)} ${L('referralPrivacyNotice')}` : L(statusKey);
-    if (!box || !input || !url) { setStatus(message, statusType); return; }
+    // Only a nonfatal, unconfirmed share can be dismissed; keep manual copy available.
+    const category = statusKey === 'shareUnconfirmed' && statusType === 'info' ? 'share-unconfirmed' : 'info';
+    if (!box || !input || !url) { setStatus(message, statusType, category); return; }
     box.hidden = false;
     input.value = url;
     // Set the description before the existing manual-copy focus/selection.
@@ -2831,7 +2836,7 @@ function bindEvents() {
     else input.removeAttribute('aria-describedby');
     input.focus();
     input.select();
-    setStatus(message, statusType);
+    setStatus(message, statusType, category);
   }
   function vkShareResultStatus(result) {
     // Native VK returned an `items` envelope during an authenticated Android share;
