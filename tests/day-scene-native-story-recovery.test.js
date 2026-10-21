@@ -75,7 +75,7 @@ for (const [platform, existing, expected] of [
   const start = app.indexOf('function applyVkStatusTop()');
   assert.ok(start >= 0, 'Android-only status top initializer exists');
   const end = app.indexOf('function fireVkBridgeInit()', start);
-  const scope = { URLSearchParams, document: { documentElement: root },
+  const scope = { URLSearchParams, vkLaunchParams: () => '', document: { documentElement: root },
     window: { location: { search: platform ? `?vk_platform=${platform}` : '' },
       getComputedStyle: () => ({ getPropertyValue: () => existing }) } };
   vm.runInNewContext(app.slice(start, end) + '\napplyVkStatusTop();', scope);

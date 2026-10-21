@@ -1,6 +1,6 @@
 window.KopilkaStartup?.mark('app-executed');
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20261019-vk-login-recovery1';
+const CLIENT_VERSION = '20261021-ios-vk-notice1';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -194,10 +194,18 @@ function preparedDayStoryReady() {
   return preparedDayStory?.key === daySceneStoryKey() && preparedDayStory.expiresAt > Date.now();
 }
 function applyVkStatusTop() {
-  if (new URLSearchParams(window.location.search).get('vk_platform') !== 'mobile_android') return;
+  const launch = vkLaunchParams();
+  const platform = new URLSearchParams(launch.replace(/^[?#]/, '') || window.location.search).get('vk_platform');
+  const iosVk = Boolean(launch) && (platform === 'mobile_iphone' ||
+    (platform === 'mobile_web' && /iPhone|iPad|iPod/i.test(navigator.userAgent)));
+  if (platform !== 'mobile_android' && !iosVk) return;
   const root = document.documentElement;
   const currentTop = parseFloat(window.getComputedStyle(root).getPropertyValue('--vk-status-top')) || 0;
-  root.style.setProperty('--vk-status-top', `${Math.max(64, currentTop)}px`);
+  // VK's floating controls sit BELOW the iOS safe area, also in mobile Safari.
+  // The 96px floor covers hosts/iframes which expose a zero safe-area inset.
+  root.style.setProperty('--vk-status-top', iosVk
+    ? `max(96px, calc(env(safe-area-inset-top, 0px) + 64px), ${Math.max(64, currentTop)}px)`
+    : `${Math.max(64, currentTop)}px`);
 }
 function fireVkBridgeInit() {
   try {
