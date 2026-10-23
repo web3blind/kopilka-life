@@ -1,6 +1,6 @@
 window.KopilkaStartup?.mark('app-executed');
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20261021-share-dismiss1';
+const CLIENT_VERSION = '20261023-template-notice1';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -539,7 +539,7 @@ let statusReturnFocus = null;
 // A late Ready publisher in the same startup must not undo a user's dismissal.
 let readyNoticeDismissed = false;
 function transientStatusDismissible() {
-  return ['ready', 'entry-success'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'entry-success', 'template-applied'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -547,7 +547,7 @@ function readyStatusDismissible() {
   return statusCategory === 'ready' && explicitStatusDismissible();
 }
 function explicitStatusDismissible() {
-  return ['ready', 'share-unconfirmed'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'share-unconfirmed', 'template-applied'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -605,17 +605,17 @@ function setStatus(text, type = 'info', category = 'info') {
   statusRevision++;
   statusCategory = category === 'support-action-error' ? category : type === 'error' ? 'error' : category;
   const active = document.activeElement;
-  if (['ready', 'share-unconfirmed'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
+  if (['ready', 'share-unconfirmed', 'template-applied'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
   const region = $('statusRegion');
   region.textContent = text + (state.refreshFailed && type !== 'error' && !text.includes(L('refreshPending')) ? ` ${L('refreshPending')}` : '');
   region.classList.toggle('error', type === 'error');
   syncStatusDismiss();
-  if (['ready', 'entry-success'].includes(category) && type !== 'error' && !state.refreshFailed) {
+  if (['ready', 'entry-success', 'template-applied'].includes(category) && type !== 'error' && !state.refreshFailed) {
     const revision = statusRevision;
     setTimeout(() => {
       // Never erase a newer action, unsaved draft notice, auth or refresh warning.
       if (revision !== statusRevision || !transientStatusDismissible()) return;
-      if (category === 'ready' && $('dismissStatus')) $('dismissStatus').onclick?.();
+      if (['ready', 'template-applied'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
       else setStatus('');
     }, 5000);
   }
@@ -1182,7 +1182,7 @@ async function applyTemplate(templateId) {
       Object.entries(draft).some(([id, value]) => $(id).value !== value)) return;
   for (const [id, value] of Object.entries(values)) $(id).value = value;
   updateContractCounters();
-  setStatus(L('templateApplied', { title: template.title }));
+  setStatus(L('templateApplied', { title: template.title }), 'info', 'template-applied');
 }
 function renderMergePrompt() {
   const container = $('accountMergePrompt') || (() => {
