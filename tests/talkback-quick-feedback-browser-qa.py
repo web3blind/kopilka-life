@@ -23,7 +23,7 @@ def run(base, db):
             args=['--no-sandbox', '--disable-background-networking'])
         try:
             for lang in ['ru', 'en']:
-                for mode in ['normal', 'gratitude', 'artifact', 'write-error', 'refresh-error', 'identity']:
+                for mode in ['normal', 'gratitude', 'artifact', 'write-error', 'refresh-error', 'identity', 'identity-before-commit', 'rollover']:
                     ctx = browser.new_context(viewport={'width':390,'height':900}, service_workers='block')
                     try:
                         auth = ctx.request.post(base+'/api/auth/dev', data={'firstName':'Quick feedback fixture','locale':lang,'timezone':'UTC'}).json()
@@ -40,7 +40,7 @@ def run(base, db):
                             else: r.continue_()
                         ctx.route('**/*', local_only)
                         ctx.add_init_script('localStorage.setItem("kopilkaToken",'+json.dumps(token)+');localStorage.setItem("kopilkaLocale",'+json.dumps(lang)+')')
-                        p = ctx.new_page(); errors=[]; writes=[]; held=[]; committed=[]
+                        p = ctx.new_page(); errors=[]; writes=[]; held=[]; held_posts=[]; committed=[]
                         p.on('pageerror', lambda e: errors.append(str(e)))
                         p.goto(base); p.wait_for_function('state.user && state.summary && state.product && !state.busy')
                         assert p.evaluate('state.user.id') == uid
@@ -49,13 +49,17 @@ def run(base, db):
                           setStatus=function(text,type,category){qaStatuses.push({text,type,category});return original(text,type,category)};
                           window.qaButtons=Array.from(document.querySelectorAll('#quickActions button'));
                         }''')
+                        # 200% text exercises the real narrow mobile layout in both locales.
+                        p.add_style_tag(content='html { font-size: 200% !important; }')
+                        ax = ctx.new_cdp_session(p)
+                        def quick_ax():
+                            nodes=ax.send('Accessibility.getFullAXTree')['nodes']
+                            return [n for n in nodes if n.get('role',{}).get('value')=='button' and any(x.get('name')=='pressed' for x in n.get('properties',[]))]
                         def intercept(r):
                             path = r.request.url.split('?',1)[0]
                             if r.request.method == 'POST' and path.endswith('/api/entries'):
                                 writes.append(r.request.post_data_json)
-                                if mode == 'write-error':
-                                    r.fulfill(status=503,content_type='application/json',body='{"error":"fixture write refused"}');return
-                                response=r.fetch();assert response.ok,response.text();committed.append(response.json());r.fulfill(response=response)
+                                held_posts.append(r)
                             elif r.request.method == 'GET' and any(x in path for x in ['/api/product','/api/history','/api/artifacts']): held.append(r)
                             else:r.continue_()
                         ctx.route('**/api/**', intercept)
@@ -70,6 +74,39 @@ def run(base, db):
                         else:
                             p.locator('#entryNote').fill('private fixture note');trigger=b
                         trigger.focus();p.keyboard.press('Enter')
+                        p.wait_for_function('state.busy')
+                        assert len(held_posts)==1 and not committed
+                        assert b.get_attribute('aria-pressed')=='false'
+                        assert b.get_attribute('data-used-today')=='false'
+                        assert p.locator('#quickActions').get_attribute('aria-busy')=='true'
+                        before_ax=quick_ax()
+                        assert len(before_ax)==len(p.locator('#quickActions button').all())
+                        ids_before=[n['backendDOMNodeId'] for n in before_ax]
+                        names_before=[n['name']['value'] for n in before_ax]
+                        if mode=='identity-before-commit':
+                            p.evaluate('authEpoch++;state.user={...state.user,id:999999};state.token="fixture-replaced"')
+                        route=held_posts.pop()
+                        if mode=='write-error':
+                            route.fulfill(status=503,content_type='application/json',body='{"error":"fixture write refused"}')
+                        else:
+                            response=route.fetch();assert response.ok,response.text();committed.append(response.json());route.fulfill(response=response)
+                        if mode=='identity-before-commit':
+                            p.wait_for_function('!state.busy')
+                            assert b.get_attribute('aria-pressed')=='false'
+                            assert not p.evaluate('qaStatuses.some(s=>s.category==="entry-success")')
+                            assert not held
+                            replacement=ctx.request.post(base+'/api/auth/dev',data={'firstName':'Other account','locale':lang,'timezone':'UTC'}).json()
+                            p.evaluate('async (auth)=>{state.user=auth.user;state.token=auth.token;state.summary=await api("/api/summary/today");renderQuickActions()}',replacement)
+                            assert not p.evaluate('state.summary.todayEntryTypes.length')
+                            assert [n['backendDOMNodeId'] for n in quick_ax()]==ids_before
+                            assert b.get_attribute('aria-pressed')=='false'
+                            with sqlite3.connect('file:'+str(db)+'?mode=ro',uri=True) as conn:
+                                assert conn.execute('SELECT count(*) FROM entries WHERE user_id=?',(replacement['user']['id'],)).fetchone()[0]==0
+                                assert conn.execute('SELECT count(*) FROM entries WHERE user_id=?',(uid,)).fetchone()[0]==1
+                            assert not errors,errors
+                            RESULTS.append({'lang':lang,'mode':mode,'pass':True,'posts':1,'dbRows':1})
+                            print(json.dumps(RESULTS[-1]),flush=True)
+                            continue
                         p.wait_for_function('(type)=>state.summary.todayEntryTypes.includes(type) || document.getElementById("statusRegion").classList.contains("error")', arg=typ, timeout=5000)
                         if mode == 'write-error':
                             p.wait_for_function('!state.busy')
@@ -91,7 +128,16 @@ def run(base, db):
                             assert p.locator('#todayLife').inner_text()==str(data['summary']['todayLife'])
                             assert p.evaluate('qaButtons.every((b,i)=>b===document.querySelectorAll("#quickActions button")[i])')
                             assert p.evaluate('!document.getElementById("statusRegion").closest(\'[aria-busy="true"]\')')
-                            assert p.locator('#quickActions').get_attribute('aria-busy')=='true'
+                            assert p.locator('#quickActions').get_attribute('aria-busy')=='false'
+                            after_ax=quick_ax()
+                            assert [n['backendDOMNodeId'] for n in after_ax]==ids_before
+                            assert [n['name']['value'] for n in after_ax]==names_before
+                            if mode!='gratitude':
+                                saved_ax=next(n for n in after_ax if n['name']['value']==b.get_attribute('aria-label'))
+                                assert saved_ax['description']['value']==p.evaluate('L("alreadyAddedToday")')
+                            pressed=[n for n in after_ax if any(x.get('name')=='pressed' and x.get('value',{}).get('value')=='true' for x in n.get('properties',[]))]
+                            assert len(pressed)==sum(1 for t in data['summary']['todayEntryTypes'] if p.locator('[data-entry-type="'+t+'"]').count())
+                            if mode!='gratitude': assert b.get_attribute('aria-pressed')=='true'
                             assert p.evaluate('qaStatuses.filter(s=>s.category==="entry-success").length')==1
                             assert p.evaluate('state.history.selectedEntries.some(e=>e.id==='+str(data['entry']['id'])+')')
                             assert data['entry']['note'] in p.locator('#selectedDayEntries').text_content()
@@ -124,11 +170,40 @@ def run(base, db):
                             elif mode!='gratitude':
                                 assert b.evaluate('(e)=>e===document.activeElement')
                                 p.keyboard.press('Space');assert len(writes)==1
-                                p.keyboard.press('Tab');assert not b.evaluate('(e)=>e===document.activeElement')
+                                next_button=b.evaluate('(e)=>Array.from(document.querySelectorAll("#quickActions button"))[Array.from(document.querySelectorAll("#quickActions button")).indexOf(e)+1].dataset.entryType')
+                                p.keyboard.press('Tab');assert p.locator('[data-entry-type="'+next_button+'"]').evaluate('(e)=>e===document.activeElement')
+                                p.keyboard.press('Shift+Tab');assert b.evaluate('(e)=>e===document.activeElement')
+                            if mode=='rollover':
+                                # Simulate midnight only in disposable SQLite, then use the real
+                                # server's summary; never synthesize a successful API response.
+                                with sqlite3.connect(db) as conn:
+                                    conn.execute("UPDATE entries SET entry_date=date(entry_date,'-1 day') WHERE user_id=?",(uid,))
+                                summary=ctx.request.get(base+'/api/summary/today',headers=headers).json()
+                                assert not summary['todayEntryTypes']
+                                p.evaluate('(summary)=>{state.summary=summary;renderQuickActions()}',summary)
+                                assert b.get_attribute('aria-pressed')=='false'
+                                assert b.get_attribute('aria-disabled') is None
+                                assert [n['backendDOMNodeId'] for n in quick_ax()]==ids_before
+                                assert b.evaluate('(e)=>e===document.activeElement')
+                            if mode in ['normal','rollover']:
+                                # An unused action (or yesterday's action) can commit normally.
+                                ctx.unroute('**/api/**',intercept)
+                                next_type='rest' if mode=='normal' else 'sleep'
+                                rest=p.locator('[data-entry-type="'+next_type+'"]')
+                                with p.expect_response(lambda r:r.request.method=='POST' and r.url.endswith('/api/entries')) as result:
+                                    rest.click()
+                                assert result.value.ok,result.value.text()
+                                writes.append(result.value.request.post_data_json)
+                                p.wait_for_function('(type)=>!state.busy && state.summary.todayEntryTypes.includes(type)',arg=next_type)
+                                assert rest.get_attribute('aria-pressed')=='true'
+                                assert b.get_attribute('aria-pressed')=='true'
+                                assert [n['backendDOMNodeId'] for n in quick_ax()]==ids_before
+                                with sqlite3.connect('file:'+str(db)+'?mode=ro',uri=True) as conn:
+                                    assert conn.execute("SELECT count(*) FROM entries WHERE user_id=? AND type=?",(uid,next_type)).fetchone()[0]==(2 if mode=='rollover' else 1)
                             assert p.evaluate('qaButtons.every((b,i)=>b===document.querySelectorAll("#quickActions button")[i])')
                         with sqlite3.connect('file:'+str(db)+'?mode=ro',uri=True) as conn:
                             rows=conn.execute('SELECT type,note FROM entries WHERE user_id=? AND type=?',(uid,typ)).fetchall()
-                        assert len(rows)==(0 if mode=='write-error' else 1), rows
+                        assert len(rows)==(0 if mode=='write-error' else 2 if mode=='rollover' else 1), rows
                         assert not errors, errors
                         RESULTS.append({'lang':lang,'mode':mode,'pass':True,'posts':len(writes),'dbRows':len(rows)})
                         print(json.dumps(RESULTS[-1]),flush=True)

@@ -1,6 +1,6 @@
 window.KopilkaStartup?.mark('app-executed');
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20261024-settings-notice1';
+const CLIENT_VERSION = '20261024-talkback-state1';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -886,9 +886,12 @@ function renderQuickActions() {
       const used = usedToday.has(it.type);
       const iconChanged = button.dataset.usedToday !== String(used);
       item.dataset.usedToday = button.dataset.usedToday = String(used);
+      button.setAttribute('aria-pressed', String(used));
       if (used) button.setAttribute('aria-disabled', 'true');
       else button.removeAttribute('aria-disabled');
-      button.setAttribute('aria-label', used ? `${it.title}, ${L('alreadyAddedToday')}` : `${it.title}, ${it.hint}, ${L('addLife', { points: it.points })}`);
+      // A toggle's name stays stable; its daily availability is descriptive.
+      button.setAttribute('aria-label', it.title);
+      button.setAttribute('aria-description', used ? L('alreadyAddedToday') : `${it.hint}, ${L('addLife', { points: it.points })}`);
       // Preserve decoded images and SVGs on all unchanged actions.
       if (iconChanged) button.querySelector('.qa-icon').innerHTML = quickActionIcon(it, used);
       item.querySelector('.qa-hint').textContent = used ? L('alreadyAddedToday') : it.hint;
@@ -898,9 +901,9 @@ function renderQuickActions() {
   }
   container.innerHTML = types.map((it) => {
     const used = usedToday.has(it.type);
-    const aria = used ? `${it.title}, ${L('alreadyAddedToday')}` : `${it.title}, ${it.hint}, ${L('addLife', { points: it.points })}`;
+    const description = used ? L('alreadyAddedToday') : `${it.hint}, ${L('addLife', { points: it.points })}`;
     const icon = quickActionIcon(it, used);
-    return `<div class="qa-item" data-used-today="${used ? 'true' : 'false'}"><button type="button" data-entry-type="${it.type}" data-last-quick-entry-type="${it.type}" data-used-today="${used ? 'true' : 'false'}" ${used ? 'aria-disabled="true"' : ''} aria-label="${escapeHtml(aria)}"><span class="qa-icon" aria-hidden="true">${icon}</span><span class="qa-title">${escapeHtml(it.shortTitle)}</span></button><span class="qa-hint" aria-hidden="true">${escapeHtml(used ? L('alreadyAddedToday') : it.hint)}</span><span class="qa-points" aria-hidden="true">${used ? escapeHtml(L('availableTomorrow')) : escapeHtml(L('plusLife', { points: it.points }))}</span></div>`;
+    return `<div class="qa-item" data-used-today="${used ? 'true' : 'false'}"><button type="button" data-entry-type="${it.type}" data-last-quick-entry-type="${it.type}" aria-pressed="${used ? 'true' : 'false'}" data-used-today="${used ? 'true' : 'false'}" ${used ? 'aria-disabled="true"' : ''} aria-label="${escapeHtml(it.title)}" aria-description="${escapeHtml(description)}"><span class="qa-icon" aria-hidden="true">${icon}</span><span class="qa-title">${escapeHtml(it.shortTitle)}</span></button><span class="qa-hint" aria-hidden="true">${escapeHtml(used ? L('alreadyAddedToday') : it.hint)}</span><span class="qa-points" aria-hidden="true">${used ? escapeHtml(L('availableTomorrow')) : escapeHtml(L('plusLife', { points: it.points }))}</span></div>`;
   }).join('');
   container.dataset.locale = currentLocale;
 }
@@ -2117,6 +2120,9 @@ async function createEntry(type, note = $('entryNote').value.trim()) {
     // POST is the commit authority. Paint in place and announce now, not after
     // secondary reads (nor on blur/swipe). Keep status outside the busy subtree.
     renderQuickActions(); renderSummary(); renderHistory();
+    // The authoritative state is ready. Expose it now, even while secondary
+    // reads keep the mutation guard active; do not move the focused button.
+    $('quickActions').setAttribute('aria-busy', 'false');
     setStatus(awardedArtifacts.length ? L('artifactUnlockedStatus', { title: awardedArtifacts[0].title })
       : type === 'gratitude' ? L('gratitudeSavedStatus') : L('entrySaved'), 'info', 'entry-success');
     await refreshAfterCommit([refreshProduct, () => state.historyEditingId ? undefined : loadHistory(), async () => {

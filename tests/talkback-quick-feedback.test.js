@@ -33,9 +33,10 @@ const committed = artifacts => ({summary:{todayEntryTypes:['sleep'],todayLife:2}
 test('commit paints and announces once before secondary reads; click is guarded, node/focus retained', async()=>{
   const h=harness(), node=h.button; const p=h.click(); assert.equal(h.posts(),1); await h.click(); assert.equal(h.posts(),1);
   assert(!h.trace.some(x=>x.category==='entry-success')); assert.equal(h.button.dataset.usedToday,'false');
+  assert.equal(h.el('quickActions').getAttribute('aria-busy'),'true');
   h.post.resolve(committed()); await flush();
   assert.equal(h.button.dataset.usedToday,'true'); assert(h.trace.includes('summary')); assert(h.trace.includes('history'));
-  assert.equal(h.state.busy,true); assert.equal(h.el('quickActions').getAttribute('aria-busy'),'true');
+  assert.equal(h.state.busy,true); assert.equal(h.el('quickActions').getAttribute('aria-busy'),'false');
   assert.notEqual(h.el('body').getAttribute('aria-busy'),'true');
   assert.equal(h.trace.filter(x=>x.category==='entry-success').length,1);
   assert(!h.trace.includes('all')); assert.equal(h.ctx.document.activeElement,node);
@@ -69,4 +70,38 @@ test('a newer note survives commit; background-refresh click queue remains singl
   assert.equal(h.el('entryNote').value,'new');h.refresh.resolve();await p;
   const q=harness();q.state.busy=true;q.state.refreshPending=true;q.el('entryNote').value='queued';await q.click();await q.click();
   assert.equal(q.posts(),0);assert.equal(q.state.pendingQuickAfterRefresh.type,'sleep');assert.equal(q.state.pendingQuickAfterRefresh.userId,1);assert.equal(q.state.pendingQuickAfterRefresh.note,'queued');
+});
+
+test('daily pressed state has a stable name and localized description, updates in place, resets from server summary',()=>{
+  const nodes=[];
+  const types=[{type:'sleep',title:'Sleep',hint:'Rested',points:3},{type:'rest',title:'Rest',hint:'A break',points:1}];
+  const container={dataset:{locale:'en'},children:[],innerHTML:''};
+  for(const it of types){
+    const icon={innerHTML:''},hint={textContent:''},points={textContent:''};
+    const button={dataset:{entryType:it.type,usedToday:'false'},attrs:{},
+      setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];},querySelector(){return icon;}};
+    nodes.push(button);
+    container.children.push({dataset:{},querySelector(s){return s.startsWith('button')?button:s==='.qa-hint'?hint:points;}});
+  }
+  const state={summary:{todayEntryTypes:[]}};
+  const ctx=vm.createContext({state,Set,locale:()=> 'en',I18N:{entryTypes:()=>types},$:()=>container,
+    L:(key)=>key,escapeHtml:x=>x,quickActionIcon:()=>'<svg></svg>'});
+  vm.runInContext(part('function renderQuickActions()', 'function renderSummary()'),ctx);
+  ctx.renderQuickActions();
+  const initial=nodes.map(b=>b.attrs['aria-label']);
+  assert.deepEqual(initial,['Sleep','Rest']);
+  assert(nodes.every(b=>b.attrs['aria-pressed']==='false'));
+  assert.equal(nodes[0].attrs['aria-description'],'Rested, addLife');
+  state.summary.todayEntryTypes=['sleep'];ctx.renderQuickActions();
+  assert.equal(nodes[0].attrs['aria-pressed'],'true');assert.equal(nodes[0].attrs['aria-disabled'],'true');
+  assert.equal(nodes[0].attrs['aria-description'],'alreadyAddedToday');
+  assert.equal(nodes[1].attrs['aria-pressed'],'false');
+  assert.deepEqual(nodes.map(b=>b.attrs['aria-label']),initial);
+  state.summary.todayEntryTypes=[];ctx.renderQuickActions();
+  assert.equal(nodes[0].attrs['aria-pressed'],'false');assert.equal(nodes[0].attrs['aria-disabled'],undefined);
+  assert.equal(nodes[0].attrs['aria-description'],'Rested, addLife');
+  // Initial creation must expose the same state as the in-place path.
+  container.children=[];state.summary.todayEntryTypes=['sleep'];ctx.renderQuickActions();
+  assert.match(container.innerHTML,/aria-pressed="true"[^>]*aria-label="Sleep" aria-description="alreadyAddedToday"/);
+  assert.match(container.innerHTML,/aria-pressed="false"[^>]*aria-label="Rest" aria-description="A break, addLife"/);
 });
