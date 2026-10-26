@@ -3,6 +3,7 @@
   const paths = Object.freeze({
     '/privacy.html': { ru: '/privacy.html', en: '/privacy.en.html' },
     '/terms.html': { ru: '/terms.html', en: '/terms.en.html' },
+    '/about': { ru: '/about', en: '/en/about' },
   });
   const documents = new Set(Object.values(paths).flatMap((locales) => Object.values(locales)));
   const isDocument = documents.has(window.location.pathname);
@@ -85,7 +86,8 @@
     const timeout = setTimeout(() => controller.abort(), 12000);
     const documentLanguage = language();
     const fetchPath = localizedPath(path);
-    title.textContent = canonicalPath(path) === '/privacy.html' ? text('legalPrivacy', 'Политика конфиденциальности') : text('legalTerms', 'Условия использования');
+    const about = canonicalPath(path) === '/about';
+    title.textContent = about ? (language() === 'en' ? 'About' : 'О сервисе') : canonicalPath(path) === '/privacy.html' ? text('legalPrivacy', 'Политика конфиденциальности') : text('legalTerms', 'Условия использования');
     dialog.querySelector('[data-document-close]').textContent = text('legalClose', 'Закрыть документ');
     content.setAttribute('aria-busy', 'true');
     content.textContent = text('legalLoading', 'Загружаем документ…');
@@ -96,9 +98,9 @@
         referrerPolicy: 'no-referrer', redirect: 'error' });
       if (!response.ok) throw new Error('Document unavailable');
       const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
-      const section = parsed.querySelector('main > section');
+      const section = parsed.querySelector(about ? 'main' : 'main > section');
       if (!section?.querySelector('h1')) throw new Error('Invalid document');
-      // Only the allowlisted legal copy is imported, never its scripts or page shell.
+      // Import only public copy, never its scripts, header or page shell.
       section.querySelectorAll('script, style, iframe, object, embed, link, base, form').forEach((node) => node.remove());
       section.querySelectorAll('*').forEach((node) => {
         for (const attr of [...node.attributes]) {
@@ -106,8 +108,7 @@
         }
       });
       section.lang = documentLanguage;
-      const back = section.querySelector('[data-document-return]');
-      if (back) {
+      section.querySelectorAll(about ? 'a[href="/"], a[href="/?lang=en"]' : '[data-document-return]').forEach((back) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'secondary';
@@ -115,14 +116,18 @@
         button.textContent = text('legalReturn', back.textContent);
         button.addEventListener('click', close);
         back.replaceWith(button);
-      }
+      });
       section.querySelectorAll('a[href]').forEach((link) => {
         const path = documentPath(link);
-        // Legal documents currently contain only cross-document links. Do not
-        // silently turn a future arbitrary link into an app exit or URL forwarder.
-        if (path) link.setAttribute('href', path);
-        else link.removeAttribute('href');
-        link.removeAttribute('target');
+        // Partnership forms need their own scripts. Open only this allowlisted
+        // public destination separately, without replacing the owning Mini App.
+        const partner = about && ['/partners', '/en/partners'].includes(link.getAttribute('href'));
+        if (path) link.setAttribute('href', localizedPath(path));
+        else if (!partner) link.removeAttribute('href');
+        if (partner) {
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+        } else link.removeAttribute('target');
       });
       if (request !== controller || !dialog.open) return;
       content.replaceChildren(section);

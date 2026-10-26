@@ -84,7 +84,8 @@ test('daily pressed state has a stable name and localized description, updates i
     container.children.push({dataset:{},querySelector(s){return s.startsWith('button')?button:s==='.qa-hint'?hint:points;}});
   }
   const state={summary:{todayEntryTypes:[]}};
-  const ctx=vm.createContext({state,Set,locale:()=> 'en',I18N:{entryTypes:()=>types},$:()=>container,
+  const note={disabled:false,attrs:{},setAttribute(k,v){this.attrs[k]=v;}};
+  const ctx=vm.createContext({state,Set,locale:()=> 'en',I18N:{entryTypes:()=>types},$:id=>id==='entryNote'?note:container,
     L:(key)=>key,escapeHtml:x=>x,quickActionIcon:()=>'<svg></svg>'});
   vm.runInContext(part('function renderQuickActions()', 'function renderSummary()'),ctx);
   ctx.renderQuickActions();

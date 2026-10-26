@@ -1,0 +1,11 @@
+--- a/src/services/landingHtmlService.js
++++ b/src/services/landingHtmlService.js
+@@ -20,7 +20,7 @@
+   const description = english ? 'A free service to notice sleep, movement, joy and gratitude, without rankings or penalties. Available on the web, Telegram and VK.' : 'Бесплатный сервис для отметок сна, движения, радости и благодарности. Без рейтингов и наказаний. Доступен на сайте, в Telegram и VK.';
+   const page = html.replace(/<title>[\s\S]*?<\/title>/, seo.metadata({locale:english?'en':'ru',path:'/',title,description}).replace(/<link rel="alternate"[^>]*>/g,''))
+     .replace('<html lang="ru">', english ? '<html lang="en">' : '<html lang="ru">')
+-    .replace(/(<p class="soft-note legal-links">)/g, '$1<a href="/about">О сервисе / About</a> · <a href="/partners">Партнёрам / Partnerships</a> · ');
++    .replace(/(<p class="soft-note legal-links">)/g, `$1<a href="/about" data-i18n="legalAbout">${english ? 'About' : 'О сервисе'}</a> · <a href="/partners" data-i18n="legalPartners">${english ? 'Partnerships' : 'Партнёрам'}</a> · `);
+   return vk ? page.replace(/<p id="(?:loginIpAttribution|appIpAttribution)"[^>]*>[\s\S]*?<\/p>/g, '') : page;
+ }
+ module.exports = { landingHtml };

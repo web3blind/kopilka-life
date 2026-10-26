@@ -1,6 +1,6 @@
 window.KopilkaStartup?.mark('app-executed');
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20261026-practices-notice1';
+const CLIENT_VERSION = '20261026-testers8-1';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -539,7 +539,7 @@ let statusReturnFocus = null;
 // A late Ready publisher in the same startup must not undo a user's dismissal.
 let readyNoticeDismissed = false;
 function transientStatusDismissible() {
-  return ['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -547,7 +547,7 @@ function readyStatusDismissible() {
   return statusCategory === 'ready' && explicitStatusDismissible();
 }
 function explicitStatusDismissible() {
-  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -605,17 +605,17 @@ function setStatus(text, type = 'info', category = 'info') {
   statusRevision++;
   statusCategory = category === 'support-action-error' ? category : type === 'error' ? 'error' : category;
   const active = document.activeElement;
-  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
+  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
   const region = $('statusRegion');
   region.textContent = text + (state.refreshFailed && type !== 'error' && !text.includes(L('refreshPending')) ? ` ${L('refreshPending')}` : '');
   region.classList.toggle('error', type === 'error');
   syncStatusDismiss();
-  if (['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated'].includes(category) && type !== 'error' && !state.refreshFailed) {
+  if (['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(category) && type !== 'error' && !state.refreshFailed) {
     const revision = statusRevision;
     setTimeout(() => {
       // Never erase a newer action, unsaved draft notice, auth or refresh warning.
       if (revision !== statusRevision || !transientStatusDismissible()) return;
-      if (['ready', 'template-applied', 'settings-saved', 'practices-updated'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
+      if (['ready', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
       else setStatus('');
     }, 5000);
   }
@@ -874,6 +874,12 @@ function renderQuickActions() {
   const currentLocale = locale();
   const types = I18N.entryTypes(currentLocale);
   const usedToday = new Set(state.summary?.todayEntryTypes || []);
+  const note = $('entryNote');
+  const exhausted = types.length > 0 && types.every((it) => usedToday.has(it.type));
+  if (note) {
+    note.disabled = state.busy || exhausted;
+    note.setAttribute('aria-disabled', String(exhausted));
+  }
   const container = $('quickActions');
   const items = [...container.children];
   // Preserve button nodes when only today's entries changed: replacing the
@@ -2103,7 +2109,7 @@ async function openSupportAction(actionId, previous = captureSupportStatus()) {
       try { await creditSupportAction(actionId); }
       catch (_) { setSupportActionError(L('supportCreditUnavailable'), previous); return; }
       setStatus(L('supportCredited'));
-    } else setStatus(L('supportOpened'));
+    } else setStatus(L('supportOpened'), 'info', 'link-opened');
   });
 }
 async function createEntry(type, note = $('entryNote').value.trim()) {
@@ -2568,7 +2574,7 @@ function bindEvents() {
       }
       const result = await window.KopilkaDayScene.share(locale(), date, isVkMiniApp() ? 'vk' : 'web');
       if (result === 'story_editor') setStatus(L('daySceneStoryOpened'));
-      if (result === 'cancelled' && isVkMiniApp()) setStatus(L('daySceneStoryCanceled'));
+      if (result === 'cancelled' && isVkMiniApp()) setStatus(L('daySceneStoryCanceled'), 'info', 'story-cancelled');
       if (result === 'shared') setStatus(L('daySceneShared'));
       if (result === 'downloaded') setStatus(L('daySceneDownloaded'));
     } catch (_) { setStatus(L(telegramDayStorySupported() && !isVkMiniApp() ? 'daySceneStoryTelegramError' : (isVkMiniApp() ? 'daySceneStoryError' : 'daySceneShareError')), 'error'); }
