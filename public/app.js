@@ -1,6 +1,6 @@
 window.KopilkaStartup?.mark('app-executed');
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20261024-talkback-state1';
+const CLIENT_VERSION = '20261026-practices-notice1';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -539,7 +539,7 @@ let statusReturnFocus = null;
 // A late Ready publisher in the same startup must not undo a user's dismissal.
 let readyNoticeDismissed = false;
 function transientStatusDismissible() {
-  return ['ready', 'entry-success', 'template-applied', 'settings-saved'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -547,7 +547,7 @@ function readyStatusDismissible() {
   return statusCategory === 'ready' && explicitStatusDismissible();
 }
 function explicitStatusDismissible() {
-  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -605,17 +605,17 @@ function setStatus(text, type = 'info', category = 'info') {
   statusRevision++;
   statusCategory = category === 'support-action-error' ? category : type === 'error' ? 'error' : category;
   const active = document.activeElement;
-  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
+  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
   const region = $('statusRegion');
   region.textContent = text + (state.refreshFailed && type !== 'error' && !text.includes(L('refreshPending')) ? ` ${L('refreshPending')}` : '');
   region.classList.toggle('error', type === 'error');
   syncStatusDismiss();
-  if (['ready', 'entry-success', 'template-applied', 'settings-saved'].includes(category) && type !== 'error' && !state.refreshFailed) {
+  if (['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated'].includes(category) && type !== 'error' && !state.refreshFailed) {
     const revision = statusRevision;
     setTimeout(() => {
       // Never erase a newer action, unsaved draft notice, auth or refresh warning.
       if (revision !== statusRevision || !transientStatusDismissible()) return;
-      if (['ready', 'template-applied', 'settings-saved'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
+      if (['ready', 'template-applied', 'settings-saved', 'practices-updated'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
       else setStatus('');
     }, 5000);
   }
@@ -2585,7 +2585,7 @@ function bindEvents() {
   $('recoveryNoticeClose')?.addEventListener('click', () => { state.recoveryNotice = null; renderRecoveryNotice(); });
   $('artifactToast')?.addEventListener('keydown', keepArtifactDialogFocus);
   $('contractTemplates').addEventListener('click', (event) => { const b = event.target.closest('button[data-template-id]'); if (b && !state.busy && !state.publicReadOnly) applyTemplate(b.dataset.templateId); });
-  $('practiceGoal').addEventListener('change', async (event) => { if (state.busy || state.publicReadOnly) return; try { state.product.practices = await api(`/api/product/practices?goal=${encodeURIComponent(event.target.value)}`); renderPractices(); setStatus(L('practicesUpdated')); } catch (e) { setStatus(e.message, 'error'); } });
+  $('practiceGoal').addEventListener('change', async (event) => { if (state.busy || state.publicReadOnly) return; try { state.product.practices = await api(`/api/product/practices?goal=${encodeURIComponent(event.target.value)}`); renderPractices(); setStatus(L('practicesUpdated'), 'info', 'practices-updated'); } catch (e) { setStatus(e.message, 'error'); } });
   $('contractForm').addEventListener('input', updateContractCounters);
   $('contractForm').addEventListener('change', updateContractCounters);
   // The reset event precedes the native value reset.
