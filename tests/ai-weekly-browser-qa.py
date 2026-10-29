@@ -8,13 +8,51 @@ import os
 from pathlib import Path
 import runpy
 import sqlite3
+import subprocess
+import tempfile
+from contextlib import contextmanager
 import time
 import urllib.parse
+import urllib.request
 from playwright.sync_api import sync_playwright
 BASE = os.environ['KOPILKA_QA_BASE_URL']
 NAV_GEOMETRY = runpy.run_path(str(Path(__file__).with_name('nav-layout-browser-qa.py')))['GEOMETRY']
 assert os.environ['NODE_ENV'] == 'test' and os.environ['DB_PATH'].endswith('qa.sqlite')
 CALLS = Path(os.environ['KOPILKA_AI_QA_CALLS'])
+PAID = os.environ['AI_WEEKLY_PAID_ENABLED'] == 'true'
+PROVIDER = 'OpenRouter' if PAID else 'Google Gemini'
+
+def age_project_minute():
+    # Advance only disposable admission timestamps, not owner weekly claims.
+    with sqlite3.connect(os.environ['DB_PATH']) as db:
+        db.execute('UPDATE ai_provider_quota SET reserved_at=MIN(reserved_at,?)', (int(time.time()*1000)-61000,))
+
+@contextmanager
+def alternate_server(paid, offset=1, missing_google=False):
+    root = Path(__file__).resolve().parents[1]
+    base_port = urllib.parse.urlparse(BASE).port
+    assert base_port is not None
+    port = base_port + offset
+    base = f'http://127.0.0.1:{port}'
+    env = dict(os.environ, PORT=str(port), APP_BASE_URL=base, WEBAPP_URL=base,
+               AI_WEEKLY_PAID_ENABLED='true' if paid else 'false',
+               AI_WEEKLY_GEMINI_API_KEY='' if missing_google else 'fixture-only-gemini')
+    with tempfile.TemporaryFile(mode='w+') as log:
+        proc = subprocess.Popen(['node', str(root/'src/server.js')], cwd=root, env=env, stdout=log, stderr=log)
+        try:
+            deadline = time.monotonic()+20
+            while True:
+                try:
+                    urllib.request.urlopen(base+'/health',timeout=1).close(); break
+                except Exception:
+                    if proc.poll() is not None or time.monotonic()>deadline:
+                        log.seek(0); raise AssertionError(log.read())
+                    time.sleep(.1)
+            yield base
+        finally:
+            proc.terminate()
+            try: proc.wait(timeout=10)
+            except subprocess.TimeoutExpired: proc.kill(); proc.wait()
 def call_count():
     return len(json.loads(CALLS.read_text())) if CALLS.exists() else 0
 
@@ -42,6 +80,8 @@ with sync_playwright() as pw:
                 headers={'Authorization':'Bearer '+auth['token']}
                 assert context.request.post(BASE+'/api/settings/locale',headers=headers,data={'locale':lang}).ok
                 info=context.request.get(BASE+'/api/ai-weekly-summary',headers=headers).json()
+                assert info['provider']==PROVIDER and info['paidMode'] is PAID and info['model']
+                assert 'fixture-only' not in json.dumps(info)
                 seed(auth['user']['id'],info['period']['start'])
                 before=call_count()
                 p=context.new_page();errors=[]
@@ -104,7 +144,18 @@ with sync_playwright() as pw:
                 # Example and disclosure do not contact any model.
                 p.locator('#aiWeeklyExample summary').click()
                 p.locator('#aiWeeklyDisclosure summary').click()
-                assert 'OpenRouter' in p.locator('#aiWeeklyDisclosure').inner_text()
+                assert PROVIDER in p.locator('#aiWeeklyDisclosure').inner_text()
+                assert info['model'] in p.locator('#aiWeeklyProvider').inner_text()
+                assert PROVIDER in p.locator('#aiWeeklyProvider').inner_text()
+                policy=p.locator('#aiWeeklyDisclosure [data-ai-text="policy"]')
+                assert policy.get_attribute('href')==('https://openrouter.ai/privacy' if PAID else 'https://ai.google.dev/gemini-api/terms')
+                if not PAID:
+                    disclosure=p.locator('#aiWeeklyDisclosure').inner_text()
+                    assert 'OpenRouter' not in disclosure and 'ZDR' not in disclosure
+                    assert ('проверка людьми' if lang=='ru' else 'human review') in disclosure
+                    assert ('улучшения продуктов' if lang=='ru' else 'improve products') in disclosure
+                assert 'fixture-only' not in p.content()
+                assert 'fixture-only' not in p.evaluate('JSON.stringify({...localStorage,...sessionStorage})')
                 assert call_count()==before
                 p.evaluate('(scale)=>document.documentElement.style.fontSize=scale+"%"',text_scale)
                 assert p.evaluate('document.documentElement.scrollWidth<=innerWidth'),(lang,width,text_scale)
@@ -220,6 +271,7 @@ with sync_playwright() as pw:
             finally: context.close()
         # Each recommendation topic is an independent owner, not a weakened shared quota.
         for index,topic in enumerate(('calm','hard-days','rest','kindness','self-support','goal')):
+            age_project_minute()
             context=browser.new_context(service_workers='block')
             try:
                 context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(BASE+'/') else r.abort())
@@ -343,14 +395,131 @@ with sync_playwright() as pw:
                 assert p.evaluate('state.user.id')==auth['user']['id']
                 results.append({'scenario':scenario,'calls':0,'safeRecovery':True,'noPostReplay':True})
             finally:context.close()
+        # Two real app processes share only this disposable DB. Provider changes
+        # use authentic HTTP metadata, never fabricated service envelopes.
+        age_project_minute()
+        with alternate_server(not PAID) as alternate:
+            or_base = BASE if PAID else alternate
+            google_base = alternate if PAID else BASE
+            context=browser.new_context(service_workers='block')
+            try:
+                context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(BASE+'/') else r.abort())
+                query=signed(8299103500)
+                auth=context.request.post(BASE+'/api/auth/vk',data={'launchParams':query}).json()
+                headers={'Authorization':'Bearer '+auth['token']}
+                oldmeta=context.request.get(or_base+'/api/ai-weekly-summary',headers=headers).json()
+                seed(auth['user']['id'],oldmeta['period']['end'])
+                before=call_count()
+                body={'consent':True,'consentVersion':oldmeta['consentVersion'],'periodKey':oldmeta['period']['key'],'days':7,'topic':'summary'}
+                saved=context.request.post(or_base+'/api/ai-weekly-summary',headers={**headers,'Origin':or_base},data=body)
+                assert saved.ok and saved.json()['summary']['provider']=='OpenRouter',saved.text()
+                gmeta=context.request.get(google_base+'/api/ai-weekly-summary?days=7&topic=goal',headers=headers).json()
+                assert not gmeta['quota']['allowed']
+                blocked=context.request.post(google_base+'/api/ai-weekly-summary',headers={**headers,'Origin':google_base},data={**body,'consentVersion':gmeta['consentVersion'],'periodKey':gmeta['period']['key'],'topic':'goal'})
+                assert blocked.status==429 and blocked.json()['code']=='AI_QUOTA_EXCEEDED'
+                with sqlite3.connect(os.environ['DB_PATH']) as db:
+                    db.execute('UPDATE ai_weekly_summaries SET started_at=started_at-? WHERE user_id=?',(8*24*60*60*1000,auth['user']['id']))
+                p=context.new_page();target=[or_base];held=[];hold=[False]
+                def metadata(route):
+                    url=target[0]+urllib.parse.urlsplit(route.request.url).path+'?'+urllib.parse.urlsplit(route.request.url).query
+                    response=route.fetch(url=url)
+                    if hold[0]: held.append((route,response));hold[0]=False
+                    else: route.fulfill(response=response)
+                p.route('**/api/ai-weekly-summary?*',metadata)
+                # POST also goes to the selected real process, with its exact Origin.
+                p.route('**/api/ai-weekly-summary',lambda route:route.fulfill(response=route.fetch(url=target[0]+'/api/ai-weekly-summary',headers={**route.request.headers,'origin':target[0]})))
+                p.goto(BASE+'/?'+query);p.wait_for_function('state.user && state.history && !state.busy')
+                p.locator('#tab-button-assistant').click();p.wait_for_function('!document.getElementById("aiWeeklyConsentBox").hidden')
+                assert 'OpenRouter' in p.locator('#aiWeeklyProvider').inner_text()
+                p.locator('#aiWeeklyConsent').check()
+                hold[0]=True;p.locator('#aiWeeklyRefresh').click()
+                deadline=time.monotonic()+5
+                while not held and time.monotonic()<deadline:p.wait_for_timeout(20)
+                assert held
+                target[0]=google_base
+                p.locator('#aiWeeklyTopic').select_option('rest')
+                p.wait_for_function('document.getElementById("aiWeeklyProvider").textContent.includes("Google Gemini") && !document.getElementById("aiWeeklyConsentBox").hidden')
+                assert not p.locator('#aiWeeklyConsent').is_checked()
+                held[0][0].fulfill(response=held[0][1]);p.wait_for_timeout(100)
+                assert 'Google Gemini' in p.locator('#aiWeeklyProvider').inner_text()
+                assert not p.locator('#aiWeeklyConsent').is_checked()
+                # Same period and selectors, only provider identity changes.
+                p.locator('#aiWeeklyConsent').check();target[0]=or_base
+                p.locator('#aiWeeklyRefresh').click();p.wait_for_function('document.getElementById("aiWeeklyProvider").textContent.includes("OpenRouter")')
+                assert not p.locator('#aiWeeklyConsent').is_checked()
+                p.locator('#aiWeeklyConsent').check();target[0]=google_base
+                p.locator('#aiWeeklyRefresh').click();p.wait_for_function('document.getElementById("aiWeeklyProvider").textContent.includes("Google Gemini")')
+                assert not p.locator('#aiWeeklyConsent').is_checked()
+                stale=context.request.post(google_base+'/api/ai-weekly-summary',headers={**headers,'Origin':google_base},data=body)
+                assert stale.status==400 and call_count()==before+1
+                p.locator('#aiWeeklyConsent').check();p.locator('#aiWeeklyCreate').click()
+                p.wait_for_function('!document.getElementById("aiWeeklyArchive").hidden')
+                p.locator('#aiWeeklyArchive summary').click()
+                assert 'OpenRouter' in p.locator('#aiWeeklyArchiveItems').inner_text()
+                assert 'Русский' in p.locator('#aiWeeklyArchiveItems').inner_text()
+                assert 'Google Gemini' in p.locator('#aiWeeklyResult').inner_text()
+                assert call_count()==before+2
+                results.append({'providerFlipFreshConsent':True,'heldOldProviderIgnored':True,'legacyOpenRouterArchive':True,'crossProvider168hQuota':True})
+            finally:context.close()
+        with alternate_server(False,offset=2,missing_google=True) as missing:
+            context=browser.new_context(service_workers='block')
+            try:
+                context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(BASE+'/') else r.abort())
+                query=signed(8299103600)
+                auth=context.request.post(BASE+'/api/auth/vk',data={'launchParams':query}).json();headers={'Authorization':'Bearer '+auth['token']}
+                meta=context.request.get(missing+'/api/ai-weekly-summary',headers=headers).json()
+                seed(auth['user']['id'],meta['period']['end']);before=call_count()
+                assert meta['provider']=='Google Gemini' and meta['available'] is False and meta['quota']['allowed']
+                p=context.new_page()
+                p.route('**/api/ai-weekly-summary?*',lambda route:route.fulfill(response=route.fetch(url=missing+urllib.parse.urlsplit(route.request.url).path+'?'+urllib.parse.urlsplit(route.request.url).query)))
+                p.goto(BASE+'/?'+query);p.wait_for_function('state.user && state.history && !state.busy')
+                p.locator('#tab-button-assistant').click();p.wait_for_function('document.getElementById("aiWeeklyProvider").textContent.includes("Google Gemini")')
+                assert p.locator('#aiWeeklyCreate').is_hidden()
+                denied=context.request.post(missing+'/api/ai-weekly-summary',headers={**headers,'Origin':missing},data={'consent':True,'consentVersion':meta['consentVersion'],'periodKey':meta['period']['key'],'days':7,'topic':'summary'})
+                assert denied.status==503 and call_count()==before
+                assert context.request.get(missing+'/api/ai-weekly-summary',headers=headers).json()['quota']['allowed']
+                results.append({'missingGoogleKeyHidesCreation':True,'noPaidFallback':True,'calls':0})
+            finally:context.close()
+        if not PAID:
+            age_project_minute()
+            context=browser.new_context(service_workers='block')
+            try:
+                context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(BASE+'/') else r.abort())
+                query=signed(8299103700)
+                auth=context.request.post(BASE+'/api/auth/vk',data={'launchParams':query}).json();headers={'Authorization':'Bearer '+auth['token']}
+                meta=context.request.get(BASE+'/api/ai-weekly-summary',headers=headers).json();seed(auth['user']['id'],meta['period']['end'])
+                p=context.new_page();p.goto(BASE+'/?'+query);p.wait_for_function('state.user && state.history && !state.busy')
+                p.locator('#tab-button-assistant').click();p.wait_for_function('!document.getElementById("aiWeeklyConsentBox").hidden')
+                p.locator('#aiWeeklyConsent').check();before=call_count()
+                with sqlite3.connect(os.environ['DB_PATH']) as db:
+                    db.executemany('INSERT INTO ai_provider_quota(reserved_at,input_bound) VALUES(?,1)',[(int(time.time()*1000),)]*15)
+                with p.expect_response(lambda response:response.url.endswith('/api/ai-weekly-summary') and response.request.method=='POST') as response:
+                    p.locator('#aiWeeklyCreate').click()
+                assert response.value.status==429
+                error=response.value.json();assert error['code']=='AI_PROJECT_QUOTA_EXCEEDED' and error['retryAfter']>0 and error['nextAvailableAt']
+                p.wait_for_function('document.getElementById("aiWeeklyStatus").textContent.includes("Общий лимит") && document.getElementById("aiWeeklyQuota").textContent.length>5')
+                assert 'Недельный слот не занят' in p.locator('#aiWeeklyStatus').inner_text()
+                assert p.locator('#aiWeeklyCreate').is_hidden() and call_count()==before
+                p.locator('#aiWeeklyTopic').select_option('goal')
+                p.wait_for_function('document.getElementById("aiWeeklyStatus").textContent.includes("Общий лимит")')
+                p.locator('#aiWeeklyRefresh').click();p.wait_for_load_state('networkidle')
+                final=context.request.get(BASE+'/api/ai-weekly-summary',headers=headers).json()
+                assert final['quota']['allowed'] and not final['projectQuota']['allowed'] and call_count()==before
+                with sqlite3.connect(os.environ['DB_PATH']) as db:
+                    assert db.execute('SELECT COUNT(*) FROM ai_weekly_summaries WHERE user_id=?',(auth['user']['id'],)).fetchone()[0]==0
+                results.append({'project429NoWeeklyClaim':True,'retryMetadataOnly':True,'newTopicNoBypass':True,'noAutoResend':True})
+            finally:context.close()
         for call in json.loads(CALLS.read_text()):
-            assert call['model'].endswith(':free') == (os.environ['AI_WEEKLY_PAID_ENABLED'] != 'true')
-            assert call['provider']['max_price']['prompt'] <= 0.10
-            assert call['provider']['max_price']['completion'] <= 0.40
-            assert call['provider']['allow_fallbacks'] is False
-            assert call['provider']['data_collection']=='deny'
-            assert call['provider']['zdr'] is True
-        print(json.dumps({'pass':True,'provider':'controlled fixture, not a live OpenRouter proof','checks':results},ensure_ascii=False))
+            if call['transport']=='Google Gemini':
+                assert call['model']=='gemini-3.5-flash-lite'
+                assert call['hasApiKeyHeader'] and not call['hasAuthorization'] and not call['hasKeyInUrl']
+            else:
+                assert call['provider']['max_price']['prompt'] <= 0.10
+                assert call['provider']['max_price']['completion'] <= 0.40
+                assert call['provider']['allow_fallbacks'] is False
+                assert call['provider']['data_collection']=='deny'
+                assert call['provider']['zdr'] is True
+        print(json.dumps({'pass':True,'mode':PROVIDER,'scenarioCount':len(results),'fixtureCalls':call_count(),'provider':'controlled transport fixtures, not live model quality or availability proof','checks':results},ensure_ascii=False))
     finally:
         if not cdp:
             browser.close()

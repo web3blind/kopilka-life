@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'ai-weekly-'));
 Object.assign(process.env, { NODE_ENV:'test', DB_PATH:path.join(tmp,'test.sqlite'), SCHEDULER_ENABLED:'false',
-  AI_WEEKLY_ENABLED:'false', AI_WEEKLY_PAID_ENABLED:'false', AI_WEEKLY_OPENROUTER_API_KEY:'', SESSION_SECRET:'weekly-test-only-secret', BOT_TOKEN:'', VK_GROUP_TOKEN:'', RESEND_API_KEY:'' });
+  AI_WEEKLY_ENABLED:'false', AI_WEEKLY_PAID_ENABLED:'false', AI_WEEKLY_OPENROUTER_API_KEY:'', AI_WEEKLY_GEMINI_API_KEY:'', SESSION_SECRET:'weekly-test-only-secret', BOT_TOKEN:'', VK_GROUP_TOKEN:'', RESEND_API_KEY:'' });
 const config = require('../src/config');
 const { initDatabase, getDb, closeDb, applyMigration } = require('../src/db');
 const { createToken, inspectActiveToken } = require('../src/auth/session');
@@ -35,7 +35,7 @@ function user(locale='en', timezone='UTC') {
 function entry(id, note='A walk', date=service.completedPeriod('UTC').start) {
   getDb().prepare("INSERT INTO entries(user_id,type,title,note,life_points,entry_date) VALUES(?,'movement','old title',?,2,?)").run(id,note,date);
 }
-function enable() { Object.assign(config,{aiWeeklyEnabled:true,aiWeeklyOpenrouterApiKey:'fixture-private-key',aiWeeklyModel:model,aiWeeklyTimeoutMs:5000}); mode='ok'; }
+function enable() { Object.assign(config,{aiWeeklyEnabled:true,aiWeeklyPaidEnabled:true,aiWeeklyOpenrouterApiKey:'fixture-private-key',aiWeeklyModel:model,aiWeeklyTimeoutMs:5000}); mode='ok'; }
 
 test('private weekly digest HTTP/tempSQLite behavior', async t => {
  initDatabase();
@@ -48,7 +48,7 @@ test('private weekly digest HTTP/tempSQLite behavior', async t => {
    const response=await realFetch(base+'/ai-weekly-summary'+suffix,{method,headers:{Origin:base,'Content-Type':'application/json',...(id?{Authorization:'Bearer '+createToken(id)}:{}),...extra},...(body===undefined?{}:{body:JSON.stringify(body)})});
    return {status:response.status,headers:response.headers,body:await response.json()};
  };
- const consent=id=>({consentVersion:service.CONSENT_VERSION,consent:true,days:7,topic:'summary',periodKey:service.completedPeriod(getDb().prepare('SELECT timezone FROM users WHERE id=?').get(id).timezone).key});
+ const consent=id=>({consentVersion:service.read(id).consentVersion,consent:true,days:7,topic:'summary',periodKey:service.completedPeriod(getDb().prepare('SELECT timezone FROM users WHERE id=?').get(id).timezone).key});
  try {
  await t.test('last seven calendar days including today, timezone and month/year/DST boundaries',()=>{
    for(const [now,zone,start,end] of [

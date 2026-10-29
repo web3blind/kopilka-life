@@ -8,6 +8,15 @@
     disclosure: ['Только после твоего согласия и нажатия кнопки даты, категории отметок и тексты личных заметок за указанный период будут отправлены через OpenRouter внешнему ИИ-провайдеру вместе с выбранной темой для создания выжимки и, при выборе советов, рекомендаций. Для объёма данных действует ограничение. Имя, контакты и баллы к запросу не добавляются. Если ты записал личные сведения в заметках, они тоже попадут в запрос. До запуска их можно отредактировать в истории.', 'Only after your consent and a button press will entry dates, categories and personal note text for the selected period be sent through OpenRouter to an external AI provider, together with your selected topic, to create a summary and, if requested, recommendations. Input size limits apply. Your name, contact details and points are not added. Personal details you wrote in notes will also be included. You can edit those notes in History before starting.'],
     retention: ['Запрашиваем обработку у поставщиков, заявляющих отказ от хранения и обучения на запросах. OpenRouter проводит обязательные проверки безопасности и хранит технические сведения о запросах; возможны исключения по закону. Полного отсутствия хранения у внешних сервисов не обещаем. Готовая выжимка и факт согласия сохраняются в твоём аккаунте. Текст выжимки можно удалить здесь; техническая отметка останется для недельного лимита, даже после удаления или ошибки.', 'We request providers that declare no request retention or training. OpenRouter performs mandatory safety screening and stores request metadata; legal exceptions may apply. We do not promise that external services retain nothing. The finished digest and consent record are saved in your account. You can delete the digest text here; a technical record remains for the weekly limit, including after deletion or failure.'],
     policy: ['Политика OpenRouter', 'OpenRouter privacy policy'],
+    googlePolicy: ['Условия Google Gemini API', 'Google Gemini API terms'],
+    googleRetention: ['В бесплатном режиме Google может использовать запросы и ответы для улучшения продуктов; возможна проверка людьми. Условия зависят в том числе от региона. Не передавай конфиденциальные, чувствительные или персональные сведения: проверь заметки и при необходимости отредактируй их в Истории до запуска. Это не полностью анонимные данные. Готовая выжимка и факт согласия сохраняются в аккаунте; удаление текста не сбрасывает недельный лимит.', 'In free mode Google may use prompts and responses to improve products, and human review may occur. Terms can vary by region. Do not submit confidential, sensitive or personal information: review your notes and edit them in History before starting if needed. These data are not fully anonymous. The digest and consent record are saved in your account; deleting text does not reset the weekly limit.'],
+    googleConsent: ['Я проверил заметки: в них нет конфиденциальных, чувствительных или персональных сведений. Согласен передать отметки и заметки за этот период напрямую Google Gemini для выжимки и выбранных рекомендаций. Понимаю, что в бесплатном режиме Google может использовать запрос и ответ для улучшения продуктов, включая проверку людьми; действуют условия Google и региональные исключения.', 'I have reviewed my notes: they contain no confidential, sensitive or personal information. I agree to send my entries and notes for this period directly to Google Gemini for a summary and any selected recommendations. I understand that in free mode Google may use the prompt and response to improve products, including human review; Google terms and regional exceptions apply.'],
+    selected: ['Поставщик, режим и модель:', 'Provider, mode and model:'],
+    freeMode: ['Бесплатный API', 'Free API'],
+    paidMode: ['Платный API оператора', 'Operator-paid API'],
+    projectFull: ['Общий лимит бесплатного ИИ сейчас исчерпан. Недельный слот не занят этим отказом. Можно позже проверить доступность; повторной отправки или перехода на платный API автоматически не будет.', 'The shared free AI limit is currently exhausted. This rejection did not use your weekly slot. You can check availability later; there is no automatic resend or switch to a paid API.'],
+    projectNext: ['Общая квота: можно проверить после', 'Shared quota: check again after'],
+    savedProvider: ['Поставщик сохранённой выжимки:', 'Saved digest provider:'],
     privacy: ['Конфиденциальность приложения', 'App privacy policy'],
     consent: ['Согласен передать отметки и личные заметки за этот период через OpenRouter для создания выжимки и, если они запрошены, рекомендаций по выбранной теме.', 'I agree to send my entries and personal notes for this period through OpenRouter to create a summary and, if requested, recommendations for the selected topic.'],
     start: ['Подготовить', 'Prepare'],
@@ -60,6 +69,7 @@
     function status() {
       if (message) return tr(message);
       if (!data) return tr('loading');
+      if (data.projectQuota?.allowed === false && data.quota?.allowed === true) return tr('projectFull');
       if (data.empty) return tr('empty');
       if (data.summary?.errorCode === 'EMPTY_WEEK' && data.summary.status === 'ready') return tr('empty');
       const s = data.summary?.status;
@@ -71,6 +81,10 @@
       const h = document.createElement('h4'); h.textContent = period(item.period || { start: item.periodStart, end: item.periodEnd, timezone: item.timezone }); article.append(h);
       const metadata = document.createElement('p'); metadata.textContent = `${tr(item.topic || 'summary')} · ${tr('days')}: ${item.days || 7}`; article.append(metadata);
       const language = document.createElement('p'); language.className = 'soft-note'; language.textContent = `${tr('savedLanguage')} ${item.locale === 'en' ? 'English' : 'Русский'}`; article.append(language);
+      if (item.provider) {
+        const provider = document.createElement('p'); provider.className = 'soft-note';
+        provider.textContent = `${tr('savedProvider')} ${item.provider}${item.model ? ` · ${item.model}` : ''}`; article.append(provider);
+      }
       const text = document.createElement('p'); text.className = 'ai-weekly-text'; text.textContent = item.text; article.append(text);
       const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary'; button.id = `ai-weekly-delete-${item.id}`; button.textContent = tr('delete'); button.disabled = busy; button.addEventListener('click', () => askDelete(item.id, button)); article.append(button);
       container.append(article);
@@ -78,12 +92,23 @@
     function render() {
       root.hidden = !owner;
       for (const node of root.querySelectorAll('[data-ai-text]')) node.textContent = tr(node.dataset.aiText);
+      const google = data?.provider === 'Google Gemini';
+      const policy = root.querySelector('[data-ai-text="policy"]');
+      policy.href = google ? 'https://ai.google.dev/gemini-api/terms' : 'https://openrouter.ai/privacy';
+      policy.textContent = tr(google ? 'googlePolicy' : 'policy');
+      el('aiWeeklyRetention').textContent = tr(google ? 'googleRetention' : 'retention');
+      root.querySelector('[data-ai-text="consent"]').textContent = tr(google ? 'googleConsent' : 'consent');
+      const disclosure = el('aiWeeklyDataDisclosure');
+      disclosure.textContent = google ? tr('disclosure').replace(locale() === 'en' ? 'through OpenRouter to an external AI provider' : 'через OpenRouter внешнему ИИ-провайдеру', locale() === 'en' ? 'directly to Google Gemini' : 'напрямую Google Gemini') : tr('disclosure');
+      let selected = el('aiWeeklyProvider');
+      if (!selected) { selected = document.createElement('p'); selected.id = 'aiWeeklyProvider'; el('aiWeeklyConsentBox').before(selected); }
+      selected.textContent = data?.provider ? `${tr('selected')} ${data.provider} · ${tr(data.paidMode ? 'paidMode' : 'freeMode')} · ${data.model}` : '';
       el('aiWeeklyPrivacy').href = locale() === 'en' ? '/privacy.en.html' : '/privacy.html';
       el('aiWeeklyPeriod').textContent = data ? `${tr('period')} ${period(data.period)}` : '';
       el('aiWeeklyStatus').textContent = status();
       el('aiWeeklyStatus').classList.toggle('error', Boolean(message === 'error'));
       const valid = Number.isInteger(days) && days >= 1 && days <= 30;
-      const canCreate = valid && data?.available && data?.quota?.allowed === true && (!message || message === 'empty');
+      const canCreate = valid && data?.available && data?.provider && data?.model && data?.quota?.allowed === true && data?.projectQuota?.allowed !== false && (!message || message === 'empty');
       el('aiWeeklyCustomBox').hidden = el('aiWeeklyDays').value !== 'other';
       el('aiWeeklySelectionError').textContent = valid ? '' : tr('invalid');
       for (const id of topicIds) {
@@ -97,6 +122,10 @@
       if (data?.quota?.allowed === false && data.quota.nextAvailableAt) {
         const when = new Intl.DateTimeFormat(locale(), { dateStyle: 'long', timeStyle: 'long', timeZone: data.period.timezone }).format(new Date(data.quota.nextAvailableAt));
         el('aiWeeklyQuota').textContent = `${tr('next')} ${when} (${data.period.timezone})`;
+      }
+      if (data?.projectQuota?.allowed === false && data.projectQuota.nextAvailableAt) {
+        const when = new Intl.DateTimeFormat(locale(), { dateStyle: 'long', timeStyle: 'long', timeZone: data.period.timezone }).format(new Date(data.projectQuota.nextAvailableAt));
+        el('aiWeeklyQuota').textContent += `${el('aiWeeklyQuota').textContent ? ' · ' : ''}${tr('projectNext')} ${when} (${data.period.timezone})`;
       }
       el('aiWeeklyConsentBox').hidden = !canCreate;
       el('aiWeeklyCreate').disabled = busy || readBusy || !canCreate || !el('aiWeeklyConsent').checked;
@@ -131,21 +160,37 @@
       try {
         const next = await api(`/api/ai-weekly-summary?days=${days}&topic=${encodeURIComponent(topic)}`); // Safe GET may use existing sign-in recovery; never replay POST.
         if (!current(ticket, who) || read !== readVersion) return;
-        if (data?.period?.key !== next.period.key || data?.consentVersion !== next.consentVersion) el('aiWeeklyConsent').checked = false;
+        if (data?.period?.key !== next.period.key || ['consentVersion', 'provider', 'model', 'paidMode'].some(key => data?.[key] !== next[key])) el('aiWeeklyConsent').checked = false;
         data = next; message = '';
       } catch (error) { if (current(ticket, who) && read === readVersion) { message = error.status === 401 ? 'auth' : 'error'; el('aiWeeklyConsent').checked = false; } }
       finally { if (current(ticket, who) && read === readVersion) { readBusy = false; render(); } }
     }
     async function start() {
-      if (busy || readBusy || !data?.available || data?.quota?.allowed !== true || !el('aiWeeklyConsent').checked) return;
+      if (busy || readBusy || !data?.available || !data.provider || !data.model || data?.projectQuota?.allowed === false || data?.quota?.allowed !== true || !el('aiWeeklyConsent').checked) return;
       const ticket = generation, who = owner;
+      let projectRejection = null;
       busy = true; message = 'processing'; render();
       try {
         const next = await api('/api/ai-weekly-summary', { method: 'POST', skipSessionRenewal: true, body: JSON.stringify({ consent: true, consentVersion: data.consentVersion, periodKey: data.period.key, days, topic }) });
         if (current(ticket, who)) { data = next; message = ''; }
-      } catch (error) { if (current(ticket, who)) message = error.status === 401 ? 'auth' : error.status ? 'failed' : 'uncertain'; }
+      } catch (error) {
+        if (current(ticket, who)) {
+          // Only this exact server code may claim the weekly slot was untouched.
+          const projectFull = error.status === 429 && error.data?.code === 'AI_PROJECT_QUOTA_EXCEEDED';
+          message = error.status === 401 ? 'auth' : projectFull ? 'projectFull' : error.status ? 'failed' : 'uncertain';
+          if (projectFull) {
+            projectRejection = { allowed: false, nextAvailableAt: error.data.nextAvailableAt || null };
+            data.projectQuota = projectRejection;
+          }
+        }
+      }
       finally {
-        if (current(ticket, who)) { busy = false; el('aiWeeklyConsent').checked = false; render(); if (message !== 'auth' && !data?.empty) await load(); }
+        if (current(ticket, who)) {
+          busy = false; el('aiWeeklyConsent').checked = false; render();
+          if (message !== 'auth' && !data?.empty) await load();
+          // A metadata-only GET cannot estimate this selection's input budget.
+          if (current(ticket, who) && projectRejection && data) { data.projectQuota = projectRejection; message = 'projectFull'; render(); }
+        }
       }
     }
     function askDelete(id, button) {

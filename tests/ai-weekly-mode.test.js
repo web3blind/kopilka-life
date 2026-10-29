@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || require('node:os').tmpdir(), 'weekly-mode-'));
-Object.assign(process.env, { NODE_ENV:'test', DB_PATH:path.join(dir,'db.sqlite'), AI_WEEKLY_ENABLED:'false', AI_WEEKLY_PAID_ENABLED:'false', AI_WEEKLY_MODEL:'fixture/free:free', AI_WEEKLY_OPENROUTER_API_KEY:'', SCHEDULER_ENABLED:'false' });
+Object.assign(process.env, { NODE_ENV:'test', DB_PATH:path.join(dir,'db.sqlite'), AI_WEEKLY_ENABLED:'false', AI_WEEKLY_PAID_ENABLED:'false', AI_WEEKLY_MODEL:'fixture/free:free', AI_WEEKLY_OPENROUTER_API_KEY:'', AI_WEEKLY_GEMINI_API_KEY:'', SCHEDULER_ENABLED:'false' });
 const config = require('../src/config');
 const { initDatabase, getDb, closeDb } = require('../src/db');
 const { createToken, inspectActiveToken } = require('../src/auth/session');
@@ -34,14 +34,14 @@ function fixture(url, options={}) {
 
 test('isolated config defaults and exact paid opt-in, no working .env',()=>{
   const file=require.resolve('../src/config');
-  for(const [flag,model,override] of [[undefined,freeModel],['false',freeModel],['TRUE',freeModel],['true',paidModel],['true',freeModel,freeModel],['false',paidModel,paidModel]]) {
+  for(const [flag,model,override] of [[undefined,'gemini-3.5-flash-lite'],['false','gemini-3.5-flash-lite'],['TRUE','gemini-3.5-flash-lite'],['true',paidModel],['true',freeModel,freeModel],['false','gemini-3.5-flash-lite',paidModel]]) {
     const env={ PATH:process.env.PATH, NODE_ENV:'test', AI_WEEKLY_ENABLED:'true', AI_WEEKLY_OPENROUTER_API_KEY:'fixture-key' };
     if(override)env.AI_WEEKLY_MODEL=override;
     if(flag!==undefined)env.AI_WEEKLY_PAID_ENABLED=flag;
     const child=spawnSync(process.execPath,['-e',`const c=require(${JSON.stringify(file)});console.log(JSON.stringify([c.aiWeeklyModel,c.aiWeeklyPaidEnabled,c.aiWeeklyEnabled]))`],{cwd:dir,env,encoding:'utf8'});
     assert.equal(child.status,0,child.stderr);
     const values=JSON.parse(child.stdout.trim().split('\n').at(-1));
-    assert.deepEqual(values,[override || (model===freeModel?'xingchen-agi/xing4.0-29b-a4b:free':model),flag==='true',true]);
+    assert.deepEqual(values,[flag==='true' ? (override || model) : 'gemini-3.5-flash-lite',flag==='true',true]);
   }
 });
 
@@ -60,7 +60,7 @@ test('paid/free HTTP mode, strict catalogs, locales and durable anti-resend',asy
     getDb().prepare("INSERT INTO entries(user_id,type,title,note,life_points,entry_date) VALUES(?,'movement','unused','walk',2,?)").run(id,service.completedPeriod('UTC').start);return id;
   };
   const request=async(id,method='GET')=>{
-    const response=await realFetch(base+'/ai-weekly-summary',{method,headers:{Origin:base,Authorization:'Bearer '+createToken(id),'Content-Type':'application/json'},...(method==='POST'?{body:JSON.stringify({consent:true,consentVersion:service.CONSENT_VERSION,periodKey:service.completedPeriod('UTC').key,days:7,topic:'summary'})}:{})});
+    const response=await realFetch(base+'/ai-weekly-summary',{method,headers:{Origin:base,Authorization:'Bearer '+createToken(id),'Content-Type':'application/json'},...(method==='POST'?{body:JSON.stringify({consent:true,consentVersion:service.read(id).consentVersion,periodKey:service.completedPeriod('UTC').key,days:7,topic:'summary'})}:{})});
     return {status:response.status,body:await response.json()};
   };
   const posts=()=>calls.filter(c=>c.options.method==='POST');
@@ -72,8 +72,8 @@ test('paid/free HTTP mode, strict catalogs, locales and durable anti-resend',asy
       }
       reset(false);const id=user();const g=await request(id);assert.equal(g.body.available,false);assert.equal(g.body.paidMode,false);assert.equal((await request(id,'POST')).status,503);assert.equal(calls.length,0);
     });
-    await t.test('free overrides stay strictly free in both modes without paid fallback',async()=>{
-      for(const paid of [false,true]) {
+    await t.test('explicit OpenRouter mode permits zero-priced model overrides but never paid fallback',async()=>{
+      for(const paid of [true]) {
         reset(paid,freeModel);const id=user();const r=await request(id,'POST');assert.equal(r.body.summary.status,'ready');assert.equal(r.body.paidMode,paid);
         assert.deepEqual(JSON.parse(posts()[0].options.body).provider.max_price,{prompt:0,completion:0});
         reset(paid,freeModel);prices.prompt='0.0000001';const failed=await request(user(),'POST');assert.equal(failed.body.summary.errorCode,'FREE_MODEL_REQUIRED');assert.equal(posts().length,0);

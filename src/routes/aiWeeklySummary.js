@@ -30,6 +30,10 @@ router.post('/', async (req,res) => {
     if (!authorized(req)) return res.status(401).json({ code:'SESSION_INVALID' });
     return res.status(200).json(result);
   } catch (error) {
+    if (error.safeCode === 'AI_PROJECT_QUOTA_EXCEEDED' && error.status === 429) {
+      res.set('Retry-After',String(error.retryAfter));
+      return res.status(429).json({code:error.safeCode,retryAfter:error.retryAfter,nextAvailableAt:error.nextAvailableAt,projectQuota:{allowed:false,nextAvailableAt:error.nextAvailableAt}});
+    }
     return res.status(error.status || 503).json({ code: error.status ? error.safeCode : 'AI_UNAVAILABLE' });
   }
 });

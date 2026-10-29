@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR, 'ai-assistant-'));
-Object.assign(process.env, { NODE_ENV:'test', DB_PATH:path.join(tmp,'db.sqlite'), SESSION_SECRET:'assistant-test-only', SCHEDULER_ENABLED:'false', AI_WEEKLY_ENABLED:'false', AI_WEEKLY_PAID_ENABLED:'false', AI_WEEKLY_OPENROUTER_API_KEY:'', BOT_TOKEN:'', RESEND_API_KEY:'', VK_GROUP_TOKEN:'' });
+Object.assign(process.env, { NODE_ENV:'test', DB_PATH:path.join(tmp,'db.sqlite'), SESSION_SECRET:'assistant-test-only', SCHEDULER_ENABLED:'false', AI_WEEKLY_ENABLED:'false', AI_WEEKLY_PAID_ENABLED:'false', AI_WEEKLY_OPENROUTER_API_KEY:'', AI_WEEKLY_GEMINI_API_KEY:'', BOT_TOKEN:'', RESEND_API_KEY:'', VK_GROUP_TOKEN:'' });
 const config = require('../src/config');
 const { initDatabase, getDb, closeDb, applyMigration } = require('../src/db');
 const { createToken, inspectActiveToken } = require('../src/auth/session');
@@ -37,7 +37,7 @@ function entry(id, note='A recorded walk', date=service.completedPeriod('UTC').e
 const count=id=>getDb().prepare('SELECT COUNT(*) n FROM ai_weekly_summaries WHERE user_id=?').get(id).n;
 const posts=()=>calls.filter(c=>c.options.method==='POST');
 test('AI assistant real HTTP, minimized provider and durable global quota',async t=>{
- initDatabase();Object.assign(config,{aiWeeklyEnabled:true,aiWeeklyPaidEnabled:false,aiWeeklyModel:model,aiWeeklyOpenrouterApiKey:'synthetic-only',aiWeeklyTimeoutMs:1000});
+ initDatabase();Object.assign(config,{aiWeeklyEnabled:true,aiWeeklyPaidEnabled:true,aiWeeklyModel:model,aiWeeklyOpenrouterApiKey:'synthetic-only',aiWeeklyTimeoutMs:1000});
  const app=require('express')();app.use(require('express').json({limit:'64kb'}));
  app.use('/api/ai-weekly-summary',(req,res,next)=>{const auth=inspectActiveToken((req.get('authorization')||'').replace(/^Bearer\s+/i,''));if(auth.status!=='valid')return res.sendStatus(401);req.user=getDb().prepare('SELECT * FROM users WHERE id=?').get(auth.userId);next();},require('../src/routes/aiWeeklySummary'));
   app.use('/api',require('../src/routes/api'));

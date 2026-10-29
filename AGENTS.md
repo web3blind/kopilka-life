@@ -15,6 +15,9 @@ VK Mini App, Telegram Mini App, сайт и бот с общей серверн�
 
 ## Архитектура и карта кода
 
+- Бесплатный ИИ вызывает Google Gemini напрямую (`AI_WEEKLY_GEMINI_API_KEY`, Gemini 3.5 Flash Lite); платный OpenRouter — только при `AI_WEEKLY_PAID_ENABLED=true`, отдельном ключе и прежних ZDR/price ceilings. `AI_WEEKLY_MODEL` — только для платного режима. Не возвращать бесплатный OpenRouter fallback. GET показывает реальный provider/model/paidMode/consentVersion; смена любого значения требует нового согласия. Бесплатные условия Google допускают улучшение продуктов и human review с региональными исключениями: не обещать ZDR или полную анонимность заметок.
+- Общий durable бюджет Google — 15 RPM, 250000 консервативно оценённых входных TPM, 500 RPD по America/Los_Angeles. Резерв атомарен с пользовательским 168h claim до await. `AI_PROJECT_QUOTA_EXCEEDED` не занимает недельный слот: показывать отдельную `projectQuota`/время следующей проверки, не автоматический retry. Архив показывает исходного поставщика и язык, не текущие настройки генерации. Connected QA использует только временную SQLite и контролируемый transport Google/OpenRouter; это не live-доказательство качества/доступности модели.
+
 Один лёгкий Node.js/Express 5 процесс, CommonJS, SQLite через better-sqlite3. Vanilla HTML/CSS/JS без React/Next/Vue, SSR и тяжёлой frontend-сборки. Telegram — webhook, не polling. Не увеличивать число процессов без пересмотра scheduler, webhook lease и in-memory rate limits.
 
 - `src/server.js` — HTTP entrypoint: региональная HTML-оболочка, static, API, webhook, запуск scheduler. Запускать из корня: `public/` и `migrations/` разрешаются относительно cwd.

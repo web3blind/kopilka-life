@@ -12,11 +12,18 @@ function timeoutMs() {
   const value = Number(config.aiWeeklyTimeoutMs);
   return Number.isFinite(value) && value >= 50 && value <= 60000 ? value : 30000;
 }
+function describe() {
+  const paidMode = config.aiWeeklyPaidEnabled === true;
+  return { provider: paidMode ? 'OpenRouter' : 'Google Gemini', providerId: paidMode ? 'openrouter' : 'gemini', paidMode, model: config.aiWeeklyModel };
+}
 function available() {
-  return config.aiWeeklyEnabled === true && typeof config.aiWeeklyOpenrouterApiKey === 'string' &&
-    config.aiWeeklyOpenrouterApiKey.trim().length > 0 &&
-    /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.:-]+$/.test(config.aiWeeklyModel) &&
-    (config.aiWeeklyModel.endsWith(':free') || config.aiWeeklyPaidEnabled === true);
+  const paid = config.aiWeeklyPaidEnabled === true;
+  const key = paid ? config.aiWeeklyOpenrouterApiKey : config.aiWeeklyGeminiApiKey;
+  return config.aiWeeklyEnabled === true && typeof key === 'string' && key.trim().length > 0 && typeof config.aiWeeklyModel === 'string' &&
+    (paid ? /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.:-]+$/.test(config.aiWeeklyModel) : config.aiWeeklyModel === 'gemini-3.5-flash-lite');
+}
+function inputBound(records, locale, context) {
+  return prompts.messages(records,locale,context).reduce((sum,message) => sum + Buffer.byteLength(message.content,'utf8'),4096);
 }
 // Catalog prices are USD/token; routing max_price is USD/million tokens.
 // These limits are deliberately not operator-configurable.
@@ -45,10 +52,11 @@ async function boundedJson(response, maximum = MAX_RESPONSE_BYTES) {
       if (length > maximum) throw failure('PROVIDER_RESPONSE_INVALID');
       chunks.push(Buffer.from(value));
     }
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+    catch (_) { throw failure('PROVIDER_RESPONSE_INVALID'); }
   } finally { await reader.cancel().catch(() => {}); }
 }
-async function generate(records, locale, model, beforeSend = () => true, context = {period:{},selection:{days:7,topic:'summary'}}) {
+async function generateOpenRouter(records, locale, model, beforeSend, context) {
   const messages = prompts.messages(records,locale,context);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs());
@@ -119,4 +127,46 @@ async function generate(records, locale, model, beforeSend = () => true, context
     throw failure(sent ? 'PROVIDER_UNCERTAIN' : 'MODEL_VERIFICATION_FAILED', sent);
   } finally { clearTimeout(timer); }
 }
-module.exports = { available, generate, timeoutMs };
+async function generateGemini(records, locale, model, beforeSend, context) {
+  const messages = prompts.messages(records,locale,context);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(),timeoutMs());
+  let sent = false;
+  try {
+    if (!available() || config.aiWeeklyPaidEnabled === true || model !== config.aiWeeklyModel) throw failure('AI_UNAVAILABLE');
+    const body = {
+      systemInstruction: { parts: [{ text: messages[0].content }] },
+      contents: [{ role:'user', parts:[{ text:messages[1].content }] }],
+      generationConfig: { temperature:0.2, maxOutputTokens:1024, thinkingConfig:{thinkingLevel:'minimal'} }
+    };
+    if (!beforeSend()) throw failure('REQUEST_CANCELLED');
+    sent = true;
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method:'POST', headers:{'x-goog-api-key':config.aiWeeklyGeminiApiKey,'Content-Type':'application/json'},
+      body:JSON.stringify(body), signal:controller.signal, redirect:'error'
+    });
+    if (!response.ok) throw failure(response.status === 429 ? 'PROVIDER_BUSY' : response.status >= 400 && response.status < 500 ? 'PROVIDER_REJECTED' : 'PROVIDER_UNCERTAIN',response.status < 400 || response.status >= 500);
+    const result = await boundedJson(response);
+    if (!result || typeof result !== 'object' || Array.isArray(result) || result.error) throw failure('PROVIDER_RESPONSE_INVALID',true);
+    const candidate = result.candidates?.[0];
+    const parts = candidate?.content?.parts;
+    if (result.promptFeedback?.blockReason || result.candidates?.length !== 1 || candidate?.finishReason !== 'STOP' ||
+        candidate.safetyRatings?.some(rating => rating.blocked === true) || !Array.isArray(parts) || !parts.length ||
+        parts.some(part => !part || Object.keys(part).some(key => !['text','thoughtSignature','thought'].includes(key)) ||
+          typeof part.text !== 'string' || (part.thought !== undefined && part.thought !== false) ||
+          (part.thoughtSignature !== undefined && typeof part.thoughtSignature !== 'string'))) throw failure('PROVIDER_RESPONSE_INVALID',true);
+    // Gemini 3 may attach an opaque signature to its final visible text part.
+    // Do not return, persist or replay that metadata or any reasoning text.
+    const text = parts.map(part => part.text).join('');
+    if (!text.trim() || text.length > 2000 || /[<>\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/.test(text)) throw failure('PROVIDER_RESPONSE_INVALID',true);
+    return text.trim();
+  } catch (error) {
+    if (error.safeCode) { if (sent && error.safeCode === 'PROVIDER_RESPONSE_INVALID') error.uncertain = true; throw error; }
+    throw failure(sent ? 'PROVIDER_UNCERTAIN' : 'AI_UNAVAILABLE',sent);
+  } finally { clearTimeout(timer); }
+}
+async function generate(records, locale, model, beforeSend = () => true, context = {period:{},selection:{days:7,topic:'summary'}}) {
+  if (config.aiWeeklyPaidEnabled !== true) return generateGemini(records,locale,model,beforeSend,context);
+  return generateOpenRouter(records,locale,model,beforeSend,context);
+}
+module.exports = { available, generate, timeoutMs, describe, inputBound };

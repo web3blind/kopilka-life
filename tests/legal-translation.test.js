@@ -23,6 +23,9 @@ test('English legal documents preserve source structure, dates, links and key ca
   for (const clause of [
     '29 October 2026', 'AI assistant', 'Only after separate consent and a manual request',
     'We do not guarantee that external services retain nothing',
+    'Google Gemini directly', 'human review may occur', 'Regional exceptions',
+    'not fully anonymous', 'https://ai.google.dev/gemini-api/terms',
+    'There is no automatic switch to a paid API', 'paid OpenRouter mode',
     'Telegram or VK user ID', 'optional note',
     'IP address', 'only aggregated data, without personal notes',
     'does not store bank cards or payment details', 'does not transfer money or accept payments',

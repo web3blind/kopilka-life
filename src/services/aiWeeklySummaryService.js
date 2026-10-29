@@ -5,7 +5,12 @@ const { normalizeLocale } = require('../i18n');
 const { ENTRY_TYPES, entryTitle } = require('./entriesService');
 const provider = require('./aiWeeklyProvider');
 const prompts = require('./aiAssistantPrompts');
-const CONSENT_VERSION = '2026-10-29';
+const projectQuota = require('./aiProviderQuota');
+const CONSENT_VERSION = '2026-10-29-gemini1';
+function consentVersion() {
+  const meta = provider.describe();
+  return `${CONSENT_VERSION}:${meta.providerId}:${meta.paidMode ? 'paid' : 'free'}:${meta.model}`;
+}
 const QUOTA_MS = 168 * 60 * 60 * 1000;
 const TYPES_SQL = ENTRY_TYPES.map(() => '?').join(',');
 function fail(code, status = 400) { const error = new Error(code); error.safeCode = code; error.status = status; return error; }
@@ -38,6 +43,7 @@ function serialize(row, now = Date.now()) {
   if (!row) return null;
   const stale = row.status === 'processing' && (row.deadline_at <= now || row.started_at + 65000 <= now);
   return { id: row.id, status: stale ? 'uncertain' : row.status,
+    provider: row.model.startsWith('gemini-') ? 'Google Gemini' : 'OpenRouter', model:row.model,
     text: row.status === 'ready' ? row.text : null, locale: row.locale,
     topic:row.topic, days:row.days, selection:{days:row.days,topic:row.topic},
     createdAt: new Date(row.created_at).toISOString(),
@@ -58,7 +64,8 @@ function read(userId, now = new Date(), input = {}) {
   const chosen = selection(input), db = getDb(), user = owner(userId), period = completedPeriod(user.timezone, now,chosen.days,chosen.topic);
   const empty = !db.prepare(`SELECT 1 FROM entries WHERE user_id=? AND entry_date BETWEEN ? AND ? AND type IN (${TYPES_SQL}) LIMIT 1`).get(userId,period.start,period.end,...ENTRY_TYPES);
   return { period, selection:chosen, topics:prompts.topics(normalizeLocale(user.locale)), quota:quota(db,userId,now.getTime()), empty,
-    consentVersion: CONSENT_VERSION, paidMode: config.aiWeeklyPaidEnabled === true, available: provider.available(), provider: 'OpenRouter', model: config.aiWeeklyModel,
+    consentVersion: consentVersion(), ...provider.describe(), available: provider.available(),
+    projectQuota: config.aiWeeklyPaidEnabled === true ? null : projectQuota.inspect(db,now.getTime()),
     summary: serialize(latest(db,userId), now.getTime()),
     archive: db.prepare("SELECT * FROM ai_weekly_summaries WHERE user_id=? AND status='ready' ORDER BY created_at DESC,id DESC").all(userId).map(row => serialize(row, now.getTime())) };
 }
@@ -68,9 +75,9 @@ async function create(userId, input, stillAuthorized = () => true) {
     const user = owner(userId), chosen = selection(input || {},true), now = Date.now();
     const period = completedPeriod(user.timezone,new Date(now),chosen.days,chosen.topic);
     if (!stillAuthorized()) throw fail('SESSION_INVALID', 401);
-    if (!input || input.consent !== true || input.consentVersion !== CONSENT_VERSION || input.periodKey !== period.key) throw fail('CONSENT_OR_PERIOD_INVALID');
+    if (!input || input.consent !== true || input.consentVersion !== consentVersion() || input.periodKey !== period.key) throw fail('CONSENT_OR_PERIOD_INVALID');
     const prior = db.prepare(`SELECT * FROM ai_weekly_summaries WHERE user_id=? AND period_key=? AND days=? AND topic=? ORDER BY started_at DESC,id DESC LIMIT 1`).get(userId,period.key,chosen.days,chosen.topic);
-    if (prior) return {run:false,chosen,row:prior};
+    if (prior && prior.started_at + QUOTA_MS > now) return {run:false,chosen,row:prior};
     if (!quota(db,userId,now).allowed) throw fail('AI_QUOTA_EXCEEDED',429);
     const locale = normalizeLocale(user.locale);
     // Sentinel detects overflow; no silently truncated input or fake empty AI result.
@@ -82,9 +89,10 @@ async function create(userId, input, stillAuthorized = () => true) {
     if (entries.length > 200 || Buffer.byteLength(userPayload,'utf8') > 24000) throw fail('INPUT_TOO_LARGE');
     if (!records.length) return {run:false,chosen};
     if (!provider.available()) throw fail('AI_UNAVAILABLE', 503);
+    if (config.aiWeeklyPaidEnabled !== true) projectQuota.reserve(db,now,provider.inputBound(records,locale,context));
     const rowId = db.prepare(`INSERT INTO ai_weekly_summaries
       (user_id,period_start,period_end,timezone,period_key,locale,status,model,consent_version,consent_at,started_at,deadline_at,created_at,topic,days,generation_version)
-      VALUES(?,?,?,?,?,?,'processing',?,?,?,?,?,?,?,?,'2')`).run(userId,period.start,period.end,period.timezone,period.key,locale,config.aiWeeklyModel,CONSENT_VERSION,now,now,now+provider.timeoutMs()+2000,now,chosen.topic,chosen.days).lastInsertRowid;
+      VALUES(?,?,?,?,?,?,'processing',?,?,?,?,?,?,?,?,'2')`).run(userId,period.start,period.end,period.timezone,period.key,locale,config.aiWeeklyModel,consentVersion(),now,now,now+provider.timeoutMs()+2000,now,chosen.topic,chosen.days).lastInsertRowid;
     return { row: db.prepare('SELECT * FROM ai_weekly_summaries WHERE id=?').get(rowId), run: true, records, context, chosen };
   }).immediate();
   if (!claim.run) {
@@ -93,14 +101,14 @@ async function create(userId, input, stillAuthorized = () => true) {
     return result;
   }
   const row = claim.row;
-  const active = () => stillAuthorized() && Boolean(db.prepare("SELECT 1 FROM ai_weekly_summaries WHERE id=? AND user_id=? AND status='processing'").get(row.id,userId));
+  const active = () => stillAuthorized() && row.consent_version === consentVersion() && Boolean(db.prepare("SELECT 1 FROM ai_weekly_summaries WHERE id=? AND user_id=? AND status='processing'").get(row.id,userId));
   try {
     const text = await provider.generate(claim.records,row.locale,row.model,active,claim.context);
     if (active()) db.prepare("UPDATE ai_weekly_summaries SET status='ready',text=?,error_code=NULL WHERE id=? AND user_id=? AND status='processing'").run(text,row.id,userId);
     else db.prepare("UPDATE ai_weekly_summaries SET status='uncertain',error_code='REQUEST_CANCELLED' WHERE id=? AND user_id=? AND status='processing'").run(row.id,userId);
   } catch (error) {
     // Persist only an allowlisted code, never the provider exception or response.
-    const codes = new Set(['FREE_MODEL_REQUIRED','PRICE_LIMIT_EXCEEDED','PRIVATE_ENDPOINT_UNAVAILABLE','AI_UNAVAILABLE','MODEL_VERIFICATION_FAILED','REQUEST_CANCELLED','PROVIDER_REJECTED','PROVIDER_UNCERTAIN','PROVIDER_RESPONSE_INVALID']);
+    const codes = new Set(['FREE_MODEL_REQUIRED','PRICE_LIMIT_EXCEEDED','PRIVATE_ENDPOINT_UNAVAILABLE','AI_UNAVAILABLE','MODEL_VERIFICATION_FAILED','REQUEST_CANCELLED','PROVIDER_REJECTED','PROVIDER_BUSY','PROVIDER_UNCERTAIN','PROVIDER_RESPONSE_INVALID']);
     const code = codes.has(error.safeCode) ? error.safeCode : 'PROVIDER_UNCERTAIN';
     db.prepare("UPDATE ai_weekly_summaries SET status=?,error_code=? WHERE id=? AND user_id=? AND status='processing'").run(error.uncertain || !codes.has(error.safeCode) ? 'uncertain' : 'failed',code,row.id,userId);
   }
