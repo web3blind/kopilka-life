@@ -12,7 +12,8 @@ import time
 import urllib.request
 from playwright.sync_api import sync_playwright
 
-ROOT = Path(__file__).resolve().parents[1]
+HARNESS_ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(os.environ.get('KOPILKA_LOGOUT_SOURCE', str(HARNESS_ROOT))).resolve()
 BASE = 'http://127.0.0.1:3176'
 
 
@@ -75,6 +76,20 @@ def check(env):
             page.evaluate("state.user.locale='en'; storage.set('kopilkaLocale','en'); renderAll()")
             assert page.locator('#signOutSite').inner_text() == 'Sign out'
             page.evaluate("document.querySelector('#entryNote').value='PRIVATE DRAFT'; state.pendingMerge={mergeToken:'private'}; sessionStorage.setItem('kopilkaGoogleOAuthHandoff', JSON.stringify({token:'stale'})); storage.set('kopilkaVkMergeToken','private')")
+            # A server/network refusal must not pretend to sign out or discard drafts.
+            for failure in ('http', 'network'):
+                def refuse(route):
+                    if failure == 'network': route.abort('failed')
+                    else: route.fulfill(status=503,content_type='application/json',body='{"code":"LOGOUT_UNAVAILABLE"}')
+                page.route('**/api/auth/logout', refuse)
+                page.locator('#signOutSite').click()
+                page.wait_for_function('!websiteLogoutPending && document.getElementById("statusRegion").classList.contains("error")')
+                assert page.evaluate('state.token') == auth['token']
+                assert page.locator('#entryNote').input_value() == 'PRIVATE DRAFT'
+                assert not page.locator('#appShell').is_hidden()
+                assert context.request.get(BASE + '/api/me',headers={'Authorization':'Bearer '+auth['token']}).status == 200
+                page.unroute('**/api/auth/logout', refuse)
+            print('PASS failed server/network logout keeps token and private draft for explicit retry',flush=True)
             # Unreliable subscription API must not prevent logout. Both deletion and
             # local unsubscribe are attempted, with unregister as fallback.
             page.evaluate('''() => {
@@ -100,7 +115,8 @@ def check(env):
             with sqlite3.connect(env['DB_PATH']) as db:
                 assert db.execute('SELECT * FROM entries WHERE user_id=? ORDER BY id', (auth['user']['id'],)).fetchall() == history_before
                 assert db.execute('SELECT * FROM login_identities WHERE user_id=? ORDER BY provider,subject', (auth['user']['id'],)).fetchall() == identities_before
-            assert context.request.get(BASE + '/api/me', headers={'Authorization':'Bearer ' + auth['token']}).status == 200, 'Logout deleted account/history or invalidated unrelated sessions'
+            assert context.request.get(BASE + '/api/me', headers={'Authorization':'Bearer ' + auth['token']}).status == 401, 'The logged-out bearer still reads the private profile'
+            assert context.request.post(BASE + '/api/settings/reminders', headers={'Authorization':'Bearer ' + auth['token']}, data={'timezone':'Europe/Moscow','remindersEnabled':False,'eveningReminderTime':'02:00'}).status == 401, 'The logged-out bearer still writes settings'
             print('PASS accessible EN logout despite push failure; private drafts/handoff cleared; account retained', flush=True)
             # Relogin via the real website OTP entrypoint (outbound delivery fixture).
             page.locator('#emailLoginAddress').fill('logout-qa@example.com')
@@ -112,6 +128,7 @@ def check(env):
             page.locator('#emailCodeForm button').click()
             page.wait_for_function('state.user && state.profile && !document.querySelector("#appShell").hidden')
             new_token = page.evaluate('state.token')
+            new_profile_ref = context.request.get(BASE + '/api/profile', headers={'Authorization':'Bearer '+new_token}).json()['profile']['refCode']
             assert page.evaluate('state.user.id') != auth['user']['id']
             assert page.locator('#entryNote').input_value() == ''
             page.evaluate("state.user.locale='ru'; storage.set('kopilkaLocale','ru'); renderAll()")
@@ -165,8 +182,8 @@ def check(env):
             page.evaluate("storage.set('kopilkaLocale','ru')")
             print('PASS denied/replayed Google callback + VK fallback fixture: actionable RU/EN status, no bootstrap JS errors', flush=True)
             # Public profiles never expose logout of the visitor's own account.
-            own = context.request.get(BASE + '/api/profile', headers={'Authorization':'Bearer ' + new_token}).json()['profile']
-            page.goto(BASE + '/p/' + own['refCode'])
+            assert context.request.get(BASE + '/api/profile', headers={'Authorization':'Bearer ' + new_token}).status == 401
+            page.goto(BASE + '/p/' + new_profile_ref)
             page.wait_for_function('typeof state !== "undefined" && state.publicReadOnly')
             assert page.locator('#signOutSite').is_hidden()
             print('PASS logout hidden on other/public profile', flush=True)
@@ -187,7 +204,7 @@ def check(env):
             print('PASS signed Mini App direct auth remains; website logout unavailable there', flush=True)
             # Expired and revision-invalid website tokens are distinguishable at
             # the real auth boundary; no fabricated API response or TTL change.
-            script = "const {createToken}=require('./src/auth/session'); console.log(createToken(Number(process.argv[1]), Date.now()-8*86400000)); require('./src/db').closeDb()"
+            script = "const {createToken}=require('./src/auth/session'); const config=require('./src/config'); const age=Math.max(300,Number(config.sessionMaxAgeSeconds)||31536000)*1000; console.log(createToken(Number(process.argv[1]),Date.now()-age-86400000)); require('./src/db').closeDb()"
             expired = subprocess.check_output(['node','-e',script,str(auth['user']['id'])], cwd=ROOT, env=env, text=True).strip().splitlines()[-1]
             response = context.request.get(BASE+'/api/me', headers={'Authorization':'Bearer '+expired})
             assert response.status == 401 and response.json()['code'] == 'SESSION_EXPIRED'
@@ -225,7 +242,7 @@ def main():
                    GEO_COUNTRY_DB_PATH='', APP_BASE_URL=BASE, WEBAPP_URL=BASE,
                    VAPID_PUBLIC_KEY='', VAPID_PRIVATE_KEY='',
                    KOPILKA_LINK_QA_CODES=str(Path(tmp, 'code.json')),
-                   NODE_OPTIONS=f'--require={ROOT / "tests/fixtures/link-provider-preload.cjs"}')
+                   NODE_OPTIONS=f'--require={HARNESS_ROOT / "tests/fixtures/link-provider-preload.cjs"}')
         # cwd contains no .env: dotenv cannot ingest real provider credentials.
         for name in ('public', 'migrations'):
             Path(tmp, name).symlink_to(ROOT / name, target_is_directory=True)

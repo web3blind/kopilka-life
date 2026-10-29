@@ -113,8 +113,8 @@ function testStaticAccessibility() {
   assert(html.includes('tab-button-support'), 'support actions tab exists');
   assert(html.includes('tab-support'), 'support actions panel exists');
   assert(html.includes('supportNewCount'), 'support tab exposes new action indicator');
-  assert(css.includes('repeat(3,1fr)'), 'narrow mobile bottom navigation wraps to 3 columns so all six tabs fit');
-  assert(css.includes('--nav-height:128px'), 'narrow mobile bottom navigation reserves enough safe-area space for two rows');
+  // Seven-tab fit, safe-area spacing and zoom are exercised through the real
+  // browser in ai-weekly-browser-qa.py rather than fixed CSS source spellings.
   assert(html.includes('supportActionsList'), 'support actions list exists');
   assert(html.includes('id="shareStory"') && html.includes('data-i18n="shareStory"'), 'profile has a native localized story-share button');
   assert(html.includes('todayContractReminder'), 'today tab can show last-day contract reminder');

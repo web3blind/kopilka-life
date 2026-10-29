@@ -34,6 +34,7 @@ const { getDb } = require('../db');
 const { linkVerifiedTelegram, createLinkIntent, claimLinkIntent, finishLinkIntent } = require('../services/telegramLinkService');
 
 const router = express.Router();
+router.use('/auth/logout', require('./logout'));
 const storyLimiter = createRateLimiter({ windowMs: config.rateLimits.storyWindowMs, max: config.rateLimits.storyMax, keyPrefix: 'story' });
 const authLimiter = createRateLimiter({ windowMs: config.rateLimits.authWindowMs, max: config.rateLimits.authMax, keyPrefix: 'auth', onLimit(req, res, retryAfter) {
   if (req.method === 'GET' && req.path === '/auth/vk-oauth/window') {
@@ -589,6 +590,7 @@ router.delete('/entries/:id', authRequired, (req, res) => {
     res.status(error.status || 400).json({ error: userError(req.locale, error.message) });
   }
 });
+router.use('/ai-weekly-summary', authRequired, require('./aiWeeklySummary'));
 router.get('/product', authRequired, (req, res) => res.json(getProductLayer(req.user.id, req.query.goal, req.locale)));
 router.get('/product/practices', authRequired, (req, res) => res.json(getPractices(req.query.goal, req.locale)));
 router.get('/contracts/current', authRequired, (req, res) => res.json({ contract: getCurrentContract(req.user.id) }));

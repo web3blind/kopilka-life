@@ -5,6 +5,10 @@ VK Mini App, Telegram Mini App, сайт и бот на одной учётно�
 
 Во вкладке «Профиль» доступны обычное распространение публичного профиля и открытие нативного редактора истории: Telegram Mini App использует `WebApp.shareToStory`, VK Mini App — `VKWebAppShowStoryBox`. Серверная PNG-карточка `/api/story-card/:code.png?platform=telegram|vk` строится только из публичной проекции профиля; публикацию всегда отдельно подтверждает пользователь в редакторе платформы. В VK повторное открытие редактора блокируется на время подготовки изображения и ожидания ответа платформы; после успеха, отмены или ошибки кнопка снова доступна. `#ref=CODE` остаётся реферальным запуском, а `#profile=CODE` после signed platform auth показывает публичный профиль владельца, не подменяя identity получателя.
 
+## Выход из аккаунта
+
+Кнопка выхода в профиле сайта отзывает текущий bearer-токен на сервере, затем очищает локальные данные входа и несохранённые черновики. История, способы входа и другие сессии аккаунта сохраняются. Повторное использование отозванного токена для чтения профиля и изменения настроек возвращает401. Если ответ сервера потерян или сервер недоступен, успех не показывается: остаётся предупреждение и возможность явно повторить выход. Данные отзыва хранятся как SHA-256 отпечаток токена с его сроком действия; сам bearer в базе не хранится. Mini App-поведение входа и платформенный аккаунт не меняются.
+
 ## Интерфейс и документы
 
 «О сервисе» открывается в том же reader, что и документы. Возврат сохраняет текущую вкладку, несохранённую заметку и настройки, фокус и контекст запуска. VK остаётся мини-приложением с историей VK и VK-напоминаниями; сайт сохраняет свои способы входа и сохранения картинки.
@@ -28,7 +32,7 @@ REPORTS8_SOURCE=/path/to/isolated-source python3 tests/reports8-copy-browser-qa.
 
 После выбора цели практик подтверждение обновления исчезает через пять секунд. Его также можно закрыть кнопкой; фокус возвращается к доступному элементу. Старый таймер не скрывает более новое уведомление или предупреждение об ошибке.
 
-Быстрые действия передают дневное состояние через `aria-pressed`: оно меняется только после подтверждения записи сервером. Название кнопки остаётся постоянным, подсказка и доступность на сегодня идут в описании. После подтверждения сетки снимается `aria-busy`, но защита от повторного сохранения действует до окончания дополнительных запросов. Кнопки и их порядок сохраняются. Chromium AX и клавиатурные проверки не заменяют проверку речи и свайпов TalkBack на устройстве.
+Быстрые действия передают дневное состояние через `aria-pressed`: оно меняется только после подтверждения записи сервером. Название кнопки остаётся постоянным, подсказка и доступность на сегодня идут в описании. После подтверждения сетки снимается `aria-busy`, но защита от повторного сохранения действует до окончания дополнительных запросов. Сообщение об обновлении практик под выбранную цель исчезает автоматически через пять секунд; более новое сообщение не стирается старым таймером. Кнопки и их порядок сохраняются. Chromium AX и клавиатурные проверки не заменяют проверку речи и свайпов TalkBack на устройстве.
 
 При обычном распространении ссылки через `VKWebAppShare` ожидание ответа временно подавляет автоматическое обновление при возврате, но не дольше 30 секунд. Потерянный ответ не останавливает последующие обновления навсегда. Ответ предыдущего запроса не меняет статус более нового запроса. Этот предел не означает успешную отправку и не запускает повторную отправку или другой способ распространения.
 
@@ -46,6 +50,24 @@ REPORTS8_SOURCE=/path/to/isolated-source python3 tests/reports8-copy-browser-qa.
 В английском интерфейсе политика и условия открываются из `/privacy.en.html` и `/terms.en.html`; русские оригиналы сохранены. Reader пересылает только разрешённые параметры языка, не подпись запуска и не произвольный URL возврата.
 
 Часовой пояс выбирается по локализованному названию и текущему смещению UTC; сервер сохраняет точный IANA-идентификатор. Неверное значение отклоняется до изменения настроек и напоминаний. Счётчик «Полезное» показывает оставшиеся действия для зачёта, не непрочитанные карточки.
+
+## ИИ-помощник и отдых
+
+В «Договоре» есть редактируемый шаблон «Вечера для отдыха». Он предлагает до трёх вечеров без новых рабочих задач после 20:00, учитывает оставшиеся дни недели в часовом поясе аккаунта. В воскресенье действующая форма создаёт договор уже на следующую неделю. Баллы и правила закрытия договора не меняются.
+
+Отдельная седьмая вкладка «ИИ-помощник» вынесена из «Истории». Можно выбрать последние 3, 7, 14, 30 или другое целое число дней от 1 до 30; по умолчанию 7. Период включает сегодня по часовому поясу аккаунта, точные даты видны до согласия. Одна тема на запрос: только выжимка, меньше нервничать, облегчить сложные дни, лучше отдыхать, порадовать другого человека, поддержать себя или продвинуть важное дело. Для темы советов результат содержит выжимку и до трёх необязательных рекомендаций. Цели, отношения, эмоции и диагнозы не выдумываются. Обычный недельный разбор остаётся прежним.
+
+Запуск ручной, после отдельного согласия на передачу дат, категорий и личных заметок через OpenRouter. Общий лимит — один запрос за скользящие семь суток (168 часов), независимо от темы, периода, языка или часового пояса. Интерфейс показывает время следующего запроса. Зарезервированная попытка учитывается и при ошибке или неподтверждённом ответе провайдера; автоматических повторов нет. Пустой период, неверные параметры и отсутствие настроенного ключа не расходуют слот. Повторное открытие, выбор периода, чтение архива и проверка результата не вызывают модель. Удаление текста не сбрасывает лимит; объединение аккаунтов учитывает самый поздний запрос обеих сторон.
+
+Настройки сервера: `AI_WEEKLY_ENABLED=true`, выделенный `AI_WEEKLY_OPENROUTER_API_KEY`, `AI_WEEKLY_PAID_ENABLED=false`, необязательный `AI_WEEKLY_MODEL`, `AI_WEEKLY_TIMEOUT_MS` (по умолчанию 30000). Бесплатные модели тоже требуют API-ключ. Само наличие ключа не разрешает платные запросы. Оставь `AI_WEEKLY_MODEL` пустым для выбора по режиму. Без ключа и включения генерация недоступна. Ключи Hermes автоматически не используются. Без явного `AI_WEEKLY_PAID_ENABLED=true` разрешены только `:free`, по умолчанию `xingchen-agi/xing4.0-29b-a4b:free` (доступность меняется). При явном платном режиме по умолчанию используется `mistralai/mistral-nemo`, самый дешёвый из проверенных обычных многоязычных текстовых вариантов с доступным ZDR-маршрутом. У Gemini Flash-Lite подходящего маршрута в текущем ZDR-каталоге не найдено. Среди разрешённых endpoint выбирается самый дешёвый для верхней оценки размера запроса и 700 выходных токенов; это не обещание глобально самой дешёвой модели при любом будущем изменении каталога. Цены проверяются до передачи заметок: не выше $0,10 за миллион входных и $0,40 за миллион выходных токенов, пределы повторяются в маршрутизации. Повышение цен, неизвестная цена или несовместимый endpoint дают отказ, не более дорогую замену. Этот opt-in относится к расходам оператора на API, не вводит оплату для пользователей. Проверка с настоящим платным API в этом этапе не выполнялась. Перед передачей проверяется соответствие цен выбранному режиму и наличие конкретного endpoint в официальном `/endpoints/zdr`; в бесплатном режиме маршрутизация допускает только нулевые цены; в платном режиме действует указанный предел. В обоих режимах запрещены fallback, обучение и хранение у поставщика (`data_collection: deny`, `zdr: true`). Если совместимый бесплатный поставщик недоступен, сервис возвращает отказ, а не ослабляет ограничения. Проверь privacy/observability настройки выделенного аккаунта OpenRouter: разрешённое самим оператором логирование не отменяется параметрами запроса. У OpenRouter есть обязательные проверки безопасности и законные исключения хранения. Бесплатные квоты и доступность не гарантированы.
+
+Язык выжимки определяется языком аккаунта на момент создания: RU → русский, EN → английский. Смена языка интерфейса не переводит уже сохранённый текст и не создаёт новую генерацию.
+
+API требует действующую сессию: `GET /api/ai-weekly-summary?days=7&topic=summary` читает период, выбор темы, общую квоту, готовность, результат и архив без обращения к ИИ; `POST` принимает `consent: true`, точную `consentVersion`, серверный `periodKey`, `days` и `topic`; `DELETE /api/ai-weekly-summary/:id` удаляет собственный текст. Повторная отправка того же запроса возвращает сохранённое состояние без генерации. Другая тема или период при занятой квоте отклоняются с `429 AI_QUOTA_EXCEEDED`. При неподтверждённом ответе автоматической повторной отправки нет; «Проверить результат» делает только GET. Текст хранится приватно в SQLite, не в localStorage и не в публичном профиле. После удаления остаётся техническая отметка для защиты от повторной отправки. Архив сохраняет первоначальный язык. Объединение аккаунтов должно сохранять выжимки; удаление аккаунта удаляет связанные данные.
+
+Проверки: `node --test tests/rest-contract-template.test.js tests/ai-weekly-summary.test.js tests/ai-assistant.test.js`; connected browser: `python tests/run-browser-qa.py ai-weekly-browser-qa.py` с Playwright и Chromium. Проверки используют временную БД и контролируемого провайдера, не личные заметки. Реальную генерацию проверять отдельно только синтетическими данными. Оплаты и выдача платного доступа в эту часть не входят. Исходники и миграция сами по себе не означают production-выкладку.
+
+Официальные условия: [маршрутизация](https://openrouter.ai/docs/guides/routing/provider-selection), [обработка данных](https://openrouter.ai/docs/guides/privacy/data-collection), [бесплатные квоты](https://openrouter.ai/docs/api/reference/limits).
 
 ## Ранний запуск / Startup recovery
 
@@ -97,32 +119,31 @@ Smoke tests покрывают:
 - demo cleanup cascade;
 - базовые DOM/accessibility требования.
 
-## Локальные браузерные проверки
+## Локальный browser QA через audited CDP relay
 
-Нужны Python Playwright и отдельный тестовый Chromium с CDP (интерфейсом управления браузером). Используй чистую копию репозитория без рабочего `.env`, реальных учётных данных и пользовательской БД. Для тестов не нужен браузер с выполненным входом в VK или Telegram.
-
-В одном терминале запусти отдельный браузер с временным профилем:
+QA не использует production-токены и не открывает VK. Нужен уже запущенный loopback relay `127.0.0.1:18800` и Python Playwright:
 
 ```bash
-QA_PROFILE=$(mktemp -d "${TMPDIR:-/tmp}/kopilka-chromium.XXXXXX")
-chromium --headless=new --no-sandbox --remote-debugging-address=127.0.0.1 \
-  --remote-debugging-port=9222 --user-data-dir="$QA_PROFILE"
+# Check that your configured Chromium CDP endpoint is available.
+rm -f /tmp/kopilka-life-browser-qa.sqlite*
+PORT=3119 APP_BASE_URL=http://127.0.0.1:3119 WEBAPP_URL=http://127.0.0.1:3119 \
+  DB_PATH=/tmp/kopilka-life-browser-qa.sqlite NODE_ENV=test DEV_AUTH_ENABLED=true \
+  SCHEDULER_ENABLED=false BOT_TOKEN=test-bot-token BOT_USERNAME=HarborLifeBot \
+  SESSION_SECRET=browser-qa-session-secret SESSION_MAX_AGE_SECONDS=3600 \
+  VK_APP_ID=54723764 VK_SECURE_KEY=browser-qa-vk-secure-key \
+  VK_OAUTH_CLIENT_ID=54723764 VK_OAUTH_CLIENT_SECRET=browser-qa-oauth-secret \
+  VK_OAUTH_AUTHORIZE_URL=http://localhost:4119/authorize VK_OAUTH_TOKEN_URL=http://localhost:4119/token \
+  TELEGRAM_WEBHOOK_SECRET=browser_qa_webhook_secret_123456 node src/server.js
+
+# В другом терминале:
+KOPILKA_QA_BASE_URL=http://127.0.0.1:3119 KOPILKA_QA_CDP_URL=http://127.0.0.1:18800 \
+  KOPILKA_QA_OAUTH_PROVIDER_URL=http://localhost:4119 \
+  DB_PATH=/tmp/kopilka-life-browser-qa.sqlite BOT_TOKEN=test-bot-token \
+  SESSION_SECRET=browser-qa-session-secret VK_SECURE_KEY=browser-qa-vk-secure-key \
+  python3 tests/browser-audit-qa.py
 ```
 
-В другом терминале, из корня чистой копии проекта:
-
-```bash
-KOPILKA_QA_CDP_URL=http://127.0.0.1:9222 python3 tests/run-browser-qa.py
-KOPILKA_QA_CDP_URL=http://127.0.0.1:9222 python3 tests/run-browser-qa.py region-browser-qa.py
-KOPILKA_QA_CDP_URL=http://127.0.0.1:9222 python3 tests/run-browser-qa.py link-matrix-browser-qa.py
-python3 tests/referral-privacy-browser-qa.py
-python3 tests/talkback-quick-feedback-browser-qa.py
-python3 tests/gratitude-hints-cursor-browser-qa.py
-```
-
-После проверок останови только тестовый Chromium и удали его временный профиль. Runner создаёт временную SQLite и завершает свой сервер при выходе. Проверки выполняй последовательно: часть сценариев использует фиксированные loopback-порты. Нативные SDK, доставка писем, ответы Google/VK, clipboard и системное меню отправки моделируются там, где это предусмотрено конкретным сценарием. Эти проверки не доказывают работу реального TalkBack, конкретного iPhone или живого провайдера входа.
-
-Внутренние планы, снимки карточек VK Testers и временные доказательства не входят в исходники. Обзор изменений для пользователей и технические примечания — в [CHANGELOG.md](CHANGELOG.md).
+После остановки локального сервера удалить только `/tmp/kopilka-life-browser-qa.sqlite*`. Скрипт поднимает локальный provider stand-in на указанном loopback-порту, включает через CDP блокировку third-party cookies и закрывает только task-origin/provider вкладки. Signed Telegram/VK fixtures и OAuth stand-in проверяют локальную механику и identity, но не считаются live platform auth.
 
 ## Production webhook
 
@@ -197,6 +218,19 @@ KOPILKA_RELEASE_DIR="$RELEASE" scripts/deploy-life.sh --preflight
 7. Live gate родителя: открыть `https://vk.ru/app54723764` из технического VK-аккаунта Lada и подтвердить немедленный signed launch login, expired-session renewal, повторное открытие, прежнюю identity/данные и History. Отдельно в реальном cross-site VK iframe воспроизвести exceptional fallback: невалидный/отсутствующий proof → явная VK ID кнопка → first-party popup → возврат в то же приложение и ту же VK identity. Затем открыть `@HarborLifeBot`, проверить немедленный вход существующего Telegram-пользователя, expired-session renewal, referral/profile share и отсутствие дублей webhook. Mock QA не заменяет этот gate.
 
 Rollback: вернуть предыдущий code release целиком и reload вместе с совместимым env/webhook состоянием. Миграции 018–020 добавляют таблицы/колонки, но 020 также удаляет уникальный индекс дневных записей: прежний код после миграции не получит DB-ограничение на повторную запись; rollback до миграции требует отдельной проверки данных, не запускать прежний код вслепую. Не восстанавливать старую БД поверх живой без отдельного решения. Незавершённый OAuth state можно отбросить и начать вход заново.
+
+## Партнёрские заявки и публичное SEO
+
+- `/about`, `/partners`, `/en/about`, `/en/partners`: public RU/EN HTML with canonical/meta, Open Graph, JSON-LD and reciprocal hreflang. `/sitemap.xml` and `/robots.txt` list public pages, not private API/profiles. Homepage keeps the existing app/auth shell and links to these pages. No ranking or indexing guarantee.
+- Partner terms are agreed individually; no audience claims, payment collection or change to the free app.
+- Reuses the configured Kopilka bot and Resend (`BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`). Configure `PARTNER_OWNER_TELEGRAM_ID`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and the correct public `APP_BASE_URL`. No secrets belong in source. Turnstile must allow the exact public hostname, with action `partner_inquiry`. Missing configuration disables submission server-side, not a fake protection/success state.
+- `POST /api/partners/inquiries`: same-origin JSON, 12KB bound, required unchecked consent, honeypot, strict server CAPTCHA, maximum 10 attempts/IP/hour, durable 5 saved inquiries/IP/hour, 3/email/day, 200 globally/day. Trust proxy must match the controlled single proxy. CAPTCHA failure fails closed. Retry an ambiguous form result without changing fields to reuse its submission key; edits represent a new inquiry.
+- Migration `022_partner_inquiries.sql` adds only two new tables and indexes; no old data rewrite. A 202 means inquiry plus notification job committed, NOT Telegram/mail delivery. Existing minute scheduler processes bounded jobs; use one process with `SCHEDULER_ENABLED=true`. Test mode never sends. Notifications are plain text with consent evidence.
+- Owner: open the bot privately first. Reply with text/URL to the exact original notification. Only configured owner + private chat + persisted notification mapping qualifies. The recipient comes exclusively from the database. Edits, forwards, unknown messages and spoofed identities cannot send mail. Each accepted reply has a durable deduplicated email job. Resend uses a stable Idempotency-Key; a sent status means provider acceptance, not inbox receipt.
+- 429/config absence retry with bounded backoff (10 attempts); definitive 4xx fail terminally; transport/5xx/malformed acceptance/crash park as unknown. Never blindly requeue unknown jobs. Reconcile against provider/Telegram evidence first; Telegram has no send idempotency. A safe diagnostic query is `SELECT id,kind,state,attempts,error_code,provider_id FROM partner_outbox ORDER BY due_at DESC LIMIT 30`; do not dump message/email bodies. Normal pending/retry jobs survive restart.
+- Working-DB inquiry/reply data expires after 90 days via the running worker. This does not delete provider messages or backups. Updated RU/EN privacy pages describe Telegram, Resend and Turnstile processing.
+- Local gates: `node --test tests/partner-inquiries.test.js`; `KOPILKA_QA_PORT=3193 python3 tests/run-browser-qa.py partner-browser-qa.py`; `npm test`. These use disposable SQLite and fake providers, never real deliveries. They do not prove live CAPTCHA/inbox delivery.
+- Parent handoff: review feature-only deltas against the dirty live tree, back up SQLite consistently, rehearse migration on its restored copy, and retain existing env/webhook/scheduler invariants. Do not upload whole dirty local files over live. No deploy, push, real messages or credential edits were performed here.
 
 ## Важные ограничения
 

@@ -2,6 +2,7 @@
 const same = (a, b) => a === b || (a == null && b == null);
 function recordBlockers(db, primaryId, sourceId) {
   const blocking = [];
+  if (db.prepare("SELECT 1 FROM ai_weekly_summaries WHERE user_id IN (?,?) AND status='processing' AND deadline_at>? AND started_at>? LIMIT 1").get(primaryId,sourceId,Date.now(),Date.now()-65000)) blocking.push('ai_weekly_processing');
   const pairs = (table, key) => db.prepare(`SELECT a.* FROM ${table} a JOIN ${table} b ON a.${key} = b.${key} WHERE a.user_id = ? AND b.user_id = ?`).all(primaryId, sourceId);
   // The entries table has no UNIQUE date/type constraint: every event carries its own LIFE.
   const reminders = db.prepare(`SELECT a.*, b.id AS source_row_id FROM reminders a JOIN reminders b
@@ -22,6 +23,12 @@ function recordBlockers(db, primaryId, sourceId) {
   return [...new Set(blocking)];
 }
 function moveRecords(db, primaryId, sourceId) {
+  // Repeat at the write boundary even when a caller already built a merge preview.
+  // A crashed/expired request must not block account recovery forever. Fence it
+  // inside the merge transaction so a late provider response cannot overwrite it.
+  db.prepare("UPDATE ai_weekly_summaries SET status='uncertain',error_code='PROVIDER_UNCERTAIN' WHERE user_id IN (?,?) AND status='processing' AND (deadline_at<=? OR started_at<=?)").run(primaryId,sourceId,Date.now(),Date.now()-65000);
+  if (db.prepare("SELECT 1 FROM ai_weekly_summaries WHERE user_id IN (?,?) AND status='processing' LIMIT 1").get(primaryId,sourceId)) throw new Error('ai_weekly_processing');
+  db.prepare('UPDATE ai_weekly_summaries SET user_id=? WHERE user_id=?').run(primaryId,sourceId);
   // A browser belongs to a signed-in device, not an identity being merged.
   // Both sessions are revised on merge; require explicit re-enablement.
   db.prepare('DELETE FROM push_subscriptions WHERE user_id IN (?, ?)').run(primaryId, sourceId);

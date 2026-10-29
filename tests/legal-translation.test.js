@@ -21,7 +21,9 @@ test('English legal documents preserve source structure, dates, links and key ca
   }
   const privacy = read('privacy.en.html');
   for (const clause of [
-    '28 September 2026', 'Telegram or VK user ID', 'optional note',
+    '29 October 2026', 'AI assistant', 'Only after separate consent and a manual request',
+    'We do not guarantee that external services retain nothing',
+    'Telegram or VK user ID', 'optional note',
     'IP address', 'only aggregated data, without personal notes',
     'does not store bank cards or payment details', 'does not transfer money or accept payments',
     'does not publish personal notes', 'does not sell user data to third parties',

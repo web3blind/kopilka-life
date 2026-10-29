@@ -30,6 +30,8 @@ function createApp() {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use('/telegram', createRateLimiter({ windowMs: config.rateLimits.webhookWindowMs, max: config.rateLimits.webhookMax, keyPrefix: 'webhook' }), verifyWebhookSecret, express.json({ limit: '64kb' }), webhookRoutes);
+  app.use(require('./routes/partners'));
+  require('./services/publicSeoService').installPublicPages(app);
   app.use(express.json({ limit: '64kb' }));
   app.use('/api', createRateLimiter({ windowMs: config.rateLimits.apiWindowMs, max: config.rateLimits.apiMax, keyPrefix: 'api' }));
   // Do not cache the HTML shell (it references versioned assets) so updates apply
@@ -40,8 +42,10 @@ function createApp() {
   });
   app.get(['/', '/index.html', '/p/:code'], (req, res) => {
     res.set('Cache-Control', 'private, no-store');
+    if (req.path.startsWith('/p/') || req.query && Object.keys(req.query).length) res.set('X-Robots-Tag','noindex, nofollow');
     const vk = hasVerifiedVkLaunch(req);
-    res.type('html').send(vk ? landingHtml('ru', { vk: true }) : landingHtml(siteRegion(countryFromIp(req.ip))));
+    const locale = req.query.lang === 'en' ? 'en' : 'ru';
+    res.type('html').send(vk ? landingHtml('ru', { vk: true, locale }) : landingHtml(siteRegion(countryFromIp(req.ip)), { locale }));
   });
   app.use(express.static(path.join(process.cwd(), 'public')));
   app.get('/health', (req, res) => res.json({ ok: true }));

@@ -1,6 +1,6 @@
 window.KopilkaStartup?.mark('app-executed');
 const I18N = window.KopilkaI18n;
-const CLIENT_VERSION = '20261026-testers8-1';
+const CLIENT_VERSION = '20261029-ai-assistant1';
 const storage = {
   get(key) { try { return window.localStorage?.getItem(key) || ''; } catch (_) { return ''; } },
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
@@ -10,6 +10,7 @@ const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kop
 const L = (key, params) => I18N.t(locale(), key, params);
 
 const state = { settingsDirty: false, refreshFailed: false, lastRefresh: 0, refreshPending: false, pendingQuickAfterRefresh: null, token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, history: null, historyDate: '', historyEditingId: null, currentContract: null, product: null, profile: null, publicProfileTarget: null, artifacts: [], artifactQueue: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null, quickActionReturnType: '', quickActionReturnButton: null, sessionRenewalPromise: null, sessionRenewalBlocked: false, vkBridgeLaunchParams: '', vkOAuthWindow: null, vkOAuthChannel: '', vkOAuthAction: '', vkOAuthMonitor: null, vkLinkRequiresOAuth: false };
+const aiWeekly = window.KopilkaAiWeekly?.create({ api, locale, identity: () => state.user && !state.publicReadOnly ? `${state.user.id}:${authEpoch}` : null });
 // Some embedded WebViews omit :active during a held touch. Track only the
 // touched control, without cancelling gestures or changing keyboard focus.
 (() => {
@@ -103,15 +104,37 @@ async function retireBrowserPush(token) {
     try { return Boolean(await bounded(() => registration?.unregister())); } catch (_) { return false; }
   }
 }
+let websiteLogoutPending = false;
 async function signOutWebsite() {
-  if (!state.user || state.publicReadOnly || !outsideMiniApp()) return;
+  if (websiteLogoutPending || !state.user || state.publicReadOnly || !outsideMiniApp()) return;
+  websiteLogoutPending = true;
   const token = state.token;
+  const previousRenewalBlocked = state.sessionRenewalBlocked;
+  state.sessionRenewalBlocked = true;
   authEpoch++;
+  for (const controller of activeRequests) controller.abort();
+  clearPendingAuth();
+  setBusy(true, L('signingOutSite'));
+  if ($('signOutSite')) $('signOutSite').disabled = true;
+  try {
+    // Retire this browser's push subscription while its bearer is still usable.
+    storage.set('kopilkaPushRetirePending', '1');
+    await Promise.race([retireBrowserPush(token).then(retired => { if (retired) storage.remove('kopilkaPushRetirePending'); }), new Promise(resolve => setTimeout(resolve, 1000))]);
+    const { res, data } = await requestJson('/api/auth/logout', { method: 'POST', body: '{}' }, token);
+    const alreadyInvalid = res.status === 401 && ['SESSION_EXPIRED', 'SESSION_INVALID', 'SESSION_REVOKED'].includes(data?.code);
+    if (!(res.ok && data?.loggedOut === true) && !alreadyInvalid) throw new Error('logout not confirmed');
+  } catch (_) {
+    state.sessionRenewalBlocked = previousRenewalBlocked;
+    websiteLogoutPending = false;
+    setBusy(false);
+    if ($('signOutSite')) $('signOutSite').disabled = false;
+    setStatus(L('signOutFailed'), 'error');
+    return;
+  }
   clearHistoryEditor();
   for (const controller of activeRequests) controller.abort();
   clearPendingAuth();
   storage.set('kopilkaLogoutEpoch', `${Date.now()}-${Math.random()}`);
-  storage.set('kopilkaPushRetirePending', '1');
   for (const key of ['kopilkaToken', 'kopilkaVkMergeToken', 'kopilkaLastAuthError', 'kopilkaPushOwner']) storage.remove(key);
   preparedDayStory = null;
   for (const key of ['user', 'summary', 'week', 'history', 'currentContract', 'product', 'profile', 'support', 'pendingMerge', 'recoveryNotice', 'pendingQuickAfterRefresh']) state[key] = null;
@@ -121,7 +144,6 @@ async function signOutWebsite() {
   $('artifactToast').hidden = true;
   // A fresh document discards all private DOM, editor drafts, navigation state
   // and async closures. No account/identity/history deletion or platform logout.
-  await Promise.race([retireBrowserPush(token).then(retired => { if (retired) storage.remove('kopilkaPushRetirePending'); }), new Promise(resolve => setTimeout(resolve, 1000))]);
   window.location.replace('/?signed_out=1');
 }
 window.addEventListener('storage', event => {
@@ -211,7 +233,8 @@ function fireVkBridgeInit() {
   try {
     applyVkStatusTop();
     if (!vkLaunchParams()) return;
-    return window.KopilkaStartup?.initVkBridge?.();
+    window.parent?.postMessage?.({ handler: 'VKWebAppInit', params: { request_id: `init_${Date.now()}` }, type: 'vk-connect', connectVersion: '3.0.2' }, '*');
+    window.vkBridge?.send?.('VKWebAppInit').catch?.(() => {});
   } catch (_) { /* best-effort VK wrapper initialization */ }
 }
 function clientLogDetails(details = '') {
@@ -356,11 +379,11 @@ function supportSurface() {
   return 'web';
 }
 async function initVkBridge() {
-  const init = fireVkBridgeInit();
+  fireVkBridgeInit();
   try {
-    if (!init) return;
+    if (!window.vkBridge?.send) return;
     await Promise.race([
-      init,
+      window.vkBridge.send('VKWebAppInit'),
       new Promise((resolve) => setTimeout(resolve, 1500))
     ]);
   } catch (_) { /* VK Bridge init is best-effort */ }
@@ -727,6 +750,7 @@ async function renewSurfaceSession() {
   return state.sessionRenewalPromise;
 }
 async function api(path, options = {}) {
+  if (websiteLogoutPending) throw new Error(L('signingOutSite'));
   const epoch = authEpoch;
   const { authToken = state.token, skipSessionRenewal = false, ...requestOptions } = options;
   let result = await requestJson(path, requestOptions, authToken);
@@ -983,6 +1007,7 @@ function setVerifiedUser(user) {
     if (state.user?.id) authEpoch++;
     templateReplaceDecision?.finish(false, false);
     clearHistoryEditor();
+    aiWeekly?.reset();
     state.history = null;
     state.historyDate = '';
   }
@@ -1516,7 +1541,7 @@ function restoreQuickActionFocus() {
   if (window.requestAnimationFrame) window.requestAnimationFrame(run);
   else window.setTimeout(run, 0);
 }
-function renderAll() { applyStaticI18n(); setVkAttributionVisibility(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderTodayContractReminder(); renderSettings(); renderInstallOffer(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); renderRecoveryNotice(); restoreQuickActionFocus(); }
+function renderAll() { applyStaticI18n(); aiWeekly?.sync(); setVkAttributionVisibility(); renderQuickActions(); renderSummary(); renderWeek(); renderContract(); renderTodayContractReminder(); renderSettings(); renderInstallOffer(); renderProfile(); renderArtifacts(); renderSupportActions(); renderVkReminderOffer(); renderRecoveryNotice(); restoreQuickActionFocus(); }
 const navigationOwner = Math.random().toString(36).slice(2);
 function navigationState(artifacts = []) { return { owner: navigationOwner, tab: state.activeTab, artifacts }; }
 function saveNavigation(replace = false, artifacts = []) {
@@ -1530,7 +1555,7 @@ function settingsDraftChanged() {
     ($('eveningReminderTime').value || '20:00') !== (state.user.eveningReminderTime || '20:00');
 }
 function switchTab(tab, { record = true, focus = true } = {}) {
-  if (!['today', 'week', 'contract', 'settings', 'support', 'profile'].includes(tab)) return;
+  if (!['today', 'week', 'contract', 'settings', 'support', 'profile', 'assistant'].includes(tab)) return;
   const leavingDirtySettings = state.activeTab === 'settings' && tab !== 'settings' && settingsDraftChanged();
   const changed = state.activeTab !== tab;
   if (changed) clearSupportActionError();
@@ -1546,6 +1571,7 @@ function switchTab(tab, { record = true, focus = true } = {}) {
     if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
   if (tab === 'profile' && !state.publicReadOnly) refreshLinkedLogins();
+  if (tab === 'assistant' && state.user && !state.publicReadOnly) { aiWeekly?.sync(); void aiWeekly?.load(); }
   if (tab === 'settings' && state.user && !state.publicReadOnly) void refreshPushStatus();
   if (focus) $(`heading-${tab}`)?.focus({ preventScroll: false });
   if (leavingDirtySettings) setStatus(L('settingsUnsaved'), 'info', 'unsaved-settings');
@@ -1665,6 +1691,7 @@ async function loadData() {
   storage.set('kopilkaLocale', me.user.locale || 'ru');
   state.lastRefresh = Date.now();
   renderAll();
+  if (state.activeTab === 'assistant') void aiWeekly?.load();
 }
 
 // ---------- Site login (outside Telegram Mini App) ----------
@@ -2278,7 +2305,7 @@ async function enableVkReminders() {
     if (!current()) return;
     vkReminderNotice = { ...request, text, key };
     if (!state.busy && statusRevision === request.statusRevision) {
-      setStatus(text, type); request.statusRevision = statusRevision;
+      setStatus(text, type, key === 'vkReminderAllowed' && type !== 'error' ? 'settings-saved' : 'info'); request.statusRevision = statusRevision;
     }
   };
   try {
@@ -2392,7 +2419,7 @@ function cancelAccountMerge() {
 }
 function keepFocusedControlVisible(event) {
   const control = event.target;
-  if (!control?.closest?.('.main-content') || !control.matches('button,input,textarea,select,a')) return;
+  if (!control?.closest?.('.main-content') || !(control.matches('button,input,textarea,select,a') || control.matches('summary') && control.closest('#aiWeekly'))) return;
   const nav = document.querySelector('.tab-bar');
   if (!nav || nav.hidden || !nav.getClientRects().length) return;
   const rect = control.getBoundingClientRect();
@@ -2400,6 +2427,10 @@ function keepFocusedControlVisible(event) {
   const viewportBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
   const top = Math.min(nav.getBoundingClientRect().top, viewportBottom);
   const activeEditable = control === document.activeElement && control.matches('input,textarea,select');
+  if (control.closest('#aiWeekly') && rect.top < 8) {
+    window.scrollBy({ top: rect.top - 8, behavior: 'instant' });
+    return;
+  }
   if (rect.bottom > top - 8 && (rect.top < window.innerHeight || activeEditable)) {
     const viewportTop = Math.max(0, viewport ? viewport.offsetTop : 0);
     // When navigation fills most of the viewport, do not reveal the bottom by hiding the field's top.
@@ -2408,7 +2439,13 @@ function keepFocusedControlVisible(event) {
   }
 }
 function bindEvents() {
-  document.addEventListener('focusin', keepFocusedControlVisible);
+  document.addEventListener('focusin', event => {
+    keepFocusedControlVisible(event);
+    // Native focus scrolling follows focusin; correct the assistant after it settles.
+    if (event.target.closest?.('#aiWeekly')) requestAnimationFrame(() => {
+      if (document.activeElement === event.target) keepFocusedControlVisible(event);
+    });
+  });
   const revealActiveControl = () => {
     // Keyboard resize must not override explicit scroll restoration to a link/button.
     const control = document.activeElement;
@@ -3246,6 +3283,8 @@ if (tabBar && typeof ResizeObserver === 'function') {
   new ResizeObserver(() => {
     const height = tabBar.getBoundingClientRect().height;
     if (height > 0) document.documentElement.style.setProperty('--measured-nav-height', `${Math.ceil(height)}px`);
+    // The assistant's selectors/consent must remain above navigation after keyboard reflow.
+    if (document.activeElement?.closest('#aiWeekly')) requestAnimationFrame(() => keepFocusedControlVisible({ target: document.activeElement }));
   }).observe(tabBar);
 }
 

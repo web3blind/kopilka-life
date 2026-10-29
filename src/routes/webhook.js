@@ -31,7 +31,8 @@ router.post('/webhook', async (req, res) => {
   const chatId = message?.chat?.id;
   const locale = message?.from?.language_code || 'ru';
   try {
-    if (chatId && text.startsWith('/start')) await sendStart(chatId, locale);
+    const partnerReply = require('../services/partnerService').acceptOwnerReply(update);
+    if (!partnerReply && chatId && text.startsWith('/start')) await sendStart(chatId, locale);
     // Inline mode: user picked a chat via switchInlineQuery; answer with the
     // shared text so it can be sent to the chosen chat.
     if (update.inline_query && update.inline_query.id && update.inline_query.query) {

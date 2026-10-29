@@ -1,6 +1,8 @@
 const { getWeekSummary } = require('./entriesService');
 const { getCurrentContract, getLatestContract } = require('./contractsService');
 const { normalizeLocale, pick, t, DAILY_HINTS, CONTRACT_TEMPLATES, PRACTICE_GOALS, PRACTICES_BY_GOAL } = require('../i18n');
+const { localDateString } = require('../time');
+const { getDb } = require('../db');
 
 function dailyHintForUser(userId, locale) {
   const dayIndex = Math.floor(Date.now() / 86400000);
@@ -9,12 +11,17 @@ function dailyHintForUser(userId, locale) {
   return { id: hint.id, title: pick(hint.title, lang), text: pick(hint.text, lang), action: pick(hint.action, lang) };
 }
 
-function getContractTemplates(locale) {
+function getContractTemplates(locale, userId, now = new Date()) {
   const lang = normalizeLocale(locale);
+  const timezone = userId ? getDb().prepare('SELECT timezone FROM users WHERE id = ?').get(userId)?.timezone : 'UTC';
+  const today = localDateString(now, timezone || 'UTC');
+  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+  // The existing contract form starts the following week on Sunday.
+  const restDays = Math.min(3, weekday === 0 ? 7 : 8 - weekday);
   return CONTRACT_TEMPLATES.map((item) => ({
     id: item.id,
     title: pick(item.title, lang),
-    targetValue: pick(item.targetValue, lang),
+    targetValue: pick(item.targetValue, lang).replace('{days}', restDays),
     stakeAmount: '',
     stakeCurrency: 'RUB',
     rewardDescription: pick(item.rewardDescription, lang),
@@ -62,7 +69,7 @@ function buildWeeklyReview(userId, locale) {
 function getProductLayer(userId, goal, locale) {
   return {
     dailyHint: dailyHintForUser(userId, locale),
-    contractTemplates: getContractTemplates(locale),
+    contractTemplates: getContractTemplates(locale, userId),
     weeklyReview: buildWeeklyReview(userId, locale),
     practices: getPractices(goal, locale)
   };

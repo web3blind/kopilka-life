@@ -10,6 +10,9 @@ async function tick() {
   } catch (error) {
     console.error('Scheduler error:', error.message);
   } finally {
+    // Partner delivery/retention must still run when another channel fails.
+    try { await require('../services/partnerService').processPartnerOutbox(); }
+    catch (_) { console.error('Partner outbox tick failed'); }
     running = false;
   }
 }

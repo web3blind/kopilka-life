@@ -152,7 +152,6 @@ textarea{resize:vertical;min-height:5.2rem}
 label{display:block;margin-top:1rem;margin-bottom:.35rem;font-weight:850;color:#3a2416}
 .hint-button-row{display:flex;flex-wrap:wrap;gap:.5rem;margin:.75rem 0}
 #gratitudePractice details{margin-bottom:.75rem}
-#gratitudeHints > summary{cursor:pointer}
 fieldset{border:0;padding:0;margin:1.1rem 0 0}
 legend{font-weight:950;margin-bottom:.72rem;font-size:1.05rem;color:#3a2416}
 /* Essential geometry also ships in index.html before the nonblocking stylesheet. */
@@ -499,7 +498,7 @@ h3{letter-spacing:-.015em}
   width:min(calc(100% - 1rem),720px);
   min-height:var(--nav-height);
   display:grid;
-  grid-template-columns:repeat(6,1fr);
+  grid-template-columns:repeat(7,minmax(0,1fr));
   gap:.28rem;
   padding:.44rem .5rem;
   background:rgba(255,253,249,.92);
@@ -510,6 +509,7 @@ h3{letter-spacing:-.015em}
   z-index:20;
 }
 .tab-bar button{
+  line-height:1.2;
   min-width:0;
   overflow-wrap:anywhere;
   position:relative;
@@ -525,7 +525,7 @@ h3{letter-spacing:-.015em}
 }
 .tab-label{display:block}.tab-count{position:absolute;right:.12rem;top:.08rem;min-width:1.2rem;height:1.2rem;padding:0 .36rem;border-radius:999px;background:var(--heart);color:#fff;font-size:.62rem;line-height:1.2rem;font-weight:950;white-space:nowrap;box-shadow:0 6px 12px rgba(201,77,77,.25)}
 .tab-bar button::before{display:block;font-size:.92rem;margin-bottom:.04rem;line-height:1}
-#tab-button-today::before{content:"✦"}#tab-button-week::before{content:"☼"}#tab-button-contract::before{content:"✍"}#tab-button-settings::before{content:"⚙"}#tab-button-support::before{content:"✧"}#tab-button-profile::before{content:"❤"}
+#tab-button-today::before{content:"✦"}#tab-button-assistant::before{content:"✧"}#tab-button-week::before{content:"☼"}#tab-button-contract::before{content:"✍"}#tab-button-settings::before{content:"⚙"}#tab-button-support::before{content:"✧"}#tab-button-profile::before{content:"❤"}
 .tab-bar button[aria-selected="true"]{
   background:linear-gradient(180deg,var(--accent-soft),#fff2df);
   color:var(--accent);
@@ -554,11 +554,17 @@ h3{letter-spacing:-.015em}
   .quick-action-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr));gap:.62rem}
   .quick-action-grid button{min-height:4.25rem}
   .template-grid{grid-template-columns:1fr}
-  .tab-bar{width:calc(100% - .72rem);grid-template-columns:repeat(3,1fr);border-radius:24px;gap:.24rem;padding:.42rem}
+  .tab-bar{width:calc(100% - .72rem);grid-template-columns:repeat(4,minmax(0,1fr));border-radius:24px;gap:.24rem;padding:.42rem}
   .tab-bar button{font-size:.76rem;min-height:3.15rem;padding:.3rem .24rem}
   .tab-count{right:.22rem;top:.12rem}
   .top-card::before{right:.8rem}.eyebrow,#connectionStatus{margin-right:3.6rem}
   .artifact-card{grid-template-columns:4.8rem 1fr}.artifact-card img,.artifact-mystery{width:4.8rem;height:4.8rem;border-radius:18px}.artifact-dialog-card{padding:1rem .95rem}.artifact-dialog-card img{width:min(10rem,54vw);height:min(10rem,54vw);border-radius:24px}.artifact-toast h2{font-size:1.34rem}.artifact-toast p{max-width:100%}
+}
+/* Leave room for the focused field when a keyboard or large text reduces height.
+   All seven tabs remain reachable by touch scrolling and the existing arrow keys. */
+@media (max-width:560px) and (max-height:600px){
+  .tab-bar{display:flex;min-height:0;overflow-x:auto;overscroll-behavior-x:contain;scroll-padding-inline:.5rem}
+  .tab-bar button{flex:0 0 auto;width:auto;white-space:nowrap;padding:.35rem .7rem}
 }
 @media (min-width:820px){
   .app-shell{width:min(760px, calc(100% - 2rem))}
@@ -585,3 +591,17 @@ html.document-view-open,html.document-view-open body{overflow:hidden;overscroll-
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
 }
+#gratitudeHints > summary{cursor:pointer}
+
+.ai-weekly{overflow-wrap:anywhere}
+#tab-assistant .ai-weekly{margin:0;padding:0;border:0;box-shadow:none;background:transparent}
+.ai-weekly details{margin:.65rem 0}
+.ai-weekly summary{cursor:pointer;min-height:44px;padding:.35rem 0;line-height:1.5}
+.ai-weekly-consent{display:flex;align-items:flex-start;gap:.65rem;margin:.8rem 0;min-height:44px}
+.ai-weekly-consent input[type=checkbox]{flex:0 0 auto;width:1.3rem;height:1.3rem;margin-top:.2rem}
+.ai-weekly-actions{display:flex;flex-wrap:wrap;gap:.6rem}
+.ai-weekly button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.ai-weekly-text{white-space:pre-wrap}
+.ai-weekly-saved{border-top:1px solid var(--border);padding-top:.8rem;margin-top:.8rem}
+.ai-weekly-confirm{border:1px solid var(--border);border-radius:var(--radius-md);padding:.75rem}
+.ai-weekly-confirm button{margin:.25rem 0}

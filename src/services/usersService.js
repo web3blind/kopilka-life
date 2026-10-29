@@ -92,7 +92,8 @@ function userHasOwnedData(userId) {
   const supportActions = db.prepare('SELECT COUNT(*) AS count FROM user_support_actions WHERE user_id = ?').get(userId).count;
   const referrals = db.prepare('SELECT COUNT(*) AS count FROM users WHERE referrer_id = ?').get(userId).count;
   const loginIdentities = db.prepare('SELECT COUNT(*) AS count FROM login_identities WHERE user_id = ?').get(userId).count;
-  return entries + contracts + reminders + artifacts + supportActions + referrals + loginIdentities > 0;
+  const aiSummaries = db.prepare('SELECT COUNT(*) AS count FROM ai_weekly_summaries WHERE user_id = ?').get(userId).count;
+  return entries + contracts + reminders + artifacts + supportActions + referrals + loginIdentities + aiSummaries > 0;
 }
 function linkVkUser(userId, vkId) {
   const db = getDb();

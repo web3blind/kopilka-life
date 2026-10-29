@@ -60,6 +60,16 @@ def main():
                        APP_BASE_URL=f'http://127.0.0.1:{port}',
                        WEBAPP_URL=f'http://127.0.0.1:{port}',
                        KOPILKA_QA_BASE_URL=f'http://127.0.0.1:{port}')
+        if 'partner-browser-qa.py' in sys.argv[1:]:
+            env.update(TURNSTILE_SITE_KEY='fixture-site-key', TURNSTILE_SECRET_KEY='fixture-secret',
+                       PARTNER_OWNER_TELEGRAM_ID='123456', RESEND_API_KEY='fixture-only',
+                       NODE_OPTIONS=f"--require={ROOT / 'tests/fixtures/partner-provider-preload.cjs'}")
+        if 'ai-weekly-browser-qa.py' in sys.argv[1:]:
+            env.update(AI_WEEKLY_ENABLED='true', AI_WEEKLY_OPENROUTER_API_KEY='fixture-only',
+                       AI_WEEKLY_PAID_ENABLED=os.environ.get('KOPILKA_AI_QA_PAID', 'false'),
+                       AI_WEEKLY_MODEL='mistralai/mistral-nemo' if os.environ.get('KOPILKA_AI_QA_PAID') == 'true' else 'xingchen-agi/xing4.0-29b-a4b:free', AI_WEEKLY_TIMEOUT_MS='3000',
+                       KOPILKA_AI_QA_CALLS=str(Path(tmp, 'ai-calls.json')),
+                       NODE_OPTIONS=f"--require={ROOT / 'tests/fixtures/ai-weekly-browser-preload.cjs'}")
         with Path(tmp, 'server.log').open('w+') as log:
             # sendFile rejects absolute paths with dot-directory components; this
             # scratch directory may live under .hermes. DB and logs stay isolated.

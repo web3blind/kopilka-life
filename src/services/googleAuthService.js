@@ -19,7 +19,8 @@ function assertGoogleLinkProof(context) {
   if (!context.user_id) return null;
   const match = /^(0|[1-9]\d*):([a-f0-9]{64})$/.exec(context.session_hash || '');
   const revision = getDb().prepare('SELECT session_revision FROM users WHERE id = ?').get(context.user_id)?.session_revision;
-  if (!match || !Number.isSafeInteger(Number(match[1])) || revision !== Number(match[1])) throw new Error('Google link session revoked');
+  if (!match || !Number.isSafeInteger(Number(match[1])) || revision !== Number(match[1]) ||
+      getDb().prepare('SELECT 1 FROM session_revocations WHERE token_hash = ?').get(match[2])) throw new Error('Google link session revoked');
   return match[2];
 }
 function createGoogleIntent({ userId = null, session = '', refCode = '', timezone = '', locale = 'ru' }) {
