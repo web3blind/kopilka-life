@@ -46,6 +46,12 @@ test('Gemini direct route and durable project admission',async t=>{
    const id=user(locale);const result=await service.create(id,consent(id,topic));assert.equal(result.summary.status,'ready');assert.equal(result.summary.provider,'Google Gemini');
    const c=calls.at(-1),b=JSON.parse(c.options.body);assert.equal(c.url,`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`);assert.equal(c.options.headers['x-goog-api-key'],'synthetic-google-secret');assert.equal(c.options.redirect,'error');
    assert.match(b.systemInstruction.parts[0].text,/untrusted/);assert.match(b.systemInstruction.parts[0].text,locale==='ru'?/in Russian/:/in English/);assert.equal(JSON.parse(b.contents[0].parts[0].text).selection.topic,topic);
+   const instruction=b.systemInstruction.parts[0].text;
+   assert.match(instruction,/one compact paragraph of 2-4 short sentences, at most 600 characters/);
+   assert.match(instruction,/Do not produce a day-by-day chronology or list dates with their categories/);
+   assert.match(instruction,/Do not enumerate days without records/);
+   assert.match(instruction,/Do not judge the person's pace or lifestyle from category ticks/);
+   assert.match(instruction,topic==='summary'?/no recommendations/:/at most 3 gentle, concrete, optional steps/);
    assert.deepEqual(b.generationConfig,{temperature:0.2,maxOutputTokens:1024,thinkingConfig:{thinkingLevel:'minimal'}});
    assert.equal(ledger().at(-1).input_bound,Buffer.byteLength(b.systemInstruction.parts[0].text+b.contents[0].parts[0].text,'utf8')+4096);
   }
