@@ -6,11 +6,13 @@ import hmac
 import json
 import os
 from pathlib import Path
+import runpy
 import sqlite3
 import time
 import urllib.parse
 from playwright.sync_api import sync_playwright
 BASE = os.environ['KOPILKA_QA_BASE_URL']
+NAV_GEOMETRY = runpy.run_path(str(Path(__file__).with_name('nav-layout-browser-qa.py')))['GEOMETRY']
 assert os.environ['NODE_ENV'] == 'test' and os.environ['DB_PATH'].endswith('qa.sqlite')
 CALLS = Path(os.environ['KOPILKA_AI_QA_CALLS'])
 def call_count():
@@ -27,7 +29,8 @@ def seed(uid, date, note='synthetic-walk'):
 
 results = []
 with sync_playwright() as pw:
-    browser = pw.chromium.launch(executable_path='/usr/bin/chromium', headless=True, args=['--no-sandbox'])
+    cdp = os.environ.get('KOPILKA_QA_CDP_URL')
+    browser = pw.chromium.connect_over_cdp(cdp) if cdp else pw.chromium.launch(executable_path='/usr/bin/chromium', headless=True, args=['--no-sandbox'])
     try:
         for i, (lang, width, text_scale) in enumerate((('ru',320,100),('ru',320,200),('en',320,100),('en',320,200),('ru',390,100),('ru',390,200),('en',390,100),('en',390,200))):
             context = browser.new_context(viewport={'width':width,'height':850}, is_mobile=True, has_touch=True, service_workers='block')
@@ -106,6 +109,22 @@ with sync_playwright() as pw:
                 p.evaluate('(scale)=>document.documentElement.style.fontSize=scale+"%"',text_scale)
                 assert p.evaluate('document.documentElement.scrollWidth<=innerWidth'),(lang,width,text_scale)
                 assert p.locator('#aiWeeklyStatus').get_attribute('role')=='status'
+                # Every destination works without moving the dock, with all three inputs.
+                tabs=p.locator('.tab-bar [role="tab"]')
+                for mode in ('mouse','keyboard','touch'):
+                    if mode=='keyboard':
+                        tabs.first.focus();p.keyboard.press('Home')
+                    for index in range(7):
+                        tab=tabs.nth(index)
+                        if mode=='mouse':tab.click()
+                        elif mode=='touch':tab.tap()
+                        elif index:p.keyboard.press('ArrowRight')
+                        assert tab.get_attribute('aria-selected')=='true'
+                        if mode=='keyboard':assert tab.evaluate('(e)=>e===document.activeElement')
+                        assert p.locator('#'+tab.get_attribute('aria-controls')).is_visible()
+                        p.wait_for_timeout(180)  # Finish the existing one-pixel hover transition.
+                        nav_geometry=p.evaluate(NAV_GEOMETRY)
+                        assert not nav_geometry['failures'],(lang,width,text_scale,mode,index,nav_geometry)
                 p.locator('#tab-button-assistant').focus();p.keyboard.press('Home')
                 assert p.evaluate('state.activeTab')=='today'
                 p.keyboard.press('End')
@@ -115,6 +134,11 @@ with sync_playwright() as pw:
                     const r=b.getBoundingClientRect(); return r.left>=0 && r.right<=innerWidth && r.bottom<=innerHeight;
                 })''')
                 p.set_viewport_size({'width':width,'height':480})
+                assert p.evaluate('''() => {
+                    const n=document.querySelector('.tab-bar');
+                    return n.scrollWidth<=n.clientWidth && n.scrollHeight<=n.clientHeight &&
+                      [...n.querySelectorAll('button')].every(b=>{const r=b.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth&&r.width>=44&&r.height>=44;});
+                }'''),(lang,width,text_scale)
                 p.locator('#aiWeeklyTopic').focus()
                 p.wait_for_timeout(350)
                 geometry=p.evaluate('''() => ({field:document.getElementById('aiWeeklyTopic').getBoundingClientRect().toJSON(),nav:document.querySelector('.tab-bar').getBoundingClientRect().toJSON(),active:document.activeElement.id,scrollY,innerHeight})''')
@@ -327,4 +351,6 @@ with sync_playwright() as pw:
             assert call['provider']['data_collection']=='deny'
             assert call['provider']['zdr'] is True
         print(json.dumps({'pass':True,'provider':'controlled fixture, not a live OpenRouter proof','checks':results},ensure_ascii=False))
-    finally:browser.close()
+    finally:
+        if not cdp:
+            browser.close()
