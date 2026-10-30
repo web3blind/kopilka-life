@@ -4,6 +4,13 @@ const { normalizeLocale, pick, t, DAILY_HINTS, CONTRACT_TEMPLATES, PRACTICE_GOAL
 const { localDateString } = require('../time');
 const { getDb } = require('../db');
 
+function contractDaysForUser(userId, now = new Date()) {
+  const timezone = userId ? getDb().prepare('SELECT timezone FROM users WHERE id = ?').get(userId)?.timezone : 'UTC';
+  const weekday = new Date(`${localDateString(now, timezone || 'UTC')}T12:00:00Z`).getUTCDay();
+  // Sunday creates a next-week contract, not a one-day contract.
+  return weekday === 0 ? 7 : 8 - weekday;
+}
+
 function dailyHintForUser(userId, locale) {
   const dayIndex = Math.floor(Date.now() / 86400000);
   const hint = DAILY_HINTS[(Number(userId) + dayIndex) % DAILY_HINTS.length];
@@ -13,11 +20,7 @@ function dailyHintForUser(userId, locale) {
 
 function getContractTemplates(locale, userId, now = new Date()) {
   const lang = normalizeLocale(locale);
-  const timezone = userId ? getDb().prepare('SELECT timezone FROM users WHERE id = ?').get(userId)?.timezone : 'UTC';
-  const today = localDateString(now, timezone || 'UTC');
-  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
-  // The existing contract form starts the following week on Sunday.
-  const restDays = Math.min(3, weekday === 0 ? 7 : 8 - weekday);
+  const restDays = Math.min(3, contractDaysForUser(userId, now));
   return CONTRACT_TEMPLATES.map((item) => ({
     id: item.id,
     title: pick(item.title, lang),
@@ -70,6 +73,7 @@ function getProductLayer(userId, goal, locale) {
   return {
     dailyHint: dailyHintForUser(userId, locale),
     contractTemplates: getContractTemplates(locale, userId),
+    contractDays: contractDaysForUser(userId),
     weeklyReview: buildWeeklyReview(userId, locale),
     practices: getPractices(goal, locale)
   };

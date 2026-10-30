@@ -25,11 +25,18 @@ function contractStake(value) {
 }
 function userTimeZone(userId) { return getDb().prepare('SELECT timezone FROM users WHERE id = ?').get(userId)?.timezone || 'Asia/Novosibirsk'; }
 function userLocale(userId) { return normalizeLocale(getDb().prepare('SELECT locale FROM users WHERE id = ?').get(userId)?.locale); }
+function contractDisplayStart(contract, timeZone) {
+  // SQLite CURRENT_TIMESTAMP is UTC. Keep weekly accounting bounds untouched.
+  const createdDay = localDateInTimeZone(new Date(contract.created_at.replace(' ', 'T') + 'Z'), timeZone);
+  if (createdDay < contract.week_start) return contract.week_start;
+  if (createdDay > contract.week_end) return contract.week_end;
+  return createdDay;
+}
 function getCurrentContract(userId) {
   const contract = getDb().prepare("SELECT * FROM weekly_contracts WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1").get(userId) || null;
   if (!contract) return null;
   const today = localDateInTimeZone(new Date(), userTimeZone(userId));
-  return { ...contract, isLastDay: today >= contract.week_end, isOver: today > contract.week_end };
+  return { ...contract, display_start: contractDisplayStart(contract, userTimeZone(userId)), isLastDay: today >= contract.week_end, isOver: today > contract.week_end };
 }
 function getLatestContract(userId) { return getDb().prepare('SELECT * FROM weekly_contracts WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1').get(userId) || null; }
 function createContract(userId, input) {
@@ -51,7 +58,7 @@ function createContract(userId, input) {
   }
   const info = getDb().prepare('INSERT INTO weekly_contracts (user_id, title, target_value, week_start, week_end, stake_amount, stake_currency, reward_description, fund_description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(userId, cleanTitle, cleanTarget, weekStart, weekEnd, cleanStake, cleanCurrency, cleanReward, cleanFund);
   const contract = getDb().prepare('SELECT * FROM weekly_contracts WHERE id = ?').get(info.lastInsertRowid);
-  return { ...contract, isLastDay: false, isOver: false };
+  return { ...contract, display_start: contractDisplayStart(contract, timeZone), isLastDay: false, isOver: false };
 }
 function closeContract(userId, contractId, status, resultNote = '') {
   if (!Object.prototype.hasOwnProperty.call(CLOSE_POINTS, status)) throw new Error('error.contractStatus');

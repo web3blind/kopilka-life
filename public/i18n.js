@@ -103,6 +103,7 @@
     noWeek: { ru: 'Тихая неделя. Можно продолжить сегодня.', en: 'A quiet week. You can continue today.' },
     noCategories: { ru: 'Категории появятся после первых записей.', en: 'Categories will appear after the first entries.' },
     noActiveContract: { ru: 'Активного договора пока нет.', en: 'No active contract yet.' },
+    contractDaysWarning: { ru: 'До конца договора осталось {days} дн., включая сегодня. Цель на большее число дней выполнить невозможно. Уменьши число дней в критерии шаблона перед созданием.', en: 'Only {days} days remain in this contract, including today. A goal requiring more days cannot be completed. Reduce the number of days in the template criterion before creating it.' },
     templatesLoading: { ru: 'Шаблоны загрузятся после подключения.', en: 'Templates will load after connecting.' },
     currentContract: { ru: 'Текущий договор', en: 'Current contract' },
     period: { ru: 'Период', en: 'Period' },
