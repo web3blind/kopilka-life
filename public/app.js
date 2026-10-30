@@ -1697,6 +1697,7 @@ async function loadData() {
   state.summary = summary; state.week = week; state.currentContract = current.contract; setVerifiedUser(me.user); state.product = product; state.profile = profile.profile; state.artifacts = artifacts.artifacts || []; state.support = support;
   storage.set('kopilkaLocale', me.user.locale || 'ru');
   state.lastRefresh = Date.now();
+  refreshedDay = localDay();
   renderAll();
   if (state.activeTab === 'assistant') void aiWeekly?.load();
 }
