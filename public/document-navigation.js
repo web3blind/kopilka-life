@@ -79,6 +79,27 @@
     });
   }
 
+  // Only published public destinations belong in the imported reader. Resolve
+  // against the origin, not the signed launch URL; never carry query/fragment data.
+  function readerLink(link) {
+    const raw = link.getAttribute('href');
+    if (link.hasAttribute('download') || !raw || /[\u0000-\u0020\u007f]/.test(raw)) return null;
+    try {
+      const url = new URL(raw, window.location.origin);
+      if (url.username || url.password) return null;
+      if (url.origin === window.location.origin) {
+        if (documents.has(url.pathname)) return url.pathname;
+        return ['/partners', '/en/partners', '/gratitude-journal', '/en/gratitude-journal'].includes(url.pathname) ? url.pathname : null;
+      }
+      if (url.protocol === 'mailto:') {
+        return /^mailto:[^\s@?&#]+@[^\s@?&#]+\.[^\s@?&#]+$/.test(raw) ? raw : null;
+      }
+      const publicOrigins = ['https://ai.google.dev', 'https://openrouter.ai', 'https://db-ip.com',
+        'https://vk.ru', 'https://vk.com', 'https://t.me'];
+      return url.protocol === 'https:' && publicOrigins.includes(url.origin) ? url.origin + url.pathname : null;
+    } catch { return null; }
+  }
+
   async function load(path) {
     request?.abort();
     const controller = new AbortController();
@@ -118,16 +139,20 @@
         back.replaceWith(button);
       });
       section.querySelectorAll('a[href]').forEach((link) => {
-        const path = documentPath(link);
-        // Partnership forms need their own scripts. Open only this allowlisted
-        // public destination separately, without replacing the owning Mini App.
-        const partner = about && ['/partners', '/en/partners'].includes(link.getAttribute('href'));
-        if (path) link.setAttribute('href', localizedPath(path));
-        else if (!partner) link.removeAttribute('href');
-        if (partner) {
+        const href = readerLink(link);
+        link.removeAttribute('ping');
+        link.removeAttribute('download');
+        link.removeAttribute('target');
+        if (!href) { link.removeAttribute('href'); return; }
+        const path = documents.has(href) && href;
+        link.setAttribute('href', path ? localizedPath(path) : href);
+        if (!path) {
+          // Public destinations must not replace the owning Mini App or receive
+          // its launch URL, credentials, or an opener into the private app.
           link.target = '_blank';
           link.rel = 'noopener noreferrer';
-        } else link.removeAttribute('target');
+          link.referrerPolicy = 'no-referrer';
+        }
       });
       if (request !== controller || !dialog.open) return;
       content.replaceChildren(section);

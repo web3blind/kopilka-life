@@ -20,7 +20,9 @@
     privacy: ['Конфиденциальность приложения', 'App privacy policy'],
     consent: ['Согласен передать отметки и личные заметки за этот период через OpenRouter для создания выжимки и, если они запрошены, рекомендаций по выбранной теме.', 'I agree to send my entries and personal notes for this period through OpenRouter to create a summary and, if requested, recommendations for the selected topic.'],
     start: ['Подготовить', 'Prepare'],
-    refresh: ['Проверить результат', 'Check result'],
+    refresh: ['Обновить сведения', 'Refresh information'],
+    checking: ['Проверяем сведения…', 'Refreshing information…'],
+    checked: ['Статус обновлён. Новый запрос к ИИ не отправлялся.', 'Status refreshed. No new AI request was sent.'],
     loading: ['Загружаем сведения о выжимке…', 'Loading digest information…'],
     auth: ['Нужно восстановить вход. Запрос на создание не будет повторён автоматически. После входа проверь период и снова подтверди согласие.', 'Please restore your sign-in. The creation request will not be replayed automatically. After signing in, check the period and confirm consent again.'],
     recover: ['Восстановить вход', 'Restore sign-in'],
@@ -56,7 +58,7 @@
     const el = id => document.getElementById(id);
     const tr = key => strings[key][locale() === 'en' ? 1 : 0];
     let data = null, owner = null, generation = 0, readVersion = 0, busy = false, readBusy = false, message = '', confirmation = null, digestSignature = '';
-    let days = 7, topic = 'summary';
+    let days = 7, topic = 'summary', readChecked = false;
     const topicIds = ['summary', 'calm', 'hard-days', 'rest', 'kindness', 'self-support', 'goal'];
     const root = el('aiWeekly');
     if (!root) return { sync() {}, reset() {}, load: async () => {} };
@@ -66,7 +68,7 @@
       return Number.isFinite(parsed.getTime()) ? new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(parsed) : '';
     }
     function period(p) { return p ? `${date(p.start)} — ${date(p.end)} (${p.timezone})` : ''; }
-    function status() {
+    function digestStatus() {
       if (message) return tr(message);
       if (!data) return tr('loading');
       if (data.projectQuota?.allowed === false && data.quota?.allowed === true) return tr('projectFull');
@@ -75,6 +77,12 @@
       const s = data.summary?.status;
       if (['processing', 'ready', 'failed', 'uncertain', 'deleted', 'empty'].includes(s)) return tr(s);
       return data.available ? '' : tr('unavailable');
+    }
+    function status() {
+      if (readBusy) return tr('checking');
+      if (message) return tr(message);
+      const text = digestStatus();
+      return readChecked ? `${text}${text ? ' ' : ''}${tr('checked')}` : text;
     }
     function addDigest(item, container) {
       const article = document.createElement('article'); article.className = 'ai-weekly-saved';
@@ -151,17 +159,17 @@
         if (restore) (el(focusedId) || el('aiWeeklyHeading')).focus({ preventScroll: true });
       }
       for (const button of root.querySelectorAll('.ai-weekly-saved button')) button.disabled = busy;
-      el('aiWeeklyResult').setAttribute('aria-busy', String(busy));
+      el('aiWeeklyResult').setAttribute('aria-busy', String(busy || readBusy));
     }
-    async function load() {
+    async function load(manual = false) {
       if (!owner || busy || !Number.isInteger(days) || days < 1 || days > 30) return;
       const ticket = generation, who = owner, read = ++readVersion;
-      readBusy = true; render();
+      readBusy = true; readChecked = false; render();
       try {
         const next = await api(`/api/ai-weekly-summary?days=${days}&topic=${encodeURIComponent(topic)}`); // Safe GET may use existing sign-in recovery; never replay POST.
         if (!current(ticket, who) || read !== readVersion) return;
         if (data?.period?.key !== next.period.key || ['consentVersion', 'provider', 'model', 'paidMode'].some(key => data?.[key] !== next[key])) el('aiWeeklyConsent').checked = false;
-        data = next; message = '';
+        data = next; message = ''; readChecked = manual === true;
       } catch (error) { if (current(ticket, who) && read === readVersion) { message = error.status === 401 ? 'auth' : 'error'; el('aiWeeklyConsent').checked = false; } }
       finally { if (current(ticket, who) && read === readVersion) { readBusy = false; render(); } }
     }
@@ -169,7 +177,7 @@
       if (busy || readBusy || !data?.available || !data.provider || !data.model || data?.projectQuota?.allowed === false || data?.quota?.allowed !== true || !el('aiWeeklyConsent').checked) return;
       const ticket = generation, who = owner;
       let projectRejection = null;
-      busy = true; message = 'processing'; render();
+      busy = true; readChecked = false; message = 'processing'; render();
       try {
         const next = await api('/api/ai-weekly-summary', { method: 'POST', skipSessionRenewal: true, body: JSON.stringify({ consent: true, consentVersion: data.consentVersion, periodKey: data.period.key, days, topic }) });
         if (current(ticket, who)) { data = next; message = ''; }
@@ -214,7 +222,7 @@
       finally { if (current(ticket, who)) { busy = false; render(); el('aiWeeklyHeading').focus(); if (message !== 'auth' && !data?.empty) await load(); } }
     }
     function reset() {
-      generation++; readVersion++; owner = null; data = null; busy = false; readBusy = false; message = ''; confirmation = null;
+      generation++; readVersion++; owner = null; data = null; busy = false; readBusy = false; readChecked = false; message = ''; confirmation = null;
       days = 7; topic = 'summary'; el('aiWeeklyDays').value = '7'; el('aiWeeklyCustomDays').value = '7';
       el('aiWeeklyConsent').checked = false; el('aiWeeklyDeleteConfirm').hidden = true; render();
     }
@@ -226,7 +234,7 @@
     function changeSelection() {
       days = Number(el('aiWeeklyDays').value === 'other' ? el('aiWeeklyCustomDays').value : el('aiWeeklyDays').value);
       topic = el('aiWeeklyTopic').value;
-      readVersion++; readBusy = false; data = null; message = ''; el('aiWeeklyConsent').checked = false;
+      readVersion++; readBusy = false; readChecked = false; data = null; message = ''; el('aiWeeklyConsent').checked = false;
       render(); void load();
     }
     el('aiWeeklyDays').addEventListener('change', changeSelection);
@@ -234,7 +242,7 @@
     el('aiWeeklyTopic').addEventListener('change', changeSelection);
     el('aiWeeklyConsent').addEventListener('change', render);
     el('aiWeeklyCreate').addEventListener('click', start);
-    el('aiWeeklyRefresh').addEventListener('click', load);
+    el('aiWeeklyRefresh').addEventListener('click', () => load(true));
     el('aiWeeklyRecover').addEventListener('click', load);
     el('aiWeeklyDeleteCancel').addEventListener('click', cancelDelete);
     el('aiWeeklyDeleteYes').addEventListener('click', remove);
