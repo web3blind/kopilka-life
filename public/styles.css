@@ -605,6 +605,8 @@ html.document-view-open,html.document-view-open body{overflow:hidden;overscroll-
 .ai-weekly{overflow-wrap:anywhere}
 #tab-assistant .ai-weekly{margin:0;padding:0;border:0;box-shadow:none;background:transparent}
 .ai-weekly details{margin:.65rem 0}
+/* Keep the native accessible picker; shorten only its closed visual label. */
+#aiWeeklyTopic{min-width:0;max-width:100%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 .ai-weekly summary{cursor:pointer;min-height:44px;padding:.35rem 0;line-height:1.5}
 .ai-weekly-consent{display:flex;align-items:flex-start;gap:.65rem;margin:.8rem 0;min-height:44px}
 .ai-weekly-consent input[type=checkbox]{flex:0 0 auto;width:1.3rem;height:1.3rem;margin-top:.2rem}
@@ -612,5 +614,6 @@ html.document-view-open,html.document-view-open body{overflow:hidden;overscroll-
 .ai-weekly button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .ai-weekly-text{white-space:pre-wrap}
 .ai-weekly-saved{border-top:1px solid var(--border);padding-top:.8rem;margin-top:.8rem}
+.ai-weekly-confirm,.ai-weekly-confirm button{scroll-margin-bottom:calc(var(--measured-nav-height,var(--nav-height)) + 2rem + env(safe-area-inset-bottom))}
 .ai-weekly-confirm{border:1px solid var(--border);border-radius:var(--radius-md);padding:.75rem}
 .ai-weekly-confirm button{margin:.25rem 0}

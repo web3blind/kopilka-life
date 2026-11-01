@@ -151,13 +151,24 @@
       if (signature !== digestSignature) {
         const focusedId = document.activeElement?.id;
         const restore = focusedId?.startsWith('ai-weekly-delete-');
+        // The shared question can live inside an article; retain it before rebuilding.
+        root.append(el('aiWeeklyDeleteConfirm'));
         el('aiWeeklyResult').replaceChildren();
         if (ready) addDigest(ready, el('aiWeeklyResult'));
         el('aiWeeklyArchiveItems').replaceChildren();
         for (const item of archive) addDigest(item, el('aiWeeklyArchiveItems'));
         digestSignature = signature;
         if (restore) (el(focusedId) || el('aiWeeklyHeading')).focus({ preventScroll: true });
+        if (confirmation) {
+          const target = el(`ai-weekly-delete-${confirmation.id}`);
+          if (target) {
+            target.after(el('aiWeeklyDeleteConfirm'));
+            confirmation.button = target;
+            if (['aiWeeklyDeleteCancel', 'aiWeeklyDeleteYes'].includes(focusedId)) el(focusedId).focus({ preventScroll: true });
+          } else cancelDelete(false);
+        }
       }
+      for (const id of ['aiWeeklyDeleteCancel', 'aiWeeklyDeleteYes']) el(id).disabled = busy;
       for (const button of root.querySelectorAll('.ai-weekly-saved button')) button.disabled = busy;
       el('aiWeeklyResult').setAttribute('aria-busy', String(busy || readBusy));
     }
@@ -202,24 +213,50 @@
       }
     }
     function askDelete(id, button) {
-      if (busy || confirmation) return;
-      const box = el('aiWeeklyDeleteConfirm'); box.hidden = false;
+      if (busy || confirmation || !button.isConnected || button.disabled) return;
+      const box = el('aiWeeklyDeleteConfirm');
+      button.after(box); box.hidden = false;
       el('aiWeeklyDeleteQuestion').textContent = tr('deleteConfirm');
-      confirmation = { id, button }; el('aiWeeklyDeleteCancel').focus();
+      confirmation = { id, button, ticket: generation, who: owner, days, topic };
+      el('aiWeeklyDeleteCancel').focus({ preventScroll: true });
+      const bottom = document.querySelector('.tab-bar')?.getBoundingClientRect().top || window.innerHeight;
+      // At large text sizes the question can exceed the viewport: keep its actions
+      // visible and let normal document scrolling expose the full explanation.
+      const target = box.getBoundingClientRect().height > bottom - 16 ? el('aiWeeklyDeleteYes') : box;
+      target.scrollIntoView({ block: 'nearest', behavior: 'instant' });
     }
-    function cancelDelete() {
+    function cancelDelete(returnFocus = true) {
       const button = el(`ai-weekly-delete-${confirmation?.id}`); confirmation = null; el('aiWeeklyDeleteConfirm').hidden = true;
-      (button || el('aiWeeklyHeading')).focus();
+      if (returnFocus) (button || el('aiWeeklyHeading')).focus({ preventScroll: true });
     }
     async function remove() {
       if (!confirmation || busy) return;
-      const id = confirmation.id, ticket = generation, who = owner;
+      const pending = confirmation;
+      if (!current(pending.ticket, pending.who) || pending.days !== days || pending.topic !== topic || !pending.button.isConnected) {
+        cancelDelete(false); return;
+      }
+      const id = pending.id, ticket = generation, who = owner;
+      // A metadata GET started before deletion must not restore the deleted text.
+      readVersion++; readBusy = false; readChecked = false;
       confirmation = null; el('aiWeeklyDeleteConfirm').hidden = true; busy = true; render();
       try {
         await api(`/api/ai-weekly-summary/${encodeURIComponent(id)}`, { method: 'DELETE', skipSessionRenewal: true, body: JSON.stringify({ confirm: true }) });
-        if (current(ticket, who)) { data = null; message = 'deleted'; }
+        if (current(ticket, who)) {
+          if (data?.summary?.id === id) data.summary = { ...data.summary, status: 'deleted', text: null };
+          if (data?.archive) data.archive = data.archive.filter(item => item.id !== id);
+          message = 'deleted';
+        }
       } catch (error) { if (current(ticket, who)) { message = error.status === 401 ? 'auth' : 'error'; el('aiWeeklyConsent').checked = false; } }
-      finally { if (current(ticket, who)) { busy = false; render(); el('aiWeeklyHeading').focus(); if (message !== 'auth' && !data?.empty) await load(); } }
+      finally {
+        if (current(ticket, who)) {
+          busy = false; render();
+          if (message === 'deleted') el('aiWeeklyRefresh').focus({ preventScroll: true });
+          else (el(`ai-weekly-delete-${id}`) || el('aiWeeklyHeading')).focus({ preventScroll: true });
+          const deleted = message === 'deleted';
+          if (message !== 'auth') await load();
+          if (deleted && current(ticket, who) && document.activeElement === document.body) el('aiWeeklyRefresh').focus({ preventScroll: true });
+        }
+      }
     }
     function reset() {
       generation++; readVersion++; owner = null; data = null; busy = false; readBusy = false; readChecked = false; message = ''; confirmation = null;
@@ -232,6 +269,7 @@
       render();
     }
     function changeSelection() {
+      if (confirmation) cancelDelete(false);
       days = Number(el('aiWeeklyDays').value === 'other' ? el('aiWeeklyCustomDays').value : el('aiWeeklyDays').value);
       topic = el('aiWeeklyTopic').value;
       readVersion++; readBusy = false; readChecked = false; data = null; message = ''; el('aiWeeklyConsent').checked = false;
