@@ -26,6 +26,7 @@
   };
 
   const STRINGS = {
+    ipCountryAttribution: { ru: 'Данные определения страны по IP:', en: 'IP country data:' },
     contractCharacterCount: { ru: '{current} из {max} символов', en: '{current} of {max} characters' },
     linkTelegramAccount: { ru: 'Привязать Telegram', en: 'Link Telegram' },
   telegramLinkHandoffHint: { ru: 'Открой Telegram, подтверди привязку там и вернись сюда для завершения.', en: 'Open Telegram, confirm the link there, then return here to finish.' },

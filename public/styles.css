@@ -145,6 +145,8 @@ input:not([type="checkbox"]):not([type="radio"]),textarea,select{
   background-repeat:no-repeat;
 }
 textarea{resize:vertical;min-height:5.2rem}
+/* Leave room for the existing external focus ring without moving quick actions. */
+#entryNote{width:calc(100% - 2rem);margin-inline:1rem}
 #contractTarget{max-height:50vh;overflow-y:auto}
 /* Bound the History editor, not the unrelated contract criterion field. */
 [data-history-edit-form] textarea{max-height:max(5.2rem,50dvh);overflow-y:auto}
@@ -408,7 +410,7 @@ h3{letter-spacing:-.015em}
 .badge-heart::before{content:"❤";position:absolute;font-size:4.5rem;opacity:.22;transform:rotate(2deg)}
 .badge-heart-count{color:#3b1712;position:relative;font-size:2.3rem;font-weight:1000;text-shadow:0 2px 8px rgba(92,20,20,.25)}
 .badge-heart[data-size="large"]{width:8rem;height:8rem}.badge-heart[data-size="xlarge"]{width:9rem;height:9rem}
-#refLink{font-weight:750;font-size:.95rem;background:#fff;overflow:hidden;text-overflow:ellipsis}
+#refLink{font-weight:750;font-size:.95rem;background:#fff;text-overflow:clip}
 .support-badge{text-align:center;background:radial-gradient(circle at 50% 12%,rgba(255,232,142,.28),transparent 8rem),linear-gradient(180deg,#fff,#fff2df);color:#2a160b}
 #tab-support h1{color:#241109;text-shadow:0 1px 0 rgba(255,255,255,.7)}
 #tab-support h2{color:#241109}
@@ -615,5 +617,5 @@ html.document-view-open,html.document-view-open body{overflow:hidden;overscroll-
 .ai-weekly-text{white-space:pre-wrap}
 .ai-weekly-saved{border-top:1px solid var(--border);padding-top:.8rem;margin-top:.8rem}
 .ai-weekly-confirm,.ai-weekly-confirm button{scroll-margin-bottom:calc(var(--measured-nav-height,var(--nav-height)) + 2rem + env(safe-area-inset-bottom))}
-.ai-weekly-confirm{border:1px solid var(--border);border-radius:var(--radius-md);padding:.75rem}
+.ai-weekly-confirm{border:1px solid var(--border);border-radius:var(--radius-md);padding:.75rem;margin-top:.75rem}
 .ai-weekly-confirm button{margin:.25rem 0}

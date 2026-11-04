@@ -4,11 +4,15 @@
     '/privacy.html': { ru: '/privacy.html', en: '/privacy.en.html' },
     '/terms.html': { ru: '/terms.html', en: '/terms.en.html' },
     '/about': { ru: '/about', en: '/en/about' },
+    '/partners': { ru: '/partners', en: '/en/partners' },
+    '/gratitude-journal': { ru: '/gratitude-journal', en: '/en/gratitude-journal' },
   });
-  const documents = new Set(Object.values(paths).flatMap((locales) => Object.values(locales)));
+  const publicPaths = new Set(Object.values(paths).flatMap((locales) => Object.values(locales)));
+  const documents = new Set(['/privacy.html', '/privacy.en.html', '/terms.html', '/terms.en.html', '/about', '/en/about']);
   const isDocument = documents.has(window.location.pathname);
+  const isStandalone = publicPaths.has(window.location.pathname);
   const query = new URLSearchParams(window.location.search);
-  const language = () => document.documentElement.lang === 'en' || (isDocument && query.getAll('lang').length === 1 && query.get('lang') === 'en') ? 'en' : 'ru';
+  const language = () => document.documentElement.lang === 'en' || (isStandalone && query.getAll('lang').length === 1 && query.get('lang') === 'en') ? 'en' : 'ru';
   const canonicalPath = (path) => Object.keys(paths).find((key) => Object.values(paths[key]).includes(path));
   const localizedPath = (path) => paths[canonicalPath(path)][language()];
   const localeQuery = () => language() === 'en' ? '&lang=en' : '';
@@ -29,14 +33,28 @@
     const sources = new URLSearchParams(window.location.search).getAll('source');
     const destinations = { web: new URL('/', window.location.origin).href,
       vk: 'https://vk.ru/app54723764', telegram: 'https://t.me/HarborLifeBot?startapp' };
-    const source = isDocument && sources.length === 1 && Object.hasOwn(destinations, sources[0]) ? sources[0] : 'web';
-    if (isDocument && window.location.pathname !== localizedPath(window.location.pathname)) {
+    const source = isStandalone && sources.length === 1 && Object.hasOwn(destinations, sources[0]) ? sources[0] : 'web';
+    if (isStandalone && window.location.pathname !== localizedPath(window.location.pathname)) {
       window.location.replace(`${localizedPath(window.location.pathname)}?source=${source}${localeQuery()}`);
       return;
     }
     document.querySelectorAll('a[href]').forEach((link) => {
+      // Explicit public-page language switches keep their destination locale.
+      if (isStandalone && ['ru', 'en'].includes(link.getAttribute('lang'))) return;
       const path = documentPath(link);
       if (path) link.setAttribute('href', isDocument ? `${localizedPath(path)}?source=${source}${localeQuery()}` : path);
+      else {
+        try {
+          const url = new URL(link.getAttribute('href'), window.location.origin);
+          if (url.origin !== window.location.origin || url.username || url.password || !publicPaths.has(url.pathname)) return;
+          link.setAttribute('href', localizedPath(url.pathname));
+          if (!isStandalone) {
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.referrerPolicy = 'no-referrer';
+          }
+        } catch { /* Ignore non-URL links. */ }
+      }
     });
     if (isDocument) {
       const back = document.querySelector('[data-document-return]');
@@ -48,7 +66,7 @@
   }
   window.KopilkaDocuments = Object.freeze({ refresh });
   refresh();
-  if (isDocument) return;
+  if (isStandalone) return;
 
   let dialog, content, title, opener, request, scrollPosition, scrollRestoration;
   let closing = false;
@@ -89,7 +107,7 @@
       if (url.username || url.password) return null;
       if (url.origin === window.location.origin) {
         if (documents.has(url.pathname)) return url.pathname;
-        return ['/partners', '/en/partners', '/gratitude-journal', '/en/gratitude-journal'].includes(url.pathname) ? url.pathname : null;
+        return publicPaths.has(url.pathname) ? localizedPath(url.pathname) : null;
       }
       if (url.protocol === 'mailto:') {
         return /^mailto:[^\s@?&#]+@[^\s@?&#]+\.[^\s@?&#]+$/.test(raw) ? raw : null;

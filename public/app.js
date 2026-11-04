@@ -562,7 +562,7 @@ let statusReturnFocus = null;
 // A late Ready publisher in the same startup must not undo a user's dismissal.
 let readyNoticeDismissed = false;
 function transientStatusDismissible() {
-  return ['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -570,7 +570,7 @@ function readyStatusDismissible() {
   return statusCategory === 'ready' && explicitStatusDismissible();
 }
 function explicitStatusDismissible() {
-  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -628,17 +628,17 @@ function setStatus(text, type = 'info', category = 'info') {
   statusRevision++;
   statusCategory = category === 'support-action-error' ? category : type === 'error' ? 'error' : category;
   const active = document.activeElement;
-  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
+  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
   const region = $('statusRegion');
   region.textContent = text + (state.refreshFailed && type !== 'error' && !text.includes(L('refreshPending')) ? ` ${L('refreshPending')}` : '');
   region.classList.toggle('error', type === 'error');
   syncStatusDismiss();
-  if (['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(category) && type !== 'error' && !state.refreshFailed) {
+  if (['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(category) && type !== 'error' && !state.refreshFailed) {
     const revision = statusRevision;
     setTimeout(() => {
       // Never erase a newer action, unsaved draft notice, auth or refresh warning.
       if (revision !== statusRevision || !transientStatusDismissible()) return;
-      if (['ready', 'template-applied', 'settings-saved', 'practices-updated', 'story-cancelled', 'link-opened'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
+      if (['ready', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
       else setStatus('');
     }, 5000);
   }
@@ -2143,7 +2143,7 @@ async function openSupportAction(actionId, previous = captureSupportStatus()) {
     if (action.status === 'available') {
       try { await creditSupportAction(actionId); }
       catch (_) { setSupportActionError(L('supportCreditUnavailable'), previous); return; }
-      setStatus(L('supportCredited'));
+      setStatus(L('supportCredited'), 'info', 'support-credited');
     } else setStatus(L('supportOpened'), 'info', 'link-opened');
   });
 }
@@ -2882,8 +2882,10 @@ function bindEvents() {
     const box = $('shareFallback');
     const input = $('shareFallbackLink');
     const message = referral ? `${L(statusKey)} ${L('referralPrivacyNotice')}` : L(statusKey);
-    // Only a nonfatal, unconfirmed share can be dismissed; keep manual copy available.
-    const category = statusKey === 'shareUnconfirmed' && statusType === 'info' ? 'share-unconfirmed' : 'info';
+    // Cancellation's banner is transient; its manual-copy field stays available.
+    // Unconfirmed sharing and actual copy/load failures retain their existing policy.
+    const category = statusType === 'info' && statusKey === 'storyCancelled' ? 'story-cancelled'
+      : statusKey === 'shareUnconfirmed' && statusType === 'info' ? 'share-unconfirmed' : 'info';
     if (!box || !input || !url) { setStatus(message, statusType, category); return; }
     box.hidden = false;
     input.value = url;
@@ -3050,16 +3052,17 @@ function bindEvents() {
       storyBtn.disabled = true;
       try {
         const blob = await storyImageDataUri(p.vkStoryCardUrl || '');
-        await window.vkBridge.send('VKWebAppShowStoryBox', {
+        const result = await window.vkBridge.send('VKWebAppShowStoryBox', {
           background_type: 'image',
           blob,
           attachment: { text: 'open', type: 'url', url: destination }
         });
+        if (result?.result !== true && !result?.code_data) throw new Error('VK story editor unavailable');
         setStatus(L('storyEditorOpened'));
         return;
       } catch (error) {
         const detail = userSafeErrorMessage(error);
-        if (/user denied|cancel/i.test(detail)) {
+        if ((error?.error_type === 'client_error' && error?.error_data?.error_code === 4) || /user denied|cancel/i.test(detail)) {
           showManualShare(destination, 'storyCancelled', 'info');
           return;
         }
