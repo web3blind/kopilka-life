@@ -586,7 +586,7 @@ function readyStatusDismissible() {
   return statusCategory === 'ready' && explicitStatusDismissible();
 }
 function explicitStatusDismissible() {
-  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened', 'contract-saved', 'history-deleted', 'history-loaded'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'profile-copy', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened', 'contract-saved', 'history-deleted', 'history-loaded'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -602,10 +602,12 @@ function syncStatusDismiss() {
     if (revision !== statusRevision || !explicitStatusDismissible()) return;
     const restoreFocus = document.activeElement === button;
     if (statusCategory === 'ready') readyNoticeDismissed = true;
+    const previous = statusCategory === 'profile-copy' ? copyStatusPrevious : null;
     $('statusRegion').textContent = '';
     statusCategory = 'dismissed';
     statusRevision++;
-    syncStatusDismiss();
+    if (previous) setStatus(previous.text, 'error', previous.category);
+    else syncStatusDismiss();
     if (restoreFocus) {
       const prior = statusReturnFocus;
       const safe = prior && prior !== document.body && prior !== document.documentElement &&
@@ -637,14 +639,14 @@ function clearSupportActionError() {
 let copyStatusPrevious = null;
 function setStatus(text, type = 'info', category = 'info') {
   if (category === 'ready' && type !== 'error' && readyNoticeDismissed) return;
-  const durable = statusCategory === 'copy' ? copyStatusPrevious
+  const durable = ['copy', 'profile-copy'].includes(statusCategory) ? copyStatusPrevious
     : statusCategory === 'error' || statusCategory === 'support-action-error'
       ? { text: $('statusRegion').textContent, category: statusCategory } : null;
-  copyStatusPrevious = category === 'copy' && type !== 'error' ? durable : null;
+  copyStatusPrevious = ['copy', 'profile-copy'].includes(category) && type !== 'error' ? durable : null;
   statusRevision++;
   statusCategory = category === 'support-action-error' ? category : type === 'error' ? 'error' : category;
   const active = document.activeElement;
-  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened', 'contract-saved', 'history-deleted', 'history-loaded'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
+  if (['ready', 'profile-copy', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened', 'contract-saved', 'history-deleted', 'history-loaded'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
   const region = $('statusRegion');
   region.textContent = text + (state.refreshFailed && type !== 'error' && !text.includes(L('refreshPending')) ? ` ${L('refreshPending')}` : '');
   region.classList.toggle('error', type === 'error');
@@ -658,14 +660,15 @@ function setStatus(text, type = 'info', category = 'info') {
       else setStatus('');
     }, 5000);
   }
-  if (category === 'copy' && type !== 'error') {
+  if (['copy', 'profile-copy'].includes(category) && type !== 'error') {
     const revision = statusRevision;
     setTimeout(() => {
       // A later action, error or warning owns the live region now.
       if (revision !== statusRevision) return;
-      if (durable) setStatus(durable.text, 'error', durable.category);
+      if (category === 'profile-copy' && explicitStatusDismissible() && $('dismissStatus')) $('dismissStatus').onclick?.();
+      else if (durable) setStatus(durable.text, 'error', durable.category);
       else setStatus(state.refreshFailed ? L('refreshPending') : '');
-    }, 2500);
+    }, category === 'profile-copy' ? 5000 : 2500);
   }
 }
 function setLoginStatus(text, type = 'info') {
@@ -2931,7 +2934,9 @@ function bindEvents() {
     const link = $('refLink')?.value;
     if (!link) return;
     if ($('shareFallback')) $('shareFallback').hidden = true;
-    if (await copyText(link)) setStatus(`${L('copied')} ${L('referralPrivacyNotice')}`, 'info', 'copy');
+    // Privacy details already remain beside the link; the receipt is short enough
+    // to read without racing the banner, and has its own explicit close policy.
+    if (await copyText(link)) setStatus(L('copied'), 'info', 'profile-copy');
     else showManualShare(link, 'copyFailed', 'error', true);
   });
   async function copyText(value) {
@@ -3129,7 +3134,10 @@ function bindEvents() {
           attachment: { text: 'open', type: 'url', url: destination }
         });
         if (result?.result !== true && !result?.code_data) throw new Error('VK story editor unavailable');
-        setStatus(L('storyEditorOpened'));
+        setStatus(L('storyEditorOpened'), 'info', 'day-scene-handoff');
+        // Disabling the initiating button can move native/browser focus to body.
+        // Restore its stable trigger only if the user later dismisses via Close.
+        statusReturnFocus = storyBtn;
         return;
       } catch (error) {
         const detail = userSafeErrorMessage(error);
