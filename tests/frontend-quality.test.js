@@ -327,7 +327,7 @@ test('7639521 dismissed Ready ignores late duplicates but preserves newer warnin
 test('history day navigation finishes its loading status in both locales', async () => {
   const { run, node } = client();
   for (const lang of ['ru', 'en']) {
-    run(`state.user = {locale:'${lang}'}; loadHistory = async () => {};`);
+    run(`state.user = {locale:'${lang}'}; loadHistory = async () => true;`);
     await run(`navigateHistory('2026-10-05')`);
     assert.equal(run('state.busy'), false);
     assert.doesNotMatch(node('statusRegion').textContent, /Загружаем|Loading|undefined/);

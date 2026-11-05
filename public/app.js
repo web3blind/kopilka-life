@@ -230,12 +230,27 @@ function applyVkStatusTop() {
     ? `max(96px, calc(env(safe-area-inset-top, 0px) + 64px), ${Math.max(64, currentTop)}px)`
     : `${Math.max(64, currentTop)}px`);
 }
+let vkBridgeInitFallback;
 function fireVkBridgeInit() {
   try {
     applyVkStatusTop();
     if (!vkLaunchParams()) return;
-    window.parent?.postMessage?.({ handler: 'VKWebAppInit', params: { request_id: `init_${Date.now()}` }, type: 'vk-connect', connectVersion: '3.0.2' }, '*');
-    window.vkBridge?.send?.('VKWebAppInit').catch?.(() => {});
+    if (window.KopilkaStartup?.initVkBridge) return window.KopilkaStartup.initVkBridge();
+    // Only for an absent guard: reserve once before invoking any transport.
+    if (!vkBridgeInitFallback) {
+      let settle;
+      vkBridgeInitFallback = new Promise(resolve => { settle = resolve; });
+      try {
+        const bridge = window.vkBridge;
+        if (bridge?.send) Promise.resolve(bridge.send('VKWebAppInit')).then(settle, settle);
+        else {
+          // Do not guess web transport from absent/late native handlers.
+          if (bridge?.isWebView?.() === false) window.parent?.postMessage?.({ handler: 'VKWebAppInit', params: { request_id: `init_${Date.now()}` }, type: 'vk-connect', connectVersion: '3.0.2' }, '*');
+          settle();
+        }
+      } catch (_) { settle(); } // ambiguous delivery remains consumed
+    }
+    return vkBridgeInitFallback;
   } catch (_) { /* best-effort VK wrapper initialization */ }
 }
 function clientLogDetails(details = '') {
@@ -380,11 +395,11 @@ function supportSurface() {
   return 'web';
 }
 async function initVkBridge() {
-  fireVkBridgeInit();
+  const init = fireVkBridgeInit();
   try {
-    if (!window.vkBridge?.send) return;
+    if (!init) return;
     await Promise.race([
-      window.vkBridge.send('VKWebAppInit'),
+      init,
       new Promise((resolve) => setTimeout(resolve, 1500))
     ]);
   } catch (_) { /* VK Bridge init is best-effort */ }
@@ -563,7 +578,7 @@ let statusReturnFocus = null;
 // A late Ready publisher in the same startup must not undo a user's dismissal.
 let readyNoticeDismissed = false;
 function transientStatusDismissible() {
-  return ['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened', 'contract-saved', 'history-deleted', 'history-loaded'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -571,7 +586,7 @@ function readyStatusDismissible() {
   return statusCategory === 'ready' && explicitStatusDismissible();
 }
 function explicitStatusDismissible() {
-  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened', 'contract-saved', 'history-deleted', 'history-loaded'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -629,17 +644,17 @@ function setStatus(text, type = 'info', category = 'info') {
   statusRevision++;
   statusCategory = category === 'support-action-error' ? category : type === 'error' ? 'error' : category;
   const active = document.activeElement;
-  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
+  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened', 'contract-saved', 'history-deleted', 'history-loaded'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
   const region = $('statusRegion');
   region.textContent = text + (state.refreshFailed && type !== 'error' && !text.includes(L('refreshPending')) ? ` ${L('refreshPending')}` : '');
   region.classList.toggle('error', type === 'error');
   syncStatusDismiss();
-  if (['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(category) && type !== 'error' && !state.refreshFailed) {
+  if (['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened', 'contract-saved', 'history-deleted', 'history-loaded'].includes(category) && type !== 'error' && !state.refreshFailed) {
     const revision = statusRevision;
     setTimeout(() => {
       // Never erase a newer action, unsaved draft notice, auth or refresh warning.
       if (revision !== statusRevision || !transientStatusDismissible()) return;
-      if (['ready', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
+      if (['ready', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened', 'contract-saved', 'history-deleted', 'history-loaded'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
       else setStatus('');
     }, 5000);
   }
@@ -1974,7 +1989,11 @@ async function navigateHistory(date) {
   else setBusy(true, L('historyLoading'));
   try {
     const loaded = await loadHistory(date, true);
-    if (loaded !== false && current()) setStatus(L('historyLoaded'));
+    if (loaded === true && current()) {
+      setStatus(L('historyLoaded'), 'info', 'history-loaded');
+      return true;
+    }
+    return false;
   } catch (error) {
     if (current()) throw error;
   } finally {
@@ -2082,13 +2101,14 @@ async function deleteHistoryEntry(id) {
     renderHistory();
     await refreshAfterCommit([() => loadHistory(state.historyDate, true)]);
     renderQuickActions(); renderSummary(); renderWeek();
-    setStatus(L('historyDeleted'));
+    setStatus(L('historyDeleted'), 'info', 'history-deleted');
   });
   // Re-render removes the old trigger. Focus an enabled neighbour only after
   // withBusy releases controls; keep the list position, not the page heading.
   if (epoch !== authEpoch || userId !== state.user?.id || state.activeTab !== 'week') return;
   const target = document.querySelector(`[data-history-delete="${nextId}"]`) || $('historyDate');
   target?.focus({ preventScroll: true });
+  if (statusCategory === 'history-deleted') statusReturnFocus = target;
   window.scrollTo({ ...scroll, behavior: 'instant' });
   // Native dialog/history focus restoration can land after the close event.
   requestAnimationFrame(() => {
@@ -2206,7 +2226,7 @@ async function createEntry(type, note = $('entryNote').value.trim()) {
   // success was already announced at commit; opening it must not repeat that.
   if (current() && awardedArtifacts.length) showArtifactToast(awardedArtifacts, false, false);
 }
-async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshAfterCommit([refreshProduct]); renderAll(); setStatus(L('contractCreated')); }); }
+async function createContract(event) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget).entries()); return withBusy(L('creatingContract'), async () => { const data = await api('/api/contracts', { method: 'POST', body: JSON.stringify(payload) }); state.currentContract = data.contract; await refreshAfterCommit([refreshProduct]); renderAll(); setStatus(L('contractCreated'), 'info', 'contract-saved'); }); }
 async function closeContract(status) {
   let awardedArtifacts = [];
   await withBusy(L('closingContract'), async () => {
@@ -2218,7 +2238,7 @@ async function closeContract(status) {
     renderAll();
   });
   if (awardedArtifacts.length) showArtifactToast(awardedArtifacts);
-  else setStatus(L('contractClosed'));
+  else setStatus(L('contractClosed'), 'info', 'contract-saved');
 }
 async function refreshPushStatus() {
   const status = $('pushStatus'), enable = $('enablePush'), disable = $('disablePush');
@@ -2560,7 +2580,27 @@ function bindEvents() {
   document.querySelector('.tab-bar').addEventListener('click', (event) => { const b = event.target.closest('button[data-tab]'); if (b && !state.busy && !state.publicReadOnly) switchTab(b.dataset.tab); });
   $('historyDate')?.addEventListener('change', async (event) => { if (state.busy || !event.target.value) return; try { await navigateHistory(event.target.value); } catch (e) { setStatus(e.message, 'error'); renderHistory(); } });
   $('historyPrevious')?.addEventListener('click', async () => { if (state.busy || !state.history?.previousDate) return; try { await navigateHistory(state.history.previousDate); } catch (e) { setStatus(e.message, 'error'); } });
-  $('historyToday')?.addEventListener('click', async () => { if (state.busy) return; try { await navigateHistory(state.history?.todayDate || ''); } catch (e) { setStatus(e.message, 'error'); } });
+  // Coalesce only 600ms after a successful current Today read. Ignored inputs do
+  // not extend this window: Today remains an intentional external-data refresh.
+  let todayRead = null;
+  $('historyToday')?.addEventListener('click', async () => {
+    if (state.busy) return;
+    const epoch = authEpoch, userId = state.user?.id, day = localDay();
+    if (!state.historyEditingId && state.history?.selectedDate === state.history?.todayDate &&
+        todayRead && todayRead.epoch === epoch && todayRead.userId === userId &&
+        todayRead.generation === historyReadGeneration && todayRead.day === day &&
+        performance.now() - todayRead.at < 600) return;
+    todayRead = null;
+    const generation = historyReadGeneration + 1;
+    const navigation = historyNavigationGeneration + 1;
+    try {
+      const loaded = await navigateHistory(''); // Server resolves today in the owner's timezone.
+      if (loaded && epoch === authEpoch && userId === state.user?.id && day === localDay() &&
+          generation === historyReadGeneration && navigation === historyNavigationGeneration) {
+        todayRead = { epoch, userId, day, generation, at: performance.now() };
+      }
+    } catch (e) { setStatus(e.message, 'error'); }
+  });
   $('historyNext')?.addEventListener('click', async () => { if (state.busy || !state.history?.nextDate) return; try { await navigateHistory(state.history.nextDate); } catch (e) { setStatus(e.message, 'error'); } });
   $('historyDays')?.addEventListener('click', async (event) => { const button = event.target.closest('[data-history-date]'); if (!button || state.busy) return; try { await navigateHistory(button.dataset.historyDate); } catch (e) { setStatus(e.message, 'error'); } });
   $('selectedDayEntries')?.addEventListener('click', async (event) => {

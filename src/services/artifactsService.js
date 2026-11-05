@@ -32,7 +32,7 @@ const ARTIFACTS = [
     id: 'nightingale_close_voices',
     title: { ru: 'Соловей Близких Голосов', en: 'Nightingale of Close Voices' },
     shortTitle: { ru: 'Связь с людьми', en: 'Connection with people' },
-    triggerText: { ru: 'Встреча случилась после недели, где нашлось место общению с друзьями и родными.', en: 'The encounter happened after a week that made room for friends and family.' },
+    triggerText: { ru: 'Встреча случилась, когда за последние семь дней ты отметил общение и время с родными хотя бы по разу — и не меньше трёх раз в сумме.', en: 'The encounter happened when you noted contact with friends and time with family at least once each in the last seven days — and at least three times in total.' },
     unlockedText: { ru: 'Соловей Близких Голосов пропел тихо: хорошо, что ты не терял связь с людьми. Друг, подруга, родные — это тоже жизнь.', en: 'The Nightingale of Close Voices sang softly: it is good that you stayed connected. Friends and family are part of life too.' },
     lockedText: { ru: 'Здесь пока тихо. Новая встреча откроется сама — спешить не нужно.', en: 'It is quiet here for now. A new encounter will open in its own time; there is no need to hurry.' },
     image: '/assets/artifacts/nightingale_close_voices.webp',

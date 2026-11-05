@@ -367,7 +367,7 @@
     shareFallbackLabel: { ru: 'Ссылка для ручного копирования', en: 'Link for manual copying' },
     shareFallbackHint: { ru: 'Выдели ссылку и скопируй её обычной командой устройства.', en: 'Select the link and copy it with your usual device command.' },
     reportProblem: { ru: 'Сообщить о проблеме', en: 'Report a problem' },
-    firstDayGuideTitle: { ru: 'Как начать в первый день', en: 'How to start on your first day' },
+    firstDayGuideTitle: { ru: 'Как пользоваться копилкой', en: 'How to use Life Harbor' },
     firstDayGuideStep1: { ru: 'Выбери одну быструю отметку о том, что уже поддержало день.', en: 'Choose one quick entry for something that already supported your day.' },
     firstDayGuideStep2: { ru: 'Заметка не обязательна — одного нажатия достаточно.', en: 'A note is optional; one tap is enough.' },
     firstDayGuideStep3: { ru: 'В Истории можно поправить заметку или удалить случайную отметку.', en: 'In History, you can edit a note or delete an accidental entry.' },
