@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Копилка жизни</title>
   <meta name="theme-color" content="#B97443">
@@ -60,10 +61,17 @@
     failed = true;
     refresh();
   }
-  function english() {
-    try { return /(?:[?&])lang=en(?:&|$)/.test(window.location.search) || window.localStorage.getItem('kopilkaLocale') === 'en'; }
-    catch (_) { return false; }
+  function initialLocale() {
+    var query = new URLSearchParams(window.location.search);
+    var explicit = query.get('lang');
+    if (explicit === 'ru' || explicit === 'en') return explicit;
+    var cached = '';
+    try { cached = window.localStorage.getItem('kopilkaLocale'); } catch (_) { /* presentation only */ }
+    if (cached === 'ru' || cached === 'en') return cached;
+    // Launch language is a presentation hint, never identity or authority to read data.
+    return query.get('vk_language') === 'en' ? 'en' : 'ru';
   }
+  function english() { return initialLocale() === 'en'; }
   function nativeRecovery() {
     if (!isVkLaunch || nativeSent) return;
     try {
@@ -85,6 +93,7 @@
   window.addEventListener('VKWebAppEvent', bridgeEvent);
   document.addEventListener('VKWebAppEvent', bridgeEvent);
   window.KopilkaStartup = {
+    locale: initialLocale,
     mark: function (event) {
       log(event);
       if (event === 'bridge-loaded') {
@@ -180,7 +189,7 @@
         <!-- GOOGLE_AUTH_END -->
         <!-- GLOBAL_AUTH_END -->
         <button id="vkLoginButton" type="button" class="login-button secondary" data-i18n="loginVkButton">Войти через VK ID</button>
-        <p><a href="https://vk.com/app54723764" target="_blank" rel="noopener noreferrer" data-i18n="openVkMiniApp">Открыть Mini App во ВКонтакте</a></p>
+        <p><button type="button" id="openVkMiniApp" data-i18n="openVkMiniApp">Открыть Mini App во ВКонтакте</button></p>
       </section>
       <ul class="landing-benefits" data-login-landing-only aria-label="Чем помогает Копилка жизни" data-i18n-aria="landingBenefitsLabel">
         <li><strong data-i18n="landingBenefitFastTitle">Быстрые отметки</strong><span data-i18n="landingBenefitFastText">Один клик вместо длинного дневника.</span></li>
@@ -598,7 +607,7 @@
       } catch (_) {}
     })();
   </script>
-  <script src="/i18n.js?v=20261104-testers8-1" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('i18n-loaded')"></script>
+  <script src="/i18n.js?v=20261105-sessions-notices1" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('i18n-loaded')"></script>
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
   <script src="/vendor/vk-bridge-3.0.2.min.js?v=20260820" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('bridge-loaded')"></script>
   <script>
@@ -613,6 +622,6 @@
   <script src="/document-navigation.js?v=20261104-testers8-1" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('documents-loaded')"></script>
   <script src="/day-scene.js?v=20261011-share-lifetime7" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('scene-loaded')"></script>
   <script src="/ai-weekly.js?v=20261101-ai-actions1"></script>
-  <script src="/app.js?v=20261104-testers8-1" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('app-loaded')"></script>
+  <script src="/app.js?v=20261105-sessions-notices1" onload="window.KopilkaStartup &amp;&amp; window.KopilkaStartup.mark('app-loaded')"></script>
 </body>
 </html>

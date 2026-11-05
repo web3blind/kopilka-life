@@ -6,7 +6,8 @@ const storage = {
   set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_) { /* storage may be unavailable in some WebViews */ } },
   remove(key) { try { window.localStorage?.removeItem(key); } catch (_) { /* storage may be unavailable in some WebViews */ } }
 };
-const locale = () => I18N.normalizeLocale(state.user?.locale || storage.get('kopilkaLocale') || 'ru');
+let presentationLocale = window.KopilkaStartup?.locale?.() || storage.get('kopilkaLocale') || 'ru';
+const locale = () => I18N.normalizeLocale(state.user?.locale || presentationLocale);
 const L = (key, params) => I18N.t(locale(), key, params);
 
 const state = { settingsDirty: false, refreshFailed: false, lastRefresh: 0, refreshPending: false, pendingQuickAfterRefresh: null, token: storage.get('kopilkaToken') || '', user: null, summary: null, week: null, history: null, historyDate: '', historyEditingId: null, currentContract: null, product: null, profile: null, publicProfileTarget: null, artifacts: [], artifactQueue: [], support: null, activeTab: 'today', busy: false, publicReadOnly: false, publicStatus: '', pendingMerge: null, recoveryNotice: null, artifactReturnFocus: null, quickActionReturnType: '', quickActionReturnButton: null, sessionRenewalPromise: null, sessionRenewalBlocked: false, vkBridgeLaunchParams: '', vkOAuthWindow: null, vkOAuthChannel: '', vkOAuthAction: '', vkOAuthMonitor: null, vkLinkRequiresOAuth: false };
@@ -562,7 +563,7 @@ let statusReturnFocus = null;
 // A late Ready publisher in the same startup must not undo a user's dismissal.
 let readyNoticeDismissed = false;
 function transientStatusDismissible() {
-  return ['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -570,7 +571,7 @@ function readyStatusDismissible() {
   return statusCategory === 'ready' && explicitStatusDismissible();
 }
 function explicitStatusDismissible() {
-  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
+  return ['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(statusCategory) && !state.busy && !state.refreshFailed &&
     !state.pendingMerge && !state.sessionRenewalPromise && !state.sessionRenewalBlocked &&
     Boolean(state.user) && !$('appShell')?.hidden && Boolean($('statusRegion')?.textContent);
 }
@@ -628,17 +629,17 @@ function setStatus(text, type = 'info', category = 'info') {
   statusRevision++;
   statusCategory = category === 'support-action-error' ? category : type === 'error' ? 'error' : category;
   const active = document.activeElement;
-  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
+  if (['ready', 'share-unconfirmed', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(category) && active !== $('dismissStatus')) statusReturnFocus = active;
   const region = $('statusRegion');
   region.textContent = text + (state.refreshFailed && type !== 'error' && !text.includes(L('refreshPending')) ? ` ${L('refreshPending')}` : '');
   region.classList.toggle('error', type === 'error');
   syncStatusDismiss();
-  if (['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(category) && type !== 'error' && !state.refreshFailed) {
+  if (['ready', 'entry-success', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(category) && type !== 'error' && !state.refreshFailed) {
     const revision = statusRevision;
     setTimeout(() => {
       // Never erase a newer action, unsaved draft notice, auth or refresh warning.
       if (revision !== statusRevision || !transientStatusDismissible()) return;
-      if (['ready', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'link-opened'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
+      if (['ready', 'template-applied', 'settings-saved', 'practices-updated', 'support-credited', 'story-cancelled', 'day-scene-handoff', 'link-opened'].includes(category) && $('dismissStatus')) $('dismissStatus').onclick?.();
       else setStatus('');
     }, 5000);
   }
@@ -870,6 +871,8 @@ function applyStaticI18n() {
   });
   document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', L(el.dataset.i18nAria)));
   document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = L(el.dataset.i18nPlaceholder); });
+  const reentry = $('openVkMiniApp');
+  if (reentry && isVkMiniApp()) reentry.textContent = L('vkReenterHere');
   const sceneShare = $('daySceneShare');
   if (sceneShare) {
     const vk = isVkMiniApp();
@@ -1011,6 +1014,7 @@ function setVerifiedUser(user) {
     state.history = null;
     state.historyDate = '';
   }
+  if (user?.locale) presentationLocale = I18N.normalizeLocale(user.locale);
   Object.assign(state, { user });
 }
 function openHistoryEditor(id) {
@@ -1724,6 +1728,31 @@ async function showLoginScreen(options = {}) {
   if (!vk) await initTelegramLogin();
 }
 
+let vkReentryPending = false;
+let vkReentryWindow = null;
+async function openVkMiniApp() {
+  if (vkReentryPending) return;
+  if (isVkMiniApp()) {
+    // A VK host is already displaying this app. A vk.com/app link stacks hosts;
+    // retry the existing signed-launch path instead, without retiring drafts.
+    if (vkAuthCoolingDown()) { updateVkAuthCooldown(); return; }
+    vkReentryPending = true;
+    const button = $('openVkMiniApp');
+    button.disabled = true;
+    try { await start(); }
+    finally { vkReentryPending = false; button.disabled = false; }
+    return;
+  }
+  // Website/iframe visits retain the original form and reuse their owned window.
+  // Never forward the current query, fragment, bearer or launch proof.
+  try {
+    if (vkReentryWindow && !vkReentryWindow.closed) { vkReentryWindow.focus(); return; }
+    vkReentryWindow = window.open('https://vk.com/app54723764', '_blank');
+    if (vkReentryWindow) vkReentryWindow.opener = null;
+    else setLoginStatus(L('vkReentryBlocked'));
+  } catch (_) { setLoginStatus(L('vkReentryBlocked')); }
+}
+
 async function showSessionRecovery() {
   setStatus(L('sessionExpiredLogin'), 'error');
   await showLoginScreen({ landing: false });
@@ -2367,6 +2396,7 @@ async function setLanguage(lang) {
   if (normalized === locale()) return;
   return withBusy(L('savingSettings'), async () => {
     if (state.token) { const data = await api('/api/settings/locale', { method: 'POST', body: JSON.stringify({ locale: normalized }) }); setVerifiedUser(data.user); }
+    presentationLocale = normalized;
     storage.set('kopilkaLocale', normalized);
     await refreshAfterCommit([loadData]);
     renderAll(); setStatus(L('settingsSaved'), 'info', 'settings-saved');
@@ -2618,7 +2648,7 @@ function bindEvents() {
         return;
       }
       const result = await window.KopilkaDayScene.share(locale(), date, isVkMiniApp() ? 'vk' : 'web');
-      if (result === 'story_editor') setStatus(L('daySceneStoryOpened'));
+      if (result === 'story_editor') setStatus(L('daySceneStoryOpened'), 'info', 'day-scene-handoff');
       if (result === 'cancelled' && isVkMiniApp()) setStatus(L('daySceneStoryCanceled'), 'info', 'story-cancelled');
       if (result === 'shared') setStatus(L('daySceneShared'));
       if (result === 'downloaded') setStatus(L('daySceneDownloaded'));
@@ -2684,6 +2714,7 @@ function bindEvents() {
   });
   $('cleanupDemo').addEventListener('click', async () => { if (state.busy) return; try { await cleanupDemo(); } catch (e) { setStatus(e.message, 'error'); } });
   document.querySelectorAll('[data-lang]').forEach((btn) => btn.addEventListener('click', async () => { if (state.busy) return; try { await setLanguage(btn.dataset.lang); } catch (e) { setStatus(e.message, 'error'); } }));
+  $('openVkMiniApp')?.addEventListener('click', () => { void openVkMiniApp(); });
   const vkBtn = $('vkLoginButton');
   $('googleLoginButton')?.addEventListener('click', async () => {
     if (isVkMiniApp()) return;
@@ -3174,6 +3205,7 @@ async function renderPublicProfile(code, options = {}) {
   }
 }
 (async () => {
+  applyStaticI18n(); // Presentation must settle before any provider/config await.
   fireVkBridgeInit();
   setVkAttributionVisibility();
   bindEvents(); // bind buttons in every context (site, public profile, Mini App)

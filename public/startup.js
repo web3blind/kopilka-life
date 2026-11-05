@@ -48,10 +48,17 @@
     failed = true;
     refresh();
   }
-  function english() {
-    try { return /(?:[?&])lang=en(?:&|$)/.test(window.location.search) || window.localStorage.getItem('kopilkaLocale') === 'en'; }
-    catch (_) { return false; }
+  function initialLocale() {
+    var query = new URLSearchParams(window.location.search);
+    var explicit = query.get('lang');
+    if (explicit === 'ru' || explicit === 'en') return explicit;
+    var cached = '';
+    try { cached = window.localStorage.getItem('kopilkaLocale'); } catch (_) { /* presentation only */ }
+    if (cached === 'ru' || cached === 'en') return cached;
+    // Launch language is a presentation hint, never identity or authority to read data.
+    return query.get('vk_language') === 'en' ? 'en' : 'ru';
   }
+  function english() { return initialLocale() === 'en'; }
   function nativeRecovery() {
     if (!isVkLaunch || nativeSent) return;
     try {
@@ -73,6 +80,7 @@
   window.addEventListener('VKWebAppEvent', bridgeEvent);
   document.addEventListener('VKWebAppEvent', bridgeEvent);
   window.KopilkaStartup = {
+    locale: initialLocale,
     mark: function (event) {
       log(event);
       if (event === 'bridge-loaded') {

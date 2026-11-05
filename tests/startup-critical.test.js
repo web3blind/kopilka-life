@@ -38,7 +38,7 @@ if (process.argv.includes('--sync')) {
     const nodes = Object.fromEntries(['startupScreen', 'startupHeading', 'startupMessage', 'startupReload', 'appShell', 'loginScreen'].map(id => [id, {hidden: id === 'appShell' || id === 'loginScreen', textContent: ''}]));
     let now = 0;
     const window = { location: {search, hash: ''}, addEventListener(n, f) {(listeners[n] ||= []).push(f);}, localStorage: {getItem: () => null}, fetch(url, opts) {logs.push(opts); return Promise.resolve();}, vkBridge: {isWebView: () => false, send: () => new Promise(() => {})} };
-    const ctx = {window, document: {documentElement: {}, getElementById: id => nodes[id], addEventListener(n, f) {(listeners[n] ||= []).push(f);}}, MutationObserver: class {observe() {}}, setTimeout(f, ms) {const t = {ms, at: now + ms, done: false}; t.f = () => {if (t.done) return; t.done = true; now = Math.max(now, t.at); f();}; timers.push(t); return t;}, clearTimeout(t) {if(t) t.done = true;}, Date: {now: () => now}};
+    const ctx = {URLSearchParams, window, document: {documentElement: {}, getElementById: id => nodes[id], addEventListener(n, f) {(listeners[n] ||= []).push(f);}}, MutationObserver: class {observe() {}}, setTimeout(f, ms) {const t = {ms, at: now + ms, done: false}; t.f = () => {if (t.done) return; t.done = true; now = Math.max(now, t.at); f();}; timers.push(t); return t;}, clearTimeout(t) {if(t) t.done = true;}, Date: {now: () => now}};
     vm.runInNewContext(source, ctx);
     return {window, nodes, timers, calls, logs,
       tick(end) {for (;;) {const t = timers.filter(t => !t.done && t.at <= end).sort((a,b) => a.at-b.at)[0]; if(!t) break; t.f();} now = end;},

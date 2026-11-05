@@ -179,6 +179,8 @@
     loginGoogleButton: { ru: 'Войти через Google', en: 'Sign in with Google' },
     linkGoogleAccount: { ru: 'Привязать Google', en: 'Link Google' },
     googleLinkDone: { ru: 'Google привязан к твоему аккаунту.', en: 'Google is linked to your account.' },
+    vkReenterHere: { ru: 'Повторить вход в этом приложении', en: 'Retry sign-in in this app' },
+    vkReentryBlocked: { ru: 'Разреши открытие окна и попробуй ещё раз.', en: 'Allow the window to open and try again.' },
     openVkMiniApp: { ru: 'Открыть Mini App во ВКонтакте', en: 'Open the VK Mini App' },
     loginMethodsHeading: { ru: 'Войти и начать', en: 'Sign in and start' },
     loginTelegramHint: { ru: 'Кнопка входа через Telegram появится здесь.', en: 'The Telegram sign-in button will appear here.' },

@@ -99,7 +99,7 @@ const STRINGS = {
   'error.telegramSession': { ru: 'Не удалось подтвердить Telegram-сессию. Открой приложение из Telegram ещё раз.', en: 'Could not confirm the Telegram session. Open the app from Telegram again.' },
   'error.vkSession': { ru: 'Не удалось подтвердить VK-сессию. Открой приложение из VK ещё раз.', en: 'Could not confirm the VK session. Open the app from VK again.' },
   'error.contractExists': { ru: 'Уже есть активный договор заботы', en: 'There is already an active care contract' },
-  'error.contractFields': { ru: 'Заполни название и критерий договора', en: 'Fill in the contract name and criteria' },
+  'error.contractFields': { ru: 'Заполни название и критерий договора.', en: 'Fill in the contract name and criteria.' },
   'error.contractInputType': { ru: 'Передай поля договора в виде объекта.', en: 'Provide the contract fields as an object.' },
   'error.contractTextType': { ru: 'Текстовые поля договора должны содержать текст.', en: 'Contract text fields must contain text.' },
   'error.contractTitleTooLong': { ru: 'Название договора может содержать не больше 120 символов.', en: 'The contract name can contain no more than 120 characters.' },
